@@ -1,0 +1,9 @@
+-explicit-parameter-storage-type
+-parameter-name-style
+-line-length
+-port-name-style
+-no-tabs
+-generate-label
+-module-filename
+-unpacked-dimensions-range-ordering
+-unpacked-ordering
