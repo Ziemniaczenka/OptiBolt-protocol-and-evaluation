@@ -6,6 +6,7 @@
 
 *Tu będzie opis*
 
+
 ## TODO
 
 <details open>
@@ -21,9 +22,9 @@
       - [x] Stworzyć Repo
       - [ ] Dowiedzieć się jak działają pull request i review
     - [x] Napisać README
-    - [ ] Dodać referencyjne dokumenty (np. zielony pdf z konwencjami)
+    - [x] Dodać referencyjne dokumenty (np. zielony pdf z konwencjami)
     - [ ] VSCode settings + formatter config
-    - [ ] Nauczyć się Markdown i Mermaid [Link do tutoriala](https://docs.github.com/en/get-started/writing-on-github)
+    - [ ] Nauczyć się Markdown i Mermaid
 
     </details>
 
@@ -41,13 +42,17 @@
 
     - [ ] Założenia, teoria
     - [ ] Warstwy modelu
-    - [ ] Schematy blokowe
+    - [ ] Flowchart, Sequence diagrams
     </details>
 
 *   <details open>
     <summary><b>Program testowy</b></summary>
 
     - [ ] Wyświetlanie VGA
+      - [ ] Rysowanie znaków
+      - [ ] DrawString
+      - [ ] FontLibrary
+      - [ ] DrawChart
     - [ ] Obsługa klawiatury
     - [ ] Różne testy (max baudrate, BER, latency, wysyłanie wiadomości, itd)
     </details>
@@ -55,7 +60,7 @@
 *   <details open>
     <summary><b>Systemverilog</b></summary>
 
-    - [ ] Podział na moduły
+    - [ ] Podział na moduły, diagram
     - [ ] Testbenche do każdej grupy modułów/do każdego modułu?
     </details>
 
@@ -101,9 +106,11 @@
     * **Git**
       * [Poradnik gita](https://git-scm.com/book/pl/v2)
     * **Markdown**
+      * GitHub Flavored Markdown
+        * [Tutorial](https://docs.github.com/en/get-started/writing-on-github)
       * Mermaid
         * [Online editor](https://mermaid.ai/live/)
-        * [Docs]
+        * [Docs](https://mermaid.js.org/intro/)
     * **Grafiki**
       * [Lopaka - pixelart](https://lopaka.app/)
 
@@ -114,7 +121,7 @@
 ## Architektura Sprzętowa
 
 <details open>
-<summary><b><big>Schemat Blokowy </big></b></summary>
+<summary><b><big>Schemat Blokowy Połączeń </big></b></summary>
 
 ```mermaid
 flowchart LR
@@ -174,3 +181,12 @@ flowchart LR
 
 </details>
 
+<details open>
+<summary><b><big>Schemat Modułu OptiBolt PMOD </big></b></summary>
+
+<!-- Dwa pliki z odwróconym kolorem dla jasnego i ciemnego motywu -->
+
+![OptiBolt transceiver schematic](/doc/schematic/OptiBolt_transceiver_light.svg#gh-light-mode-only)
+![OptiBolt transceiver schematic](/doc/schematic/OptiBolt_transceiver_dark.svg#gh-dark-mode-only)
+
+</details>
