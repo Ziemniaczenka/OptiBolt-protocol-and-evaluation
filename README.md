@@ -32,9 +32,19 @@
     <summary><b>Hardware</b></summary>
 
     - [x] Znaleźć złącze
-    - [ ] Narysować schemat
+    - [x] Narysować schemat
     - [ ] Zamówić brakujące części
     - [ ] Zlutować
+    </details>
+
+*   <details open>
+    <summary><b>SystemVerilog </b></summary>
+
+    - [ ] Podział na moduły, diagram
+    - [ ] Testbenche do każdej grupy modułów/do każdego modułu?
+    - [ ] SystemVerilog OOP (Object Oriented Programming)?
+    - [ ] UVM - Universal Verification Methodology - test for testbenches?
+      - [ ] Aktualizacja skryptów do UVM?
     </details>
 
 *   <details open>
@@ -49,19 +59,12 @@
     <summary><b>Program testowy</b></summary>
 
     - [ ] Wyświetlanie VGA
-      - [ ] Rysowanie znaków
-      - [ ] DrawString
-      - [ ] FontLibrary
-      - [ ] DrawChart
+      - [ ] Rysowanie znaków?
+      - [ ] DrawString?
+      - [ ] FontLibrary?
+      - [ ] DrawChart?
     - [ ] Obsługa klawiatury
     - [ ] Różne testy (max baudrate, BER, latency, wysyłanie wiadomości, itd)
-    </details>
-
-*   <details open>
-    <summary><b>Systemverilog</b></summary>
-
-    - [ ] Podział na moduły, diagram
-    - [ ] Testbenche do każdej grupy modułów/do każdego modułu?
     </details>
 
 </details>
@@ -99,6 +102,29 @@
     * **Zasady kodowania**
       * [wikiMTM](https://wiki.mtm.agh.edu.pl/pl/students/courses/uec/sv-rtl-coding-rules)
       * [PDF](doc/mtm-digital-guidelines.pdf)
+  
+    * **SystemVerilog**
+      * [ChipVerify Tutorial](https://www.chipverify.com/systemverilog/systemverilog-tutorial)
+      * OOP
+        * [CV Classes](https://www.chipverify.com/systemverilog/systemverilog-class)
+      * UVM
+        * <details>
+          <summary><a href="https://www.chipverify.com/uvm/uvm-tutorial">CV OVM Tutorial</a></summary>
+
+          * >**Common Beginner Mistakes:**\
+            Mistake #1: Trying to Learn UVM Without SystemVerilog OOP\
+            Mistake #2: Reading the UVM Reference Manual First\
+            Mistake #3: Trying to Understand All of UVM at Once\
+            Mistake #4: Not Running Code While Learning
+          * > **UVM Learning Curve in Industry**\
+            Professional verification teams typically train new engineers with this timeline:<br> 
+            **Week 1-2:** SystemVerilog OOP refresher and basic UVM concepts.<br> 
+            **Week 3-4:** Build a simple UVM testbench from scratch (UART, I2C, SPI).<br> 
+            **Week 5-8:** Work on a real project under mentorship, extending existing environments.<br> 
+            **Month 3-6:** Independent contribution to verification IP development. Most engineers become proficient within 6 months of hands-on practice, even without prior UVM experience—if they have strong SystemVerilog foundations.
+          </details>         
+  
+        * [Vivado docs](https://docs.amd.com/r/en-US/ug900-vivado-logic-simulation/Vivado-Simulator-Compilation-Options)  
     * **Informacje na temat protokołu**
       * [Hardware 1](https://vksdr.com/pmod/)   
       * [Hardware 2](https://tomverbeure.github.io/2021/01/18/SPDIF-Output-PMOD.html)   
@@ -190,3 +216,17 @@ flowchart LR
 ![OptiBolt transceiver schematic](/doc/schematic/OptiBolt_transceiver_dark.svg#gh-dark-mode-only)
 
 </details>
+
+## Architektura Ogólna
+``` mermaid
+  flowchart LR
+
+  OptiBolt[OptiBolt] --> TestBench
+  TestBench --> OptiBolt
+
+
+```
+
+## Architektura Protokołu OptiBolt
+
+## Architektura Testbench
