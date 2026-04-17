@@ -1,4 +1,4 @@
-# OptiBolt - Protocol and Testbench
+# OptiBolt - Protocol and Evaluation
 
 **Autorzy:** *Tomasz Więcławski (@TomaszWieclawski), Sebastian Zoń (@Ziemniaczenka)*
 
@@ -42,6 +42,8 @@
 
     - [ ] Podział na moduły, diagram
     - [ ] Testbenche do każdej grupy modułów/do każdego modułu?
+    - [ ] Ustalenie Clock domains
+      - [ ] CDC pomiędzy sekcjami
     - [ ] SystemVerilog OOP (Object Oriented Programming)?
     - [ ] UVM - Universal Verification Methodology - test for testbenches?
       - [ ] Aktualizacja skryptów do UVM?
@@ -59,6 +61,8 @@
     <summary><b>Program testowy</b></summary>
 
     - [ ] Wyświetlanie VGA
+      - [ ] Double frame buffer
+      - [ ] VGA Parameters include 
       - [ ] Rysowanie znaków?
       - [ ] DrawString?
       - [ ] FontLibrary?
@@ -107,6 +111,9 @@
       * [ChipVerify Tutorial](https://www.chipverify.com/systemverilog/systemverilog-tutorial)
       * OOP
         * [CV Classes](https://www.chipverify.com/systemverilog/systemverilog-class)
+      * CDC (Clock Domain Crossing)
+        * [CV CDC](https://www.chipverify.com/rtl-synthesis/clock-domain-crossing)
+        * [MTM wiki](https://wiki.mtm.agh.edu.pl/pl/students/courses/uec/cdc)
       * UVM
         * <details>
           <summary><a href="https://www.chipverify.com/uvm/uvm-tutorial">CV OVM Tutorial</a></summary>
@@ -125,6 +132,8 @@
           </details>         
   
         * [Vivado docs](https://docs.amd.com/r/en-US/ug900-vivado-logic-simulation/Vivado-Simulator-Compilation-Options)  
+    * **Basys 3**
+      * [Reference manual](https://digilent.com/reference/programmable-logic/basys-3/reference-manual)
     * **Informacje na temat protokołu**
       * [Hardware 1](https://vksdr.com/pmod/)   
       * [Hardware 2](https://tomverbeure.github.io/2021/01/18/SPDIF-Output-PMOD.html)   
@@ -221,12 +230,13 @@ flowchart LR
 ``` mermaid
   flowchart LR
 
-  OptiBolt[OptiBolt] --> TestBench
-  TestBench --> OptiBolt
+  OptiBolt[OptiBolt Protocol] --> Eval[Evaluation Platform]
+  Eval --> OptiBolt
 
 
 ```
 
 ## Architektura Protokołu OptiBolt
 
-## Architektura Testbench
+## Architektura Platformy Ewaluacji
+
