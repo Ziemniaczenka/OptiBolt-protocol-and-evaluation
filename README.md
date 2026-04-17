@@ -159,6 +159,9 @@
 <summary><b><big>Schemat Blokowy Połączeń </big></b></summary>
 
 ```mermaid
+---
+title: Schemat Blokowy
+---
 flowchart LR
   %%{init: {'flowchart': {'curve': 'linear'}}}%%
 
@@ -227,14 +230,46 @@ flowchart LR
 </details>
 
 ## Architektura Ogólna
+<details open>
+<summary><b><big>Schemat Połączeń Między Sekcjami </big></b></summary>
+
 ``` mermaid
   flowchart LR
+    %%{init: {'flowchart': {'curve': 'linear'}}}%%
 
-  OptiBolt[OptiBolt Protocol] --> Eval[Evaluation Platform]
-  Eval --> OptiBolt
+    %% Modules
 
+    VGA[VGA]
+    
+    Eval[Evaluation 
+    Platform]
+    Eval@{shape: hex}
+    style Eval font-size:24px
+
+    OptiBolt[OptiBolt 
+    Protocol]
+    OptiBolt@{shape: hex}
+    style OptiBolt font-size:24px
+
+    Tx["OptiBolt Tx"]
+    Rx["OptiBolt Rx"]
+
+    %% Connections
+    VGA ~~~ Eval
+    Eval ===>|VGA_if| VGA
+
+
+    Eval --> |"Sygnał [3:0] "| OptiBolt
+    OptiBolt ==>|magistrala| Eval
+
+    OptiBolt -->|JB1:A14| Tx
+    OptiBolt ~~~ Rx 
+    Rx--> |JB3:B15| OptiBolt
+    Rx ~~~ OptiBolt
 
 ```
+</details>
+
 
 ## Architektura Protokołu OptiBolt
 
