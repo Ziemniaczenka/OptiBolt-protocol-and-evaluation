@@ -4,7 +4,11 @@
 
 ## Opis projektu
 
-*Tu będzie opis*
+  Prototyp hybrydowgo protokołu komunikacji OptiBolt i platforma ewaluacyjna.
+
+  Protokół fizycznie składa się z części elektrycznej (emulowanej) oraz światłowodowej (zrealizowanej na transcieverach TOSLINK).
+
+  Platforma ewaluacyjna obsługuje podłącznie klawiatury i interfejsu VGA, służy do przeprowadzania testów interfejsu i wyświetlania rezultatów.
 
 
 ## TODO
@@ -160,7 +164,7 @@
 
 ```mermaid
 ---
-title: Schemat Blokowy
+title: Schemat Blokowy Połączeń
 ---
 flowchart LR
   %%{init: {'flowchart': {'curve': 'linear'}}}%%
@@ -251,21 +255,31 @@ flowchart LR
     OptiBolt@{shape: hex}
     style OptiBolt font-size:24px
 
-    Tx["OptiBolt Tx"]
-    Rx["OptiBolt Rx"]
+    Tx["OptiBolt Tx
+        JB1:A14"]
+    Rx["OptiBolt Rx
+        B3:B15"]
+    PlugDetect["PlugDetect
+        (Switch 1)"]
+    
 
-    %% Connections
+    %% Connections TODO: zgodne nazwy portów i połączeń, pozostałe moduły
+
     VGA ~~~ Eval
     Eval ===>|VGA_if| VGA
 
 
+    %% Tu opisać wszystkie połączenia między Eval a OptiBolt
     Eval --> |"Sygnał [3:0] "| OptiBolt
     OptiBolt ==>|magistrala| Eval
 
-    OptiBolt -->|JB1:A14| Tx
+    OptiBolt -->|Tx| Tx
     OptiBolt ~~~ Rx 
-    Rx--> |JB3:B15| OptiBolt
+    Rx--> |Rx| OptiBolt
     Rx ~~~ OptiBolt
+    OptiBolt ~~~ PlugDetect 
+    PlugDetect -->|PlugDetect| OptiBolt
+    PlugDetect ~~~ OptiBolt
 
 ```
 </details>
@@ -274,4 +288,9 @@ flowchart LR
 ## Architektura Protokołu OptiBolt
 
 ## Architektura Platformy Ewaluacji
+<details open>
+<summary><b><big>Schemat Platformy Ewaluacji </big></b></summary>
 
+
+
+</details>
