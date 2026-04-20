@@ -10,10 +10,10 @@
  * Tomasz Więcławski & Sebastian Zoń
  *
  * Description:
- * The project top module.
+ * VGA top module.
  */
 
-module top_vga (
+module top_display (
         input  logic clk,
         input  logic rst_n,
         output logic vs,
@@ -36,16 +36,16 @@ module top_vga (
     // VGA signals from background
     vga_if if_bg();
 
-    // VGA signals from rectangle
-    vga_if if_rect();
+    // VGA signals from draw
+    vga_if if_draw();
 
     /**
      * Signals assignments
      */
 
-    assign vs = if_rect.vsync;
-    assign hs = if_rect.hsync;
-    assign {r,g,b} = if_rect.rgb;
+    assign vs = if_draw.vsync;
+    assign hs = if_draw.hsync;
+    assign {r,g,b} = if_draw.rgb;
 
 
     /**
@@ -59,17 +59,17 @@ module top_vga (
     );
 
     draw_bg u_draw_bg (
-        .clk,
-        .rst_n,
+        .clk(clk),
+        .rst_n(rst_n),
         .vga_in(if_tim.in),
         .vga_out(if_bg.out)
     );
 
-    draw_rect u_draw_rect (
+    top_draw u_top_draw (
         .clk,
         .rst_n,
         .vga_in(if_bg.in),
-        .vga_out(if_rect.out)
+        .vga_out(if_draw.out)
     );
 
 endmodule

@@ -9,10 +9,8 @@
 import font_pkg::*;
 
 module font #(
-        parameter font_t FONT
-        // parameter   int     ROWS_PER_LETTER,
-        // parameter   int     BYTES_PER_ROW,
-        // parameter   string  FONT_PATH
+        parameter font_t FONT,
+        parameter string FONT_PATH
     ) (
         input   logic                                           clk,
         input   logic   [($clog2(FONT.ROWS_PER_LETTER)-1):0]    row_index,
@@ -26,13 +24,13 @@ module font #(
     logic [((FONT.BYTES_PER_ROW*8)-1):0] font_mem [0:((FONT.ROWS_PER_LETTER*256)-1)];
 
     initial begin
-        $readmemh(FONT.FONT_PATH, font_mem);
+        $readmemh(FONT_PATH, font_mem);
     end
 
 
     always_ff @(posedge clk) begin
-        length <= font_mem[(letter<<SHIFT_VAL)];
-        row <= font_mem[(letter<<SHIFT_VAL)+(row_index+1)];
+        char_width <= font_mem[(char_code<<SHIFT_VAL)];
+        pixels_row <= font_mem[(char_code<<SHIFT_VAL)+(row_index+1)];
     end
 
 

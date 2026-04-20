@@ -14,15 +14,14 @@
         int ROWS_PER_LETTER;
         int BYTES_PER_ROW;
         int LETTER_HEIGHT;
-        string FONT_PATH;
     } font_t;
 
     localparam font_t FONT_11x7 = '{
         ROWS_PER_LETTER: 16,
         BYTES_PER_ROW:   1,
-        LETTER_HEIGHT:   11,
-        FONT_PATH: "../data/font_11x7.mem"
+        LETTER_HEIGHT:   11
     };
 
+    localparam string FONT_11x7_PATH = "../../rtl/display/data/font_11x7.mem";
 
  endpackage
