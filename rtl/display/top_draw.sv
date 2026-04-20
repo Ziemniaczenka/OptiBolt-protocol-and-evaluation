@@ -22,24 +22,29 @@ module top_draw (
     * Local variables and signals
     */
 
-    localparam int MAX_STRING_LEN = 16;
+    localparam int MAX_STRING_LEN = 25;
 
-    localparam logic [11:0] START_X = 12'd100;
-    localparam logic [11:0] START_Y = 12'd100;
+    localparam logic [11:0] START_X = 12'd10;
+    localparam logic [11:0] START_Y = 12'd10;
     localparam logic [11:0] END_X   = 12'd900;
     localparam logic [11:0] END_Y   = 12'd400;
     localparam logic [11:0] COLOR   = 12'hF_F_0; // Żółty tekst
 
-    localparam logic [7:0] LETTER_SPACING = 8'd2;
+    localparam logic [7:0] LETTER_SPACING = 8'd1;
     localparam logic [7:0] ROW_SPACING    = 8'd3;
 
-    logic [7:0] string_data [0:MAX_STRING_LEN-1] = '{
-        8'h48, 8'h65, 8'h6C, 8'h6C, 8'h6F, // "Hello"
-        8'h20, 8'h57, 8'h6F, 8'h72, 8'h6C, 8'h64, 8'h21, // " World!"
-        8'h0A, // "\n"
-        8'h3A, 8'h29, // ":)"
-        8'h00  // "\0"
-    };
+    string str_val = "Hello world!\nSZ & TW";
+
+    logic [7:0] string_data [0:MAX_STRING_LEN-1];
+
+    initial begin
+        for (int i = 0; i < MAX_STRING_LEN; i++) begin
+            if (i < str_val.len())
+                string_data[i] = str_val[i];
+            else
+                string_data[i] = 8'h00;
+        end
+    end
 
     logic [11:0] text_rgb;
 
