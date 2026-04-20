@@ -90,6 +90,10 @@ module draw_string #(
     logic stop_line;
     logic pixel_bit;
 
+    logic init_y_trigger;
+    logic [11:0] next_vga_y;
+    logic active_line;
+
     // Edge detectors for sync signals
     logic vsync_prev, hsync_prev;
     logic vsync_pulse, hsync_pulse;     //detected rising edge
@@ -106,6 +110,9 @@ module draw_string #(
 
     assign vsync_pulse = vsync && !vsync_prev;
     assign hsync_pulse = hsync && !hsync_prev;
+
+    assign init_y_trigger = (start_y == 0) ? vsync_pulse : (hsync_pulse && (vga_y == start_y - 12'd1));
+    assign next_vga_y     = hsync_pulse ? (vga_y + 12'd1) : vga_y;
 
     assign in_draw_region = (vga_x >= start_x) && (vga_x <= end_x) && (vga_y >= start_y) && (vga_y <= end_y);
 
@@ -197,35 +204,36 @@ module draw_string #(
             col <= '0;
             space_cnt <= '0;
             is_null_reached <= '0;
+            active_line <= '0;
         end else begin
-            if (vsync_pulse) begin
+            if (hsync_pulse) active_line <= 1'b0;
+            else if (vga_x == start_x) active_line <= 1'b1;
+
+            if (vsync_pulse && start_y != 0) begin
                 pf_state <= PF_IDLE; // Reset to idle to wait for start_y - 1
                 draw_state <= DRAW_DONE;
             end
-            else if (hsync_pulse) begin
-                if (vga_y == start_y - 12'd1) begin
-                    y_in_line <= 0;
-                    line_start_idx <= 0;
-                    next_line_idx <= 0;
-                    is_null_reached <= 0;
+            else if (init_y_trigger) begin
+                y_in_line <= '0;
+                line_start_idx <= '0;
+                next_line_idx <= '0;
+                is_null_reached <= '0;
+                pf_state <= PF_INIT_0;
+            end
+            else if (hsync_pulse && vga_y >= start_y && vga_y <= end_y && pf_state != PF_IDLE) begin
+                if (y_in_line >= FONT.LETTER_HEIGHT + row_spacing - 1) begin
+                    y_in_line <= '0;
+                    if (!is_null_reached) begin
+                        line_start_idx <= next_line_idx;
+                        pf_state <= PF_INIT_0;
+                    end else begin
+                        pf_state <= PF_IDLE;
+                    end
+                end else begin
+                    y_in_line <= y_in_line + 1;
                     pf_state <= PF_INIT_0;
                 end
-                else if (vga_y >= start_y && vga_y <= end_y) begin
-                    if (y_in_line >= FONT.LETTER_HEIGHT + row_spacing - 1) begin
-                        y_in_line <= 0;
-                        if (!is_null_reached) begin
-                            line_start_idx <= next_line_idx;
-                            pf_state <= PF_INIT_0;
-                        end else begin
-                            pf_state <= PF_IDLE;
-                        end
-                    end else begin
-                        y_in_line <= y_in_line + 1;
-                        if (!is_null_reached) // Blokada wybudzania się FSM pod koniec tekstu (zombie-waking)
-                            pf_state <= PF_INIT_0;
-                    end
-                    draw_state <= DRAW_DONE;
-                end
+                draw_state <= DRAW_DONE;
             end
             else begin
                 case (pf_state)
@@ -239,6 +247,9 @@ module draw_string #(
                         fetch_idx <= line_start_idx + 2;
                         curr_drawn_idx <= line_start_idx;
                         pf_state <= PF_READY;
+                        draw_state <= DRAW_CHAR;
+                        col <= 0;
+                        space_cnt <= 0;
                     end
                     PF_READY: begin
                         if (shift_en) fetch_idx <= fetch_idx + 1;
@@ -247,12 +258,7 @@ module draw_string #(
                 endcase
 
                 if (pf_state == PF_READY) begin
-                    if ((vga_x == start_x - 12'd1) && vga_y >= start_y && vga_y <= end_y && draw_state == DRAW_DONE) begin
-                        draw_state <= DRAW_CHAR;
-                        col <= 0;
-                        space_cnt <= 0;
-                    end
-                    else if (vga_x >= start_x && vga_y >= start_y && vga_y <= end_y) begin
+                if ((active_line || vga_x == start_x) && vga_y >= start_y && vga_y <= end_y) begin
                         if (draw_state == DRAW_CHAR) begin
                             if (stop_line && !shift_en) begin
                                 draw_state <= DRAW_DONE;

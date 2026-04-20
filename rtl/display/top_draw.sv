@@ -22,18 +22,25 @@ module top_draw (
     * Local variables and signals
     */
 
-    localparam int MAX_STRING_LEN = 25;
+    localparam int MAX_STRING_LEN = 5000;
 
     localparam logic [11:0] START_X = 12'd10;
     localparam logic [11:0] START_Y = 12'd10;
-    localparam logic [11:0] END_X   = 12'd900;
+    localparam logic [11:0] END_X   = 12'd500;
     localparam logic [11:0] END_Y   = 12'd400;
-    localparam logic [11:0] COLOR   = 12'hF_F_0; // Żółty tekst
+    localparam logic [11:0] COLOR   = 12'hF_F_8;
 
     localparam logic [7:0] LETTER_SPACING = 8'd1;
-    localparam logic [7:0] ROW_SPACING    = 8'd3;
+    localparam logic [7:0] ROW_SPACING    = 8'd1;
 
-    string str_val = "Hello world!\nSZ & TW";
+    string str_val = "Hello world!\n\
+SZ & TW\n\
+Lorem ipsum dolor sit amet, consectetur adipiscing elit. Pellentesque at vehicula mi. Vestibulum non sollicitudin urna. Fusce consectetur, ipsum nec viverra dictum, quam dolor scelerisque nunc, ac tincidunt ligula mi ac diam. Morbi convallis nisl sed porttitor mattis. Maecenas in nibh feugiat, vulputate massa eu, congue lacus. Maecenas ut interdum erat. Quisque congue erat dui, vel venenatis metus sollicitudin in. In dapibus commodo dolor, vel aliquam nunc malesuada iaculis. Ut mollis, eros nec rutrum blandit, ex mauris tincidunt turpis, a hendrerit dui nisi eget sapien. Vivamus laoreet massa et consequat eleifend. Aenean mattis justo sit amet placerat semper. In hac habitasse platea dictumst. Integer vulputate, metus sed pharetra lacinia, augue mauris lacinia quam, vitae faucibus massa lorem at orci. Morbi mollis eros non neque aliquam, ut condimentum lectus aliquam. Nullam sodales sit amet ante eget viverra. Sed eget erat imperdiet, scelerisque massa nec, auctor augue.\n\n\
+Sed ac luctus diam. Fusce viverra lorem libero, ac dapibus neque consequat sit amet. Vestibulum scelerisque metus eu magna feugiat placerat. Integer quis justo pretium, porta dui a, efficitur nunc. Donec venenatis viverra ex venenatis facilisis. Aliquam auctor consectetur ligula sed porttitor. Proin molestie nisi sed lacus venenatis, in vestibulum mauris volutpat. Integer vel massa fringilla, pretium orci et, semper sem. Sed pretium et nulla ac posuere.\n\n\
+Donec non congue mi. Fusce gravida neque at odio rhoncus accumsan. Aliquam gravida justo porttitor orci maximus, nec convallis lectus vehicula. Pellentesque rhoncus mollis luctus. Duis sapien sem, pellentesque ac lacus ut, vulputate accumsan urna. Quisque fermentum aliquet leo, nec sagittis arcu finibus volutpat. Vivamus a suscipit nisl, at porttitor eros. Nullam venenatis varius egestas.\n\n\
+In odio libero, pellentesque vel nisl ac, porta fermentum nisl. Nulla in nisi vel felis pulvinar blandit. Phasellus auctor pharetra scelerisque. Suspendisse interdum dolor ut tortor lacinia bibendum. Cras rutrum nibh nisi, ut eleifend purus mattis non. Duis efficitur iaculis vehicula. Suspendisse gravida enim ac arcu malesuada, ac scelerisque felis consequat. Quisque ac nisi eget augue imperdiet pulvinar. Praesent nec euismod enim. Maecenas id lectus dolor. Sed ut ligula quam. Nam scelerisque pellentesque enim quis convallis.\n\n\
+Praesent vitae arcu at massa venenatis venenatis. Curabitur at mollis turpis, eget mollis ipsum. Ut nec finibus sapien. Pellentesque habitant morbi tristique senectus et netus et malesuada fames ac turpis egestas. Vivamus sed lobortis elit. Etiam sed placerat magna. Vivamus id pretium mi. Donec egestas tellus sed facilisis efficitur. Sed laoreet diam quis metus vestibulum malesuada. Quisque dapibus ante sem, at semper augue volutpat sed. Aliquam suscipit faucibus felis vitae dignissim.\n\n\
+";
 
     logic [7:0] string_data [0:MAX_STRING_LEN-1];
 
