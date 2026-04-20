@@ -90,8 +90,16 @@ module top_display_tb;
         $display("Prepare to wait a long time...");
 
         wait (vs == 1'b0);
-        @(negedge vs) $display("Info: negedge VS at %t",$time);
-        @(negedge vs) $display("Info: negedge VS at %t",$time);
+        @(negedge vs) $display("Info: Frame 0 done at %t",$time);
+        @(negedge vs) $display("Info: Frame 1 done at %t",$time);
+        @(negedge vs) $display("Info: Frame 2 done at %t",$time);
+        @(negedge vs) $display("Info: Frame 3 done at %t",$time);
+        // @(negedge vs) $display("Info: Frame 4 done at %t",$time);
+        // @(negedge vs) $display("Info: Frame 5 done at %t",$time);
+        // @(negedge vs) $display("Info: Frame 6 done at %t",$time);
+        // @(negedge vs) $display("Info: Frame 7 done at %t",$time);
+        // @(negedge vs) $display("Info: Frame 8 done at %t",$time);
+        // @(negedge vs) $display("Info: Frame 9 done at %t",$time);
 
         // End the simulation.
         $display("Simulation is over, check the waveforms.");

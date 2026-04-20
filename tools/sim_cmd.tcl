@@ -6,8 +6,8 @@
 # Additional tcl commands for a simulation with xsim
 
 # Specify waves to be saved during the simulation
-log_wave *      # top module signals only
-# log_wave -r * # all the design signals
+# log_wave *      # top module signals only
+log_wave -r * # all the design signals
 
 # Run the simulation untill $finish
 run all

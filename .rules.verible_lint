@@ -7,3 +7,4 @@
 -module-filename
 -unpacked-dimensions-range-ordering
 -unpacked-ordering
+-forbid-line-continuations

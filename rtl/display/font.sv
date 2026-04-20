@@ -29,8 +29,8 @@ module font #(
 
 
     always_ff @(posedge clk) begin
-        char_width <= font_mem[(char_code<<SHIFT_VAL)];
-        pixels_row <= font_mem[(char_code<<SHIFT_VAL)+(row_index+1)];
+        char_width <= font_mem[((SHIFT_VAL+8)'(char_code)<<SHIFT_VAL)];
+        pixels_row <= font_mem[((SHIFT_VAL+8)'(char_code)<<SHIFT_VAL)+(16'(row_index)+1)];
     end
 
 
