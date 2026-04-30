@@ -82,7 +82,7 @@ Praesent vitae arcu at massa venenatis venenatis. Curabitur at mollis turpis, eg
     );
 
     delay #(
-        .WIDTH(26),
+        .WIDTH(26), // a nie 28?
         .CLK_DEL(1)
     ) u_delay (
         .clk(clk),

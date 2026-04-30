@@ -39,3 +39,4 @@ xcelium.d
 xrun.log
 
 results/*
+fpga/dfx_runtime.txt

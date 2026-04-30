@@ -68,7 +68,9 @@
       - [ ] Double frame buffer
       - [ ] VGA Parameters include 
       - [ ] Rysowanie znaków?
-      - [ ] DrawString?
+      - [x] DrawString?
+        - [ ] Improve code
+        - [ ] Make output registerable (add one cycle delay )
       - [ ] FontLibrary?
       - [ ] DrawChart?
     - [ ] Obsługa klawiatury
@@ -235,7 +237,7 @@ flowchart LR
 
 ## Architektura Ogólna
 <details open>
-<summary><b><big>Schemat Połączeń Między Sekcjami </big></b></summary>
+<summary><b><big>Schemat Połączeń Między Sekcjami (WiP) </big></b></summary>
 
 ``` mermaid
   flowchart LR
@@ -289,8 +291,69 @@ flowchart LR
 
 ## Architektura Platformy Ewaluacji
 <details open>
-<summary><b><big>Schemat Platformy Ewaluacji </big></b></summary>
+<summary><b><big>Schemat Platformy Ewaluacji (WiP) </big></b></summary>
+
+```mermaid
+---
+title: Architektura Platformy Ewaluacji
+---
+flowchart LR
+  %%{init: {'flowchart': {'curve': 'linear'}}}%%
+
+  subgraph top_display
+    %% --- VGA ---
+    vga_pkg.sv
+
+    subgraph top_VGA.sv
+      vga_timing.sv
+      vga_draw.sv
+    end
+
+    subgraph top_interface.sv
+      interface_fsm.sv
+    end
+      
+
+  
+    display_buffer.sv
+    draw_graph.sv
+    draw_rect.sv
+    draw_line.sv
+
+    subgraph write_string.sv
+      write_char.sv
+      font.sv
+    end
+
+  end
+  subgraph top_keyboard.sv
+    read_command.sv
+
+  end
+  subgraph top_test.sv
+    test_fsm.sv
+    BER_test.sv
+    bandwidth_test.sv
+  end
 
 
+```
+</details>
+
+<details open>
+<summary><b><big>Opis Funkcjonalności Głównych bloków (WiP) </big></b></summary>
+
+  * Tests:
+    * `top_test.sv`
+      * description
+    * `test_fsm.sv`
+      * managing running multiple tests, solving conflicts
+  * Keyboard:
+    * `read_command.sv`
+      * read arrow key inputs in interface
+      * read input strings from keyboard to either run tests or send message to second board
+  * Display:
+    * `display_buffer.sv`
+      * double buffer to allow updating graphics irrelevant of VGA drawing frequency 
 
 </details>
