@@ -6,9 +6,10 @@
  * Description:
  * Draw function for single block of text
  */
-    //TODO: Create logic and regs
-    //TODO: Set register size based on parameters
-    //TODO: Add null, tab and new line handling
+    //TODO: Add registered output
+    //TODO: Add switchable text wrapping
+    //TODO: Better comments
+    //TODO: Add default char
 
 import font_pkg::*;
 
