@@ -21,7 +21,7 @@
     <summary><b>Dokumentacja i konfiguracja </b></summary>
 
     - [x] Ustalić nazwę projektu
-    - [ ] Krótki opis
+    - [x] Krótki opis
     - [ ] Git
       - [x] Stworzyć Repo
       - [ ] Dowiedzieć się jak działają pull request i review
@@ -48,9 +48,6 @@
     - [ ] Testbenche do każdej grupy modułów/do każdego modułu?
     - [ ] Ustalenie Clock domains
       - [ ] CDC pomiędzy sekcjami
-    - [ ] SystemVerilog OOP (Object Oriented Programming)?
-    - [ ] UVM - Universal Verification Methodology - test for testbenches?
-      - [ ] Aktualizacja skryptów do UVM?
     </details>
 
 *   <details open>
@@ -65,14 +62,15 @@
     <summary><b>Program testowy</b></summary>
 
     - [ ] Wyświetlanie VGA
-      - [ ] Double frame buffer
-      - [ ] VGA Parameters include 
-      - [ ] Rysowanie znaków?
-      - [x] DrawString?
+      - [x] VGA Parameters include 
+      - [ ] Ustalenie layoutu ekranu
+      - [ ] DrawLine
+      - [ ] DrawRect
+      - [x] DrawString
         - [ ] Improve code
-        - [ ] Make output registerable (add one cycle delay )
-      - [ ] FontLibrary?
-      - [ ] DrawChart?
+        - [ ] Make output registerable (add one cycle delay)
+        - [ ] Add more fonts
+      - [ ] DrawChart
     - [ ] Obsługa klawiatury
     - [ ] Różne testy (max baudrate, BER, latency, wysyłanie wiadomości, itd)
     </details>
@@ -115,12 +113,12 @@
   
     * **SystemVerilog**
       * [ChipVerify Tutorial](https://www.chipverify.com/systemverilog/systemverilog-tutorial)
-      * OOP
-        * [CV Classes](https://www.chipverify.com/systemverilog/systemverilog-class)
       * CDC (Clock Domain Crossing)
         * [CV CDC](https://www.chipverify.com/rtl-synthesis/clock-domain-crossing)
         * [MTM wiki](https://wiki.mtm.agh.edu.pl/pl/students/courses/uec/cdc)
-      * UVM
+      * OOP (not relevant)
+        * [CV Classes](https://www.chipverify.com/systemverilog/systemverilog-class)
+      * UVM (not relevant)
         * <details>
           <summary><a href="https://www.chipverify.com/uvm/uvm-tutorial">CV OVM Tutorial</a></summary>
 
@@ -275,11 +273,13 @@ flowchart LR
     Eval --> |"Sygnał [3:0] "| OptiBolt
     OptiBolt ==>|magistrala| Eval
 
+    OptiBolt ~~~ Rx 
     OptiBolt -->|Tx| Tx
     OptiBolt ~~~ Rx 
     Rx--> |Rx| OptiBolt
-    Rx ~~~ OptiBolt
+    %%Rx ~~~ OptiBolt
     OptiBolt ~~~ PlugDetect 
+    
     PlugDetect -->|PlugDetect| OptiBolt
     PlugDetect ~~~ OptiBolt
 
@@ -351,9 +351,9 @@ flowchart LR
   * Keyboard:
     * `read_command.sv`
       * read arrow key inputs in interface
-      * read input strings from keyboard to either run tests or send message to second board
+      * read input letters from keyboard to either run tests or send message to second board
   * Display:
-    * `display_buffer.sv`
-      * double buffer to allow updating graphics irrelevant of VGA drawing frequency 
+    * `top_draw.sv`
+      * Main VGA module with interface displayed 
 
 </details>
