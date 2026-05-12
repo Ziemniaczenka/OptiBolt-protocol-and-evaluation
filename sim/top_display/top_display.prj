@@ -5,16 +5,16 @@
 # Description:
 # List of files defining the modules used during the test.
 
-sv work ../../rtl/display/vga/vga_pkg.sv \
-        ../../rtl/display/vga/vga_if.sv \
-        ../../rtl/display/vga/vga_timing.sv \
-        ../../rtl/display/font_pkg.sv \
-        ../../rtl/display/font.sv \
-        ../../rtl/display/prefetch_buffer.sv \
-        ../../rtl/display/draw_bg.sv \
-        ../../rtl/display/draw_string.sv \
-        ../../rtl/delay.sv \
-        ../../rtl/display/top_draw.sv \
-        ../../rtl/display/top_display.sv \
+sv work ../../rtl/evaluation/display/vga/vga_pkg.sv \
+        ../../rtl/evaluation/display/vga/vga_if.sv \
+        ../../rtl/evaluation/display/vga/vga_timing.sv \
+        ../../rtl/evaluation/display/draw/font/font_pkg.sv \
+        ../../rtl/evaluation/display/draw/font/font.sv \
+        ../../rtl/helpers/prefetch_buffer.sv \
+        ../../rtl/evaluation/display/draw/draw_bg.sv \
+        ../../rtl/evaluation/display/draw/draw_string.sv \
+        ../../rtl/helpers/delay.sv \
+        ../../rtl/evaluation/display/draw/top_draw.sv \
+        ../../rtl/evaluation/display/top_display.sv \
         ../common/tiff_writer.sv \
         top_display_tb.sv

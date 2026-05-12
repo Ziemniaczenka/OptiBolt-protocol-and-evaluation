@@ -22,6 +22,6 @@
         LETTER_HEIGHT:   11
     };
 
-    localparam string FONT_11x7_PATH = "../../rtl/display/data/font_11x7.mem";
+    localparam string FONT_11x7_PATH = "../../rtl/evaluation/display/data/font_11x7.mem";
 
  endpackage
