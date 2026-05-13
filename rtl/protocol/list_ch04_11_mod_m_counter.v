@@ -1,11 +1,20 @@
+/**
+ * Copyright (C) 2025  AGH University of Science and Technology
+ * MTM UEC2
+ * Author: Pong P. Chu, FPGA Prototyping by Verilog Examples
+ * Provided by: AGH University of Science and Technology
+ * Modified by: Tomasz Więcławski & Sebastian Zoń
+ *
+ */
+
 // Listing 4.11
 module mod_m_counter
    #(
-    parameter N=4, // number of bits in counter
-              M=10 // mod-M
+    parameter N=4 // number of bits in counter
    )
    (
     input wire clk, reset,
+    input wire [N-1:0] M,
     output wire max_tick,
     output wire [N-1:0] q
    );
