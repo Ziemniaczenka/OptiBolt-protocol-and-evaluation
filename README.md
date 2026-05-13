@@ -16,6 +16,38 @@
 <details open>
 <summary><b><big> Lista Zadań </big></b></summary>
 
+*   <details open>
+    <summary><b>Harmonogram </b></summary>
+
+    | Date | Week | Task | Who | Status |
+    |:---:  | :---: | :---                                                | :---:             | :---:   |
+    | 13.04 | 1 | Inicjalizacja projektu, dobór elementów                 | Wszyscy           | 🟢 Done |
+    | 20.04 | 2 | Funkcja drawstring                                      | @Ziemniaczenka    | 🟢 Done |
+    | 27.04 | 3 | Schematy w readme                                       | @Ziemniaczenka    | 🟢 Done |
+    | 27.04 | 3 | Zarys protokołu                                         | @TomaszWieclawski | 🟢 Done |
+    | 4.05  | 4 | PRZERWA (Egzamin 0 UEA2)                                | @Ziemniaczenka    | 🟢 Done |
+    | 11.05 | 5 | Pozostałe funkcje draw, top_draw                        | @Ziemniaczenka    | 🟡 WiP  |
+    | 11.05 | 5 | Ustalenie parametrów i sygnałów sterujących protokołu   | @TomaszWieclawski | 🟡 WiP  |
+    | 18.05 | 6 | Klawiatura, wiersz poleceń                              | @Ziemniaczenka    | 🔴 TODO |
+    | 18.05 | 6 | Przerobienie modułu UART na OptiBolt                    | @TomaszWieclawski | 🔴 TODO |
+    | 25.05 | 7 | Złożenie hardware, generacja bitstreamu, pierwsze testy | Wszyscy           | 🔴 TODO |
+    | 01.06 | 8 | Integracja protokołu z evaluacją                        | Wszyscy           | 🔴 TODO |
+    | 08.06 | 9 | Testy końcowe i finalizacja dokumentacji                | Wszyscy           | 🔴 TODO |
+    | 15.06 | 10| 16.06 PIERWSZY TERMIN ODDANIA PROJEKTU                  | Wszyscy           | 🔴 TODO |
+    </details>
+
+    <details open>
+    <summary><b>Lista pytań </b></summary>
+
+    - Czy możemy korzystać z innych modułów?
+      - VHDL od myszki np.
+      - Verilog od UART
+      - SystemVerilog z internetu
+    - Jaki reset ma być?
+      - Asynchroniczny zanegowany czy nie?
+    - Czy dokumentacja końcowa może być w Markdown zamiast DOCX?
+
+    </details>
 
 *   <details open>
     <summary><b>Dokumentacja i konfiguracja </b></summary>
@@ -45,7 +77,8 @@
     <summary><b>SystemVerilog </b></summary>
 
     - [ ] Podział na moduły, diagram
-    - [ ] Testbenche do każdej grupy modułów/do każdego modułu?
+    - [ ] Testbenche do grup modułów
+    - [ ] Sprawdzić czy Vivado robi timing analisys by default
     - [ ] Ustalenie Clock domains
       - [ ] CDC pomiędzy sekcjami
     </details>
@@ -53,8 +86,16 @@
 *   <details open>
     <summary><b>Protokół</b></summary>
 
-    - [ ] Założenia, teoria
+    - [x] Założenia, teoria
+    - [ ] Manchester encoder/decoder
+    - [ ] Ustalić zakres BAUDRATE i Oversampling, min and max speed
+      - [ ] tabela dopuszczalnych (lookup table)
+      - [ ] enumy do maszyn stanów (IDLE, PREAMBLE, ERROR itp.)
     - [ ] Warstwy modelu
+    - [ ] Rejestry konfiguracyjne do protokołu
+      - [ ] np. Baudrate
+      - [ ] sygnały sterujące (np. zmień baudrate)
+        - [ ] odpowiedź zwrotna (wait, success, error)
     - [ ] Flowchart, Sequence diagrams
     </details>
 
@@ -72,7 +113,7 @@
         - [ ] Add more fonts
       - [ ] DrawChart
     - [ ] Obsługa klawiatury
-    - [ ] Różne testy (max baudrate, BER, latency, wysyłanie wiadomości, itd)
+    - [ ] Różne testy (max baudrate, BER, latency, wysyłanie wiadomości, itd.)
     </details>
 
 </details>
