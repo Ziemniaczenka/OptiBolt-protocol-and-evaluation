@@ -4,13 +4,13 @@
  * Author: Tomasz Więcławski & Sebastian Zoń
  *
  * Description:
- * Generates baud rate.
+ * Generates sampling tick.
  */
 
 module sampling_tick_generator (
-    input logic clk,
+    input logic clk400,
     input logic rst_n,
-    input logic [3:0]oversampling,
+    input logic [3:0] oversampling,
     input logic [3:0] bit_rate,
     output logic tick
 );
@@ -29,7 +29,7 @@ always_comb begin
 end
 
 mod_m_counter #(.N(16)) u_mod_m_counter (
-    .clk,
+    .clk400,
     .reset(!rst_n),
     .q(),
     .max_tick(tick),
