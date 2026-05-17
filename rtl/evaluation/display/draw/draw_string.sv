@@ -10,6 +10,7 @@
     //TODO: Add switchable text wrapping
     //TODO: Better comments
     //TODO: Add default char
+    //TODO: add interface input
 
 import font_pkg::*;
 
@@ -36,7 +37,8 @@ module draw_string #(
     input  logic [7:0] letter_spacing,
     input logic [7:0] row_spacing,
 
-    output logic [11:0] pixel_color
+    output logic [11:0] pixel_color,
+    output logic        draw_en
 );
 
     localparam PIXEL_ROW_W = (FONT.BYTES_PER_ROW<<3);
@@ -90,6 +92,9 @@ module draw_string #(
     logic in_draw_region;
     logic stop_line;
     logic pixel_bit;
+
+    logic draw_en_nxt;
+    logic [11:0] pixel_color_nxt;
 
     logic init_y_trigger;
     logic [11:0] next_vga_y;
@@ -304,6 +309,17 @@ module draw_string #(
 
     assign pixel_bit = (col < PIXEL_ROW_W) ? out_row_buffer[(PIXEL_ROW_W - 1) - col] : 1'b0;
 
-    assign pixel_color = (in_draw_region && pf_state == PF_READY && draw_state == DRAW_CHAR && !stop_line && pixel_bit) ? COLOR : 12'h000;
+    assign draw_en_nxt = (in_draw_region && pf_state == PF_READY && draw_state == DRAW_CHAR && !stop_line && pixel_bit);
+    assign pixel_color_nxt = draw_en_nxt ? COLOR : 12'h000;
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            pixel_color <= 12'h000;
+            draw_en     <= 1'b0;
+        end else begin
+            pixel_color <= pixel_color_nxt;
+            draw_en     <= draw_en_nxt;
+        end
+    end
 
 endmodule
