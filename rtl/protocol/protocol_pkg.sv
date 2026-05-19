@@ -27,6 +27,7 @@ package protocol_pkg;
     localparam logic [3:0] O_8X_CENTER   = 4'd4;
     localparam logic [3:0] O_8X_C2_START = 4'd5;
     localparam logic [3:0] O_8X_C2_END   = 4'd7;
+    localparam logic [3:0] O_8X_MAX_COUNT = 4'd7;
 
     //16x oversampling
     localparam logic [3:0] O_16X_C1_START = 4'd2;
@@ -34,5 +35,6 @@ package protocol_pkg;
     localparam logic [3:0] O_16X_CENTER   = 4'd8;
     localparam logic [3:0] O_16X_C2_START = 4'd10;
     localparam logic [3:0] O_16X_C2_END   = 4'd14;
+    localparam logic [3:0] O_16X_MAX_COUNT = 4'd15;
 
 endpackage
