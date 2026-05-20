@@ -36,5 +36,22 @@ package protocol_pkg;
     localparam logic [3:0] O_16X_C2_START = 4'd10;
     localparam logic [3:0] O_16X_C2_END   = 4'd14;
     localparam logic [3:0] O_16X_MAX_COUNT = 4'd15;
+    
+    //COMMUNICATION//
+
+    //headers
+    localparam logic [2:0] MSG_CAPABILITIES = 3'b000;
+    localparam logic [2:0] MSG_REQUEST      = 3'b001;
+    localparam logic [2:0] MSG_ACCEPT       = 3'b010;
+    localparam logic [2:0] MSG_DENIED       = 3'b011;
+    localparam logic [2:0] MSG_TEXT         = 3'b100;
+    localparam logic [2:0] MSG_TEST1        = 3'b101;
+    localparam logic [2:0] MSG_TEST2        = 3'b110;
+    localparam logic [2:0] MSG_TEST3        = 3'b111;
+
+    //power 
+    localparam logic [7:0] PWR_5V_1A  = 8'b0000_0001;
+    localparam logic [7:0] PWR_9V_2A  = 8'b0000_0010;
+    localparam logic [7:0] PWR_20V_5A = 8'b0000_0100;
 
 endpackage

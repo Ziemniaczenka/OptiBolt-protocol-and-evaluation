@@ -15,7 +15,7 @@ module manchester_decode (
     input logic [3:0] oversampling,
     output logic rx_binary,
     output logic bit_valid,
-    output logic manchester_code_error
+    output logic decode_error
 );
 
 import protocol_pkg::*;
@@ -75,7 +75,7 @@ always_ff @(posedge clk400 or negedge rst_n) begin
         voting_c1 <= '0;
         voting_c2 <= '0;
         vote_evaluation <= '0;
-        manchester_code_error <= '0;
+        decode_error <= '0;
     end
     else begin
         rx_reg <= rx_manchester;
@@ -84,7 +84,7 @@ always_ff @(posedge clk400 or negedge rst_n) begin
             rx_past <= rx_sync;
             edge_detected <= rx_sync ^ rx_past;
             bit_valid <= 1'b0;
-            manchester_code_error <= 1'b0;
+            decode_error <= 1'b0;
             if(counter == MAX_COUNT) begin
                 counter <= '0;
                 vote_evaluation <= 1'b1;
@@ -112,13 +112,13 @@ always_ff @(posedge clk400 or negedge rst_n) begin
                 end
                 else begin
                     bit_valid <= 1'b0;
-                    manchester_code_error <= 1'b1;
+                    decode_error <= 1'b1;
                 end
             end
         end
         else begin
             bit_valid <= 1'b0;
-            manchester_code_error <= 1'b0;
+            decode_error <= 1'b0;
         end
     end
 end
