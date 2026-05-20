@@ -7,7 +7,7 @@
  * Decodes manchester to binary
  */
 
-module manchester_decode (
+module manchester_decoder (
     input logic clk400,
     input logic rst_n,
     input logic tick,

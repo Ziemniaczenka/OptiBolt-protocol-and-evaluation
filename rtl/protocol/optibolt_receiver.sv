@@ -1,3 +1,13 @@
+/**
+ * Copyright (C) 2025  AGH University of Science and Technology
+ * MTM UEC2
+ * Author: Tomasz Więcławski & Sebastian Zoń
+ *
+ * Description:
+ * Receiver
+ */
+
+
 module optibolt_receiver (
     input logic clk400,
     input logic rst_n,
@@ -8,7 +18,8 @@ module optibolt_receiver (
     output logic data_ready,
     output logic [2:0] msg_type,
     output logic parity,
-    output logic manchester_code_error
+    output logic manchester_code_error,
+    output logic preamble_error
 );
 
 import protocol_pkg::*;
@@ -24,6 +35,7 @@ state_t state_reg, state_next;
 logic [7:0] shift_reg, shift_next;
 logic [3:0] bit_counter, bit_counter_next;
 logic [2:0] msg_type_reg, msg_type_next;
+logic preamble_fail;
 
 always_ff @(posedge clk400 or negedge rst_n) begin
     if (!rst_n) begin
@@ -36,15 +48,23 @@ always_ff @(posedge clk400 or negedge rst_n) begin
         parity <= '0;
         data_ready <= '0;
         manchester_code_error <= '0;
+        preamble_error <= '0;
     end else begin
         data_ready <= '0;
         manchester_code_error <= '0;
+        preamble_error <= '0;
         if (decode_error) begin
             state_reg <= IDLE;
             shift_reg <= '0;
             bit_counter <= '0;
             manchester_code_error <= 1'b1;
         end 
+        else if (preamble_fail) begin
+            state_reg <= IDLE;
+            shift_reg <= '0;
+            bit_counter <= '0;
+            preamble_error <= 1'b1;
+        end
         else if (bit_valid) begin
             state_reg <= state_next;
             shift_reg <= shift_next;
@@ -67,12 +87,13 @@ always_comb begin
     shift_next = shift_reg;
     msg_type_next = msg_type_reg;
     bit_counter_next = bit_counter;
+    preamble_fail = 1'b0;
 
     case(state_reg)
 
         IDLE: begin
             shift_next = {shift_reg[6:0], rx_binary};
-            if({shift_reg[4:0], rx_binary} == 6'b010101) begin
+            if({shift_reg[2:0], rx_binary} == 4'b0101) begin
                 state_next = PREAMBLE;
                 bit_counter_next = '0;
                 shift_next = 8'b11111111;
@@ -91,6 +112,7 @@ always_comb begin
                 state_next = IDLE;
                 bit_counter_next = '0;
                 shift_next = 0;
+                preamble_fail = 1'b1;
             end
         end
 
