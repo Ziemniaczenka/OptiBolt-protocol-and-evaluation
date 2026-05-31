@@ -56,6 +56,9 @@ Praesent vitae arcu at massa venenatis venenatis. Curabitur at mollis turpis, eg
     end
 
     logic [11:0] text_rgb;
+    logic        text_draw_en;
+
+    vga_if vga_in_d1 ();
 
     /**
     * Internal logic
@@ -80,29 +83,47 @@ Praesent vitae arcu at massa venenatis venenatis. Curabitur at mollis turpis, eg
         .string_data(string_data),
         .letter_spacing(LETTER_SPACING),
         .row_spacing(ROW_SPACING),
-        .pixel_color(text_rgb)
+        .pixel_color(text_rgb),
+        .draw_en(text_draw_en)
+    );
+
+    always_ff @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            vga_in_d1.rgb <= '0;
+        end else begin
+            vga_in_d1.rgb <= vga_in.rgb;
+        end
+    end
+
+    delay #(
+        .WIDTH(26),
+        .CLK_DEL(1)
+    ) u_delay_1 (
+        .clk(clk),
+        .rst_n(rst_n),
+        .din({vga_in.vcount, vga_in.vsync, vga_in.vblnk, vga_in.hcount, vga_in.hsync, vga_in.hblnk}),
+        .dout({vga_in_d1.vcount, vga_in_d1.vsync, vga_in_d1.vblnk, vga_in_d1.hcount, vga_in_d1.hsync, vga_in_d1.hblnk})
+    );
+
+    draw_mux #(
+        .INPUT_COUNT(1)
+    ) u_draw_mux (
+        .clk(clk),
+        .rst_n(rst_n),
+        .in_rgb(text_rgb),
+        .in_draw_en(text_draw_en),
+        .vga_in(vga_in_d1),
+        .out_rgb(vga_out.rgb)
     );
 
     delay #(
         .WIDTH(26),
         .CLK_DEL(1)
-    ) u_delay (
+    ) u_delay_2 (
         .clk(clk),
         .rst_n(rst_n),
-        .din({vga_in.vcount, vga_in.vsync, vga_in.vblnk, vga_in.hcount, vga_in.hsync, vga_in.hblnk}),
+        .din({vga_in_d1.vcount, vga_in_d1.vsync, vga_in_d1.vblnk, vga_in_d1.hcount, vga_in_d1.hsync, vga_in_d1.hblnk}),
         .dout({vga_out.vcount, vga_out.vsync, vga_out.vblnk, vga_out.hcount, vga_out.hsync, vga_out.hblnk})
     );
-
-    always_ff @(posedge clk or negedge rst_n) begin
-        if (!rst_n) begin
-            vga_out.rgb <= '0;
-        end else begin
-            if (text_rgb != 12'h000) begin
-                vga_out.rgb <= text_rgb;
-            end else begin
-                vga_out.rgb <= vga_in.rgb;
-            end
-        end
-    end
 
 endmodule
