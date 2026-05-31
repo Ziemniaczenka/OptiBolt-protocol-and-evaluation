@@ -100,7 +100,7 @@ module top_display_tb;
         // @(negedge vs) $display("Info: Frame 7 done at %t",$time);
         // @(negedge vs) $display("Info: Frame 8 done at %t",$time);
         // @(negedge vs) $display("Info: Frame 9 done at %t",$time);
-
+        @(posedge vs) //Wait for the frame to finish
         // End the simulation.
         $display("Simulation is over, check the waveforms.");
 
