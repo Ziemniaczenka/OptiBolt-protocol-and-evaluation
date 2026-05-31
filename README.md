@@ -43,9 +43,15 @@
       - VHDL od myszki np.
       - Verilog od UART
       - SystemVerilog z internetu
+      - TAK
     - Jaki reset ma być?
-      - Asynchroniczny zanegowany czy nie?
+      - Asynchroniczny zanegowany (rst_n)
+    - Czy wyjścia z modułów mają być rejestrowalne?
+      - Powinny być chyba że jest konkretny powód by nie były
+    - Czy vivado sprawdza timing violation by default 
+      - Tak
     - Czy dokumentacja końcowa może być w Markdown zamiast DOCX?
+      - może być ale wyeksportowany do PDFa
 
     </details>
 
@@ -78,7 +84,7 @@
 
     - [ ] Podział na moduły, diagram
     - [ ] Testbenche do grup modułów
-    - [ ] Sprawdzić czy Vivado robi timing analisys by default
+    - [x] Sprawdzić czy Vivado robi timing analisys by default
     - [ ] Ustalenie Clock domains
       - [ ] CDC pomiędzy sekcjami
     </details>
@@ -105,8 +111,8 @@
     - [ ] Wyświetlanie VGA
       - [x] VGA Parameters include 
       - [ ] Ustalenie layoutu ekranu
-      - [ ] DrawLine
-      - [ ] DrawRect
+      - [x] DrawBitmap
+      - [x] DrawRect
       - [x] DrawString
         - [ ] Improve code
         - [ ] Make output registerable (add one cycle delay)
