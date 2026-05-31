@@ -18,6 +18,7 @@ module top_draw (
     import vga_pkg::*;
     import font_pkg::*;
     import string_pkg::*;
+    import bitmap_pkg::*;
 
     /**
     * Local variables and signals
@@ -74,8 +75,8 @@ module top_draw (
 
     // =========================================================================
 
-    logic [2:0][11:0] text_rgb;
-    logic [2:0]       text_draw_en;
+    logic [5:0][11:0] draw_rgb;
+    logic [5:0]       draw_en;
 
     // Deleayed interface
     vga_if vga_in_d1 ();
@@ -104,8 +105,8 @@ module top_draw (
         .string_data(string1),
         .letter_spacing(8'd1),
         .row_spacing(8'd1),
-        .pixel_color(text_rgb[0]),
-        .draw_en(text_draw_en[0])
+        .pixel_color(draw_rgb[0]),
+        .draw_en(draw_en[0])
     );
 
     // String 2 - switchable "Status: CONNECTED" : "Status: DISCONNECTED"
@@ -128,8 +129,8 @@ module top_draw (
         .string_data(string2_sel),
         .letter_spacing(8'd1),
         .row_spacing(8'd1),
-        .pixel_color(text_rgb[1]),
-        .draw_en(text_draw_en[1])
+        .pixel_color(draw_rgb[1]),
+        .draw_en(draw_en[1])
     );
 
     // String 3 - dynamic CONSOLE
@@ -152,8 +153,55 @@ module top_draw (
         .string_data(console_str),
         .letter_spacing(8'd1),
         .row_spacing(8'd1),
-        .pixel_color(text_rgb[2]),
-        .draw_en(text_draw_en[2])
+        .pixel_color(draw_rgb[2]),
+        .draw_en(draw_en[2])
+    );
+
+    // Rect 1 - filled red
+    draw_rect u_draw_rect_1 (
+        .clk(clk),
+        .rst_n(rst_n),
+        .xstart(11'd450),
+        .ystart(11'd50),
+        .xend(11'd600),
+        .yend(11'd200),
+        .filled(1'b1),
+        .thickness(11'd0),
+        .color(12'hF_0_0),
+        .vga_in(vga_in),
+        .rgb_out(draw_rgb[3]),
+        .draw_en_out(draw_en[3])
+    );
+
+    // Rect 2 - thick outline green (overlapping rect 1)
+    draw_rect u_draw_rect_2 (
+        .clk(clk),
+        .rst_n(rst_n),
+        .xstart(11'd500),
+        .ystart(11'd100),
+        .xend(11'd650),
+        .yend(11'd250),
+        .filled(1'b0),
+        .thickness(11'd10),
+        .color(12'h0_F_0),
+        .vga_in(vga_in),
+        .rgb_out(draw_rgb[4]),
+        .draw_en_out(draw_en[4])
+    );
+
+    // Bitmap 1 - Choice test
+    draw_bitmap #(
+        .BITMAP(BITMAP_152x64),
+        .BITMAP_PATH(BITMAP_152x64_PATH),
+        .USE_TRANSPARENCY(1)
+    ) u_draw_bitmap_1 (
+        .clk(clk),
+        .rst_n(rst_n),
+        .xstart(12'd50),
+        .ystart(12'd400),
+        .vga_in(vga_in),
+        .rgb_out(draw_rgb[5]),
+        .draw_en_out(draw_en[5])
     );
 
     always_ff @(posedge clk or negedge rst_n) begin
@@ -175,12 +223,12 @@ module top_draw (
     );
 
     draw_mux #(
-        .INPUT_COUNT(3)
+        .INPUT_COUNT(6)
     ) u_draw_mux (
         .clk(clk),
         .rst_n(rst_n),
-        .in_rgb(text_rgb),
-        .in_draw_en(text_draw_en),
+        .in_rgb(draw_rgb),
+        .in_draw_en(draw_en),
         .vga_in(vga_in_d1),
         .out_rgb(vga_out.rgb)
     );
