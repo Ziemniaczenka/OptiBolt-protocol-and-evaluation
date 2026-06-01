@@ -19,6 +19,10 @@ package bitmap_pkg;
         HEIGHT: 64
     };
 
+    `ifndef SYNTHESIS
     localparam string BITMAP_152x64_PATH = "../../rtl/evaluation/display/data/bitmap1_152x64.mem";
+    `else
+    localparam string BITMAP_152x64_PATH = "bitmap1_152x64.mem";
+    `endif
 
 endpackage

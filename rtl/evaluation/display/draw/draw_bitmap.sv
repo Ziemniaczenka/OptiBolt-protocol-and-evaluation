@@ -29,9 +29,7 @@ module draw_bitmap #(
     logic [11:0] rom [0:BITMAP.WIDTH*BITMAP.HEIGHT-1];
 
     initial begin
-        if (BITMAP_PATH != "") begin
-            $readmemh(BITMAP_PATH, rom);
-        end
+        $readmemh(BITMAP_PATH, rom);
     end
 
     logic in_region;
