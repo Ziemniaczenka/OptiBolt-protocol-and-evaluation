@@ -1,0 +1,10 @@
+# Copyright (C) 2026  AGH University of Science and Technology
+# MTM UEC2
+# Author: Tomasz Więcławski & Sebastian Zoń
+#
+# Description:
+# List of files defining the modules used during the test.
+
+vhdl work ../../rtl/evaluation/keyboard/Ps2Interface.vhd
+sv work ../../rtl/evaluation/keyboard/keyboard_decoder.sv \
+        keyboard_decoder_tb.sv
