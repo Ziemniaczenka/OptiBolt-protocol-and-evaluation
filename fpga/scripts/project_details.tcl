@@ -13,10 +13,10 @@
 #                   Project details                   #
 #-----------------------------------------------------#
 # Project name                                  -- EDIT
-set project_name vga_project
+set project_name optibolt_project
 
 # Top module name                               -- EDIT
-set top_module top_vga_basys3
+set top_module top_basys3
 
 # FPGA device
 set target xc7a35tcpg236-1
@@ -26,22 +26,41 @@ set target xc7a35tcpg236-1
 #-----------------------------------------------------#
 # Specify .xdc files location                   -- EDIT
 set xdc_files {
-    constraints/top_vga_basys3.xdc
+    constraints/clk_wiz_0.xdc
+    constraints/clk_wiz_0_late.xdc
+    constraints/clk_wiz_1.xdc
+    constraints/clk_wiz_1_late.xdc
+    constraints/top_basys3.xdc
 }
 
 # Specify SystemVerilog design files location   -- EDIT
 set sv_files {
-    ../rtl/vga_pkg.sv
-    ../rtl/vga_timing.sv
-    ../rtl/draw_bg.sv
-    ../rtl/top_vga.sv
-    rtl/top_vga_basys3.sv
+    ../rtl/evaluation/display/vga/vga_pkg.sv
+    ../rtl/evaluation/display/vga/vga_if.sv
+    ../rtl/evaluation/display/vga/vga_timing.sv
+    ../rtl/evaluation/display/draw/font/font_pkg.sv
+    ../rtl/evaluation/display/draw/font/font.sv
+    ../rtl/helpers/prefetch_buffer.sv
+    ../rtl/evaluation/display/draw/draw_bg.sv
+    ../rtl/evaluation/display/draw/draw_string.sv
+    ../rtl/evaluation/display/draw/draw_mux.sv
+    ../rtl/helpers/delay.sv
+    ../rtl/evaluation/display/draw/string_pkg.sv
+    ../rtl/evaluation/display/draw/bitmap_pkg.sv
+    ../rtl/evaluation/display/draw/draw_bitmap.sv
+    ../rtl/evaluation/display/draw/draw_rect.sv
+    ../rtl/evaluation/display/draw/top_draw.sv
+    ../rtl/evaluation/display/top_display.sv
+    rtl/top_basys3.sv
 }
 
 # Specify Verilog design files location         -- EDIT
-# set verilog_files {
-#     path/to/file.v
-# }
+set verilog_files {
+    rtl/clk_wiz_0.v
+    rtl/clk_wiz_0_clk_wiz.v
+    rtl/clk_wiz_1.v
+    rtl/clk_wiz_1_clk_wiz.v
+}
 
 # Specify VHDL design files location            -- EDIT
 # set vhdl_files {
@@ -49,6 +68,7 @@ set sv_files {
 # }
 
 # Specify files for a memory initialization     -- EDIT
-# set mem_files {
-#    path/to/file.data
-# }
+set mem_files {
+    ../rtl/evaluation/display/data/bitmap1_152x64.mem
+    ../rtl/evaluation/display/data/font_11x7.mem
+}
