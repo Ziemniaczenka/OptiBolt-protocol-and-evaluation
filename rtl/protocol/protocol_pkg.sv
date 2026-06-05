@@ -12,12 +12,23 @@ package protocol_pkg;
     localparam CLK400 = 400_000_000;
     
     //M VALUE COUNTING//
+
     //localparam int M_OVERSAMPLING_BITRATE
+    //oversampling 8x
     localparam logic [15:0] M_8X_100K = CLK400 / (8 * 100_000);
     localparam logic [15:0] M_8X_1M   = CLK400 / (8 * 1_000_000);
+    localparam logic [15:0] M_8X_2M   = CLK400 / (8 * 2_000_000);
+    localparam logic [15:0] M_8X_10M   = CLK400 / (8 * 10_000_000);
+
+    localparam logic [15:0] M_8X_25M   = CLK400 / (8 * 25_000_000); //too fast (crash highly possible)
+    localparam logic [15:0] M_8X_50M   = CLK400 / (8 * 50_000_000); //too fast (crash highly possible)
+
+
+    //oversampling 16x
     localparam logic [15:0] M_16X_1M  = CLK400 / (16 * 1_000_000);
     localparam logic [15:0] M_16X_5M  = CLK400 / (16 * 5_000_000);
 
+    localparam logic [15:0] M_16X_25M  = CLK400 / (16 * 25_000_000); //too fast (crash highly possible)
 
     //OVERSAMPLING TIMING WINDOWS//
 

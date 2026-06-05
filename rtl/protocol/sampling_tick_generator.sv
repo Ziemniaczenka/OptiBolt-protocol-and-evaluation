@@ -22,8 +22,13 @@ always_comb begin
     case ({oversampling, bit_rate})
         8'b0000_0000: current_M = M_8X_100K;
         8'b0000_0001: current_M = M_8X_1M;
+        8'b0000_0010: current_M = M_8X_2M;
+        8'b0000_0100: current_M = M_8X_10M;
+        8'b0000_0101: current_M = M_8X_25M;
+        8'b0000_0110: current_M = M_8X_50M;
         8'b0001_0001: current_M = M_16X_1M;
-        8'b0001_0010: current_M = M_16X_5M;
+        8'b0001_0011: current_M = M_16X_5M;
+        8'b0001_0101: current_M = M_16X_25M;
         default: current_M = M_8X_100K;
     endcase
 end
