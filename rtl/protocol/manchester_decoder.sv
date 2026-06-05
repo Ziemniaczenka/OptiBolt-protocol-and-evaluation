@@ -23,7 +23,7 @@ logic [3:0] C1_START, C1_END, CENTER, C2_START, C2_END;
 logic [3:0] counter, MAX_COUNT;
 logic rx_reg, rx_sync, rx_past, edge_detected;
 logic [4:0] voting_c1, voting_c2;
-logic result_c1, result_c2, vote_evaluation;
+logic result_c1, result_c2, vote_evaluation, searching, skip_vote;
 
 always_comb begin
     case(oversampling)
@@ -76,6 +76,8 @@ always_ff @(posedge clk400 or negedge rst_n) begin
         voting_c2 <= '0;
         vote_evaluation <= '0;
         decode_error <= '0;
+        searching <= 1'b1;
+        skip_vote <= '0;
     end
     else begin
         rx_reg <= rx_manchester;
@@ -92,8 +94,15 @@ always_ff @(posedge clk400 or negedge rst_n) begin
                 counter <= counter +1;
                 vote_evaluation <= 1'b0;
             end
-            if(edge_detected && counter > C1_END && counter < C2_START) begin
-                counter <= CENTER;
+            if(edge_detected) begin
+                if(searching) begin
+                    counter <= CENTER;
+                    searching <= 1'b0;
+                    skip_vote <= 1'b1;
+                end
+                else if(counter > C1_END && counter < C2_START) begin
+                    counter <= CENTER;
+                end
             end
             if(counter >= C1_START && counter <= C1_END) begin
                 voting_c1 <= {voting_c1[3:0], rx_sync};
@@ -102,7 +111,10 @@ always_ff @(posedge clk400 or negedge rst_n) begin
                 voting_c2 <= {voting_c2[3:0], rx_sync};
             end
             if(vote_evaluation == 1'b1) begin
-                if(result_c1 == 1'b1 && result_c2 == 1'b0) begin
+                if(skip_vote) begin
+                    skip_vote <= '0;
+                end
+                else if(result_c1 == 1'b1 && result_c2 == 1'b0) begin
                     rx_binary <= 1'b1;
                     bit_valid <= 1'b1;
                 end
@@ -113,6 +125,7 @@ always_ff @(posedge clk400 or negedge rst_n) begin
                 else begin
                     bit_valid <= 1'b0;
                     decode_error <= 1'b1;
+                    searching <= 1'b1;
                 end
             end
         end
