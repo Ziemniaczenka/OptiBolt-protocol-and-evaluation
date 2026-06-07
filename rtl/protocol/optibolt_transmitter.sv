@@ -32,7 +32,8 @@ typedef enum logic [2:0] {
 } state_t;
 
 state_t state_reg, state_next;
-logic [7:0] shift_reg, shift_next;
+logic [7:0] shift_reg, shift_next, data_reg, data_next;
+logic [2:0] header_reg, header_next;
 logic [3:0] bit_counter, bit_counter_next;
 logic tx_bin_reg, tx_bin_next;
 logic parity_reg, parity_next;
@@ -49,6 +50,8 @@ always_ff @(posedge clk400 or negedge rst_n) begin
         tx_bin_reg <= 1'b1;
         parity_reg <= '0;
         tx_busy_reg <= '0;
+        header_reg <= '0;
+        data_reg <= '0;
     end else begin
         state_reg <= state_next;
         shift_reg <= shift_next;
@@ -56,6 +59,8 @@ always_ff @(posedge clk400 or negedge rst_n) begin
         tx_bin_reg <= tx_bin_next;
         parity_reg <= parity_next;
         tx_busy_reg <= tx_busy_next;
+        header_reg <= header_next;
+        data_reg <= data_next;
     end
 end
 
@@ -65,6 +70,8 @@ always_comb begin //zrobiłem to moudlarnie żeby było czytelniejesze i prostsz
     bit_counter_next = bit_counter;
     tx_bin_next = tx_bin_reg;
     parity_next = parity_reg;
+    header_next = header_reg;
+    data_next = data_reg;
 
     case (state_reg)
         IDLE: begin
@@ -74,6 +81,8 @@ always_comb begin //zrobiłem to moudlarnie żeby było czytelniejesze i prostsz
                 shift_next = 8'b0101_0100;
                 bit_counter_next = '0;
                 parity_next = ^{header, data};
+                header_next = header;
+                data_next = data;
             end
         end
 
@@ -92,7 +101,7 @@ always_comb begin //zrobiłem to moudlarnie żeby było czytelniejesze i prostsz
                 
                 if (bit_counter == 4'd7) begin
                     state_next = HEADER;
-                    shift_next = {header, 5'd0}; 
+                    shift_next = {header_reg, 5'd0}; 
                     bit_counter_next = '0;
                 end
             end
@@ -106,7 +115,7 @@ always_comb begin //zrobiłem to moudlarnie żeby było czytelniejesze i prostsz
                 
                 if (bit_counter == 4'd2) begin
                     state_next = PAYLOAD;
-                    shift_next = data;
+                    shift_next = data_reg;
                     bit_counter_next = '0;
                 end
             end
