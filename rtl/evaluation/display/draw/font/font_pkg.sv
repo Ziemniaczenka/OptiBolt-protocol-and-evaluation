@@ -22,6 +22,10 @@
         LETTER_HEIGHT:   11
     };
 
+    `ifndef SYNTHESIS
     localparam string FONT_11x7_PATH = "../../rtl/evaluation/display/data/font_11x7.mem";
+    `else
+    localparam string FONT_11x7_PATH = "font_11x7.mem";
+    `endif
 
  endpackage
