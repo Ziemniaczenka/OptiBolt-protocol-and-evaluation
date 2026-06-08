@@ -34,11 +34,18 @@ function Show-Usage {
 }
 
 function Get-AvailableTests {
-    Get-ChildItem -Directory | Where-Object { $_.Name -notin @('build', 'common') } | Select-Object -ExpandProperty Name
+    Get-ChildItem -Path . -Filter "*.prj" -Recurse | 
+        Where-Object { $_.DirectoryName -notmatch '[\\/](build|common)([\\/]|$)' } | 
+        ForEach-Object {
+            $relPath = (Resolve-Path -Relative $_.DirectoryName) -replace '^\.[\/\\]', ''
+            $relPath -replace '\\', '/'
+        }
 }
 
 function Execute-Test {
-    param([string]$test_name)
+    param([string]$test_path)
+
+    $test_name = Split-Path $test_path -Leaf
 
     # Remove untracked files
     git clean -fXd .
@@ -46,7 +53,7 @@ function Execute-Test {
     if (-not (Test-Path "build")) { New-Item -ItemType Directory -Path "build" | Out-Null }
     Set-Location build
 
-    $prj_path = "$env:ROOT_DIR/sim/$test_name/$test_name.prj"
+    $prj_path = "$env:ROOT_DIR/sim/$test_path/$test_name.prj"
     $compile_glbl = ""
     if (Test-Path $prj_path) {
         if (Select-String -Path $prj_path -Pattern "glbl\.v" -Quiet) {
@@ -94,7 +101,7 @@ if ($l) { Get-AvailableTests; exit 0 }
 if ($a) {
     foreach ($test in (Get-AvailableTests)) {
         Write-Host -NoNewline "${test}:`t"
-        $output = Execute-Test -test_name $test
+        $output = Execute-Test -test_path $test
         $err_ctr = ($output | Select-String -Pattern '(?i)error').Count
         if ($err_ctr -eq 0) { Write-Host -ForegroundColor Green " PASSED" } 
         else { Write-Host -ForegroundColor Red " FAILED" }
@@ -102,4 +109,4 @@ if ($a) {
     exit 0
 }
 
-if ($t) { Execute-Test -test_name $t | Out-Null }
+if ($t) { Execute-Test -test_path $t | Out-Null }
