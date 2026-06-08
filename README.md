@@ -28,10 +28,10 @@
     | 4.05  | 4 | PRZERWA (Egzamin 0 UEA2)                                | @Ziemniaczenka    | 🟢 Done |
     | 11.05 | 5 | Pozostałe funkcje draw, top_draw                        | @Ziemniaczenka    | 🟡 WiP  |
     | 11.05 | 5 | Ustalenie parametrów i sygnałów sterujących protokołu   | @TomaszWieclawski | 🟡 WiP  |
-    | 18.05 | 6 | Klawiatura, wiersz poleceń                              | @Ziemniaczenka    | 🔴 TODO |
-    | 18.05 | 6 | Przerobienie modułu UART na OptiBolt                    | @TomaszWieclawski | 🔴 TODO |
-    | 25.05 | 7 | Złożenie hardware, generacja bitstreamu, pierwsze testy | Wszyscy           | 🔴 TODO |
-    | 01.06 | 8 | Integracja protokołu z evaluacją                        | Wszyscy           | 🔴 TODO |
+    | 18.05 | 6 | Klawiatura, wiersz poleceń                              | @Ziemniaczenka    | 🟡 WiP  |
+    | 18.05 | 6 | Przerobienie modułu UART na OptiBolt                    | @TomaszWieclawski | 🟡 WiP  |
+    | 25.05 | 7 | Złożenie hardware, generacja bitstreamu, pierwsze testy | Wszyscy           | 🟡 WiP  |
+    | 01.06 | 8 | Integracja protokołu z ewaluacją                        | Wszyscy           | 🔴 TODO |
     | 08.06 | 9 | Testy końcowe i finalizacja dokumentacji                | Wszyscy           | 🔴 TODO |
     | 15.06 | 10| 16.06 PIERWSZY TERMIN ODDANIA PROJEKTU                  | Wszyscy           | 🔴 TODO |
     </details>
@@ -75,8 +75,8 @@
 
     - [x] Znaleźć złącze
     - [x] Narysować schemat
-    - [ ] Zamówić brakujące części
-    - [ ] Zlutować
+    - [x] Zamówić brakujące części
+    - [x] Zlutować
     </details>
 
 *   <details open>
