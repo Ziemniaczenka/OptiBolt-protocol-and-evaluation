@@ -15,7 +15,7 @@ module optibolt_transmitter (
     input logic [7:0] data,
     input logic transmit_start,
     input logic bit_out,
-    output logic tx_bin,
+    output logic tx_binary,
     output logic tx_busy
 );
 
@@ -39,7 +39,7 @@ logic tx_bin_reg, tx_bin_next;
 logic parity_reg, parity_next;
 logic tx_busy_reg, tx_busy_next;
 
-assign tx_bin = tx_bin_reg;
+assign tx_binary = tx_bin_reg;
 assign tx_busy = tx_busy_reg;
 
 always_ff @(posedge clk400 or negedge rst_n) begin
