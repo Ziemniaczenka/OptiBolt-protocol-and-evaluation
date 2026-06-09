@@ -96,12 +96,12 @@ always_ff @(posedge clk400 or negedge rst_n) begin
             end
             if(edge_detected) begin
                 if(searching) begin
-                    counter <= CENTER;
+                    counter <= CENTER + 1;
                     searching <= 1'b0;
                     skip_vote <= 1'b1;
                 end
-                else if(counter > C1_END && counter < C2_START) begin
-                    counter <= CENTER;
+                else if(counter >= C1_END && counter <= C2_START) begin
+                    counter <= CENTER + 1;
                 end
             end
             if(counter >= C1_START && counter <= C1_END) begin
