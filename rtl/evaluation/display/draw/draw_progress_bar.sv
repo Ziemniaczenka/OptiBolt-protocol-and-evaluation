@@ -25,7 +25,7 @@ module draw_progress_bar (
   logic [11:0] rgb_bg, rgb_fill;
   logic en_bg, en_fill;
   logic [10:0] fill_width;
-  assign fill_width = (width * progress) >> 8;  // Scale 0-255 to width
+  assign fill_width = 11'((20'(width-11'd1) * progress) >> 8);  // Scale 0-255 to width
 
   draw_rect u_bg (
       .clk(clk),
@@ -45,9 +45,9 @@ module draw_progress_bar (
   draw_rect u_fill (
       .clk(clk),
       .rst_n(rst_n),
-      .xstart(xstart + 11'd2),
+      .xstart(xstart + 11'd1),
       .ystart(ystart + 11'd2),
-      .xend(xstart + 11'd2 + fill_width),
+      .xend(xstart + 11'd1 + fill_width),
       .yend(ystart + height - 11'd2),
       .filled(1'b1),
       .thickness(11'd0),
@@ -58,11 +58,11 @@ module draw_progress_bar (
   );
 
   always_comb begin
-    if (en_fill) begin
-      rgb_out = rgb_fill;
-      draw_en_out = 1'b1;
-    end else if (en_bg) begin
+    if (en_bg) begin
       rgb_out = rgb_bg;
+      draw_en_out = 1'b1;
+    end else if (en_fill) begin
+      rgb_out = rgb_fill;
       draw_en_out = 1'b1;
     end else begin
       rgb_out = 12'h0;
