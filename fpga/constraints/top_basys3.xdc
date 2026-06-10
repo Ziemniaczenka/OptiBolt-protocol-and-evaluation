@@ -150,15 +150,15 @@ set_property PACKAGE_PIN J1 [get_ports {JA1}]
 
 
 ##Pmod Header JB
-##Sch name = JB1
-#set_property PACKAGE_PIN A14 [get_ports {JB[0]}]
-	#set_property IOSTANDARD LVCMOS33 [get_ports {JB[0]}]
+##Sch name = JB1 
+set_property PACKAGE_PIN A14 [get_ports {JB1}]
+	set_property IOSTANDARD LVCMOS33 [get_ports {JB1}]
 ##Sch name = JB2
 #set_property PACKAGE_PIN A16 [get_ports {JB[1]}]
 	#set_property IOSTANDARD LVCMOS33 [get_ports {JB[1]}]
 ##Sch name = JB3
-#set_property PACKAGE_PIN B15 [get_ports {JB[2]}]
-	#set_property IOSTANDARD LVCMOS33 [get_ports {JB[2]}]
+set_property PACKAGE_PIN B15 [get_ports {JB3}]
+	set_property IOSTANDARD LVCMOS33 [get_ports {JB3}]
 ##Sch name = JB4
 #set_property PACKAGE_PIN B16 [get_ports {JB[3]}]
 	#set_property IOSTANDARD LVCMOS33 [get_ports {JB[3]}]
@@ -271,12 +271,12 @@ set_property PACKAGE_PIN R19 [get_ports Vsync]
 
 
 ##USB HID (PS/2)
-#set_property PACKAGE_PIN C17 [get_ports PS2Clk]
-	#set_property IOSTANDARD LVCMOS33 [get_ports PS2Clk]
-	#set_property PULLUP true [get_ports PS2Clk]
-#set_property PACKAGE_PIN B17 [get_ports PS2Data]
-	#set_property IOSTANDARD LVCMOS33 [get_ports PS2Data]
-	#set_property PULLUP true [get_ports PS2Data]
+set_property PACKAGE_PIN C17 [get_ports PS2Clk]
+	set_property IOSTANDARD LVCMOS33 [get_ports PS2Clk]
+	set_property PULLUP true [get_ports PS2Clk]
+set_property PACKAGE_PIN B17 [get_ports PS2Data]
+	set_property IOSTANDARD LVCMOS33 [get_ports PS2Data]
+	set_property PULLUP true [get_ports PS2Data]
 
 
 ##Quad SPI Flash
