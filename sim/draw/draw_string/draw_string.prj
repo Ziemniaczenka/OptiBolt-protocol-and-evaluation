@@ -1,0 +1,19 @@
+# Copyright (C) 2026  AGH University of Science and Technology
+# MTM UEC2
+# Author: Tomasz Więcławski & Sebastian Zoń
+#
+# Description:
+# List of files defining the modules used during the test.
+
+sv work ../../../rtl/evaluation/display/vga/vga_pkg.sv \
+        ../../../rtl/evaluation/display/vga/vga_if.sv \
+        ../../../rtl/evaluation/display/vga/vga_timing.sv \
+        ../../../rtl/evaluation/display/draw/font/font_pkg.sv \
+        ../../../rtl/evaluation/display/draw/font/font.sv \
+        ../../../rtl/helpers/prefetch_buffer.sv \
+        ../../../rtl/evaluation/display/draw/string_pkg.sv \
+        ../../../rtl/evaluation/display/draw/draw_string.sv \
+        ../../../rtl/helpers/bram_tdp.sv \
+        ../../../rtl/helpers/edge_detector.sv \
+        ../../common/tiff_writer.sv \
+        draw_string_tb.sv
