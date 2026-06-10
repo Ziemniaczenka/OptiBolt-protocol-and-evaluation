@@ -99,13 +99,12 @@ module draw_bg_tb;
     $display("Prepare to wait a long time...");
 
     wait (vs == 1'b0);
-    @(negedge vs) $display("Info: Frame 0 done at %t", $time);
-    @(posedge vs)  //Wait for the frame to finish
-    // End the simulation.
-    $display(
-        "Simulation is over, check the waveforms."
-    );
+    @(negedge vs);
 
+    // Frame 0
+    @(posedge vs) $display("Info: Frame 0 done at %t", $time);
+
+    $display("Simulation is over, check the frames.");
     $finish;
   end
 
