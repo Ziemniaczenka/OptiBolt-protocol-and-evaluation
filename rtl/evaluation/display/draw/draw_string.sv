@@ -219,7 +219,7 @@ module draw_string #(
       .pixels_row(char_row_pixels)
   );
 
-  prefetch_buffer #(
+  fwft_fifo #(
       .WORD_WIDTH((PIXEL_ROW_W * 2) + 8),
       .DEPTH(8)
   ) u_fifo (
@@ -314,7 +314,7 @@ module draw_string #(
         // Synchronize curr_drawn_idx with fifo_pop to perfectly track the FIFO head
         if (fifo_pop) curr_drawn_idx <= curr_drawn_idx + 1;
 
-        case (draw_state)
+        unique case (draw_state)
           IDLE: begin
             // Managed by outer if-else logic
           end
