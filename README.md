@@ -60,13 +60,17 @@
 
     - [x] Ustalić nazwę projektu
     - [x] Krótki opis
-    - [ ] Git
+    - [x] Git
       - [x] Stworzyć Repo
-      - [ ] Dowiedzieć się jak działają pull request i review
+      - [x] Dowiedzieć się jak działają pull request i review
     - [x] Napisać README
     - [x] Dodać referencyjne dokumenty (np. zielony pdf z konwencjami)
     - [ ] VSCode settings + formatter config
     - [ ] Nauczyć się Markdown i Mermaid
+    - [ ] Przygotować raport
+      - [ ] Struktura plików
+      - [ ] Schematy
+    - [ ] Wyeksportować raport do PDF
 
     </details>
 
@@ -85,7 +89,7 @@
     - [ ] Podział na moduły, diagram
     - [ ] Testbenche do grup modułów
     - [x] Sprawdzić czy Vivado robi timing analisys by default
-    - [ ] Ustalenie Clock domains
+    - [x] Ustalenie Clock domains
       - [ ] CDC pomiędzy sekcjami
     </details>
 
@@ -93,16 +97,28 @@
     <summary><b>Protokół</b></summary>
 
     - [x] Założenia, teoria
-    - [ ] Manchester encoder/decoder
-    - [ ] Ustalić zakres BAUDRATE i Oversampling, min and max speed
-      - [ ] tabela dopuszczalnych (lookup table)
-      - [ ] enumy do maszyn stanów (IDLE, PREAMBLE, ERROR itp.)
+    - [x] Manchester encoder/decoder
+    - [x] Ustalić zakres BAUDRATE i Oversampling, min and max speed
+      - [x] tabela dopuszczalnych (lookup table)
+      - [x] enumy do maszyn stanów (IDLE, PREAMBLE, ERROR itp.)
     - [ ] Warstwy modelu
     - [ ] Rejestry konfiguracyjne do protokołu
       - [ ] np. Baudrate
-      - [ ] sygnały sterujące (np. zmień baudrate)
-        - [ ] odpowiedź zwrotna (wait, success, error)
+      - [ ] sygnały sterujące (np. zmień baudrate)?
+        - [ ] odpowiedź zwrotna (wait, success, error)?
+        - [ ] Sterowanie przełącznikami / komendami
+    - [ ] Tryb testowy loopback
     - [ ] Flowchart, Sequence diagrams
+    - [ ] Typy danych do przesyłania
+      - [ ] Dane konfiguracyjne
+      - [ ] Tekst
+      - [ ] Obraz/bitmapa
+        - [ ] Ramka początku bitmapy
+        - [ ] 
+        - [ ] Ramki bitmapy
+        - [ ] Ramka końca bitmapy
+        - [ ] Odpowiedź wystąpienia błędu gdyby się nie zgadzało
+      - [ ] 
     </details>
 
 *   <details open>
@@ -110,7 +126,7 @@
 
     - [ ] Wyświetlanie VGA
       - [x] VGA Parameters include 
-      - [ ] Ustalenie layoutu ekranu
+      - [x] Ustalenie layoutu ekranu
       - [x] DrawBitmap
       - [x] DrawRect
       - [x] DrawString
@@ -119,7 +135,20 @@
         - [ ] Add more fonts
       - [ ] DrawChart
     - [ ] Obsługa klawiatury
+      - [x] Interfejs PS/2
+      - [x] Dekodowanie znaków
+      - [ ] Wpisywanie tekstu na ekran
+      - [ ] Detekcja komend
+      - [ ] Poruszanie się po interfejsie strzałkami
+    - [ ] Główny moduł sterujący
+      - [ ] Licznik błędów, wyliczenie BER
     - [ ] Różne testy (max baudrate, BER, latency, wysyłanie wiadomości, itd.)
+      - [ ] Ping (Latency test)
+      - [ ] Baudrate sweep
+      - [ ] Generate bitmap
+        - [ ] Losowe kolory dane
+        - [ ] Przesył do drugiego basysa
+      - [ ] ???
     </details>
 
 </details>
