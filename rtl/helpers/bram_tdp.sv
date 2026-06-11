@@ -12,16 +12,9 @@ module bram_tdp #(
     parameter ADDR_WIDTH = 10
 ) (
     input  logic                  clk_a,
-    input  logic                  we_a,    // write enable
-    input  logic [ADDR_WIDTH-1:0] addr_a,
-    input  logic [DATA_WIDTH-1:0] din_a,
-    output logic [DATA_WIDTH-1:0] dout_a,
-
     input  logic                  clk_b,
-    input  logic                  we_b,
-    input  logic [ADDR_WIDTH-1:0] addr_b,
-    input  logic [DATA_WIDTH-1:0] din_b,
-    output logic [DATA_WIDTH-1:0] dout_b
+    bram_if.memory                port_a,
+    bram_if.memory                port_b
 );
 
   /**
@@ -35,13 +28,17 @@ module bram_tdp #(
     */
 
   always_ff @(posedge clk_a) begin
-    if (we_a) ram[addr_a] <= din_a;
-    dout_a <= ram[addr_a];
+    if (port_a.en) begin
+      if (port_a.we) ram[port_a.addr] <= port_a.din;
+      port_a.dout <= ram[port_a.addr];
+    end
   end
 
   always_ff @(posedge clk_b) begin
-    if (we_b) ram[addr_b] <= din_b;
-    dout_b <= ram[addr_b];
+    if (port_b.en) begin
+      if (port_b.we) ram[port_b.addr] <= port_b.din;
+      port_b.dout <= ram[port_b.addr];
+    end
   end
 
 endmodule

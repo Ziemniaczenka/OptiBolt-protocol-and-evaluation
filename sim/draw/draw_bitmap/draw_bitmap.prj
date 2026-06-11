@@ -11,5 +11,6 @@ sv work ../../../rtl/evaluation/display/vga/vga_pkg.sv \
         ../../../rtl/evaluation/display/draw/bitmap_pkg.sv \
         ../../../rtl/evaluation/display/draw/draw_bitmap.sv \
         ../../../rtl/helpers/bram_tdp.sv \
+        ../../../rtl/helpers/bram_if.sv \
         ../../common/tiff_writer.sv \
         draw_bitmap_tb.sv

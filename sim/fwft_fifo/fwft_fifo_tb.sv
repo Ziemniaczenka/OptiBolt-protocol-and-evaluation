@@ -11,6 +11,10 @@ module fwft_fifo_tb;
 
   timeunit 1ns; timeprecision 1ps;
 
+  /**
+  *  Local parameters
+  */
+
   localparam CLK_PERIOD = 25;  // 40 MHz
   localparam RST_START_TIME = 1.25 * CLK_PERIOD;
   localparam RST_ACTIVE_TIME = 2.00 * CLK_PERIOD;

@@ -24,8 +24,7 @@ module draw_bitmap #(
 
     vga_if.in vga_in,
 
-    output logic [$clog2(BITMAP.WIDTH*BITMAP.HEIGHT)-1:0] mem_addr,
-    input  logic [                                  11:0] mem_data,
+    bram_if.read bmp_bram,
 
     output logic [11:0] rgb_out,
     output logic        draw_en_out
@@ -35,20 +34,10 @@ module draw_bitmap #(
     * Local variables and signals
     */
 
-  logic [11:0] rom[0:BITMAP.WIDTH*BITMAP.HEIGHT-1];
-
-  generate
-    if (!USE_RAM) begin
-      initial begin
-        $readmemh(BITMAP_PATH, rom);
-      end
-    end
-  endgenerate
-
   logic in_region;
   logic in_region_d1;
   logic [$clog2(BITMAP.WIDTH*BITMAP.HEIGHT)-1:0] addr;
-  logic [11:0] rom_data;
+  logic [11:0] active_data;
 
 
   /**
@@ -60,15 +49,34 @@ module draw_bitmap #(
                     (12'(vga_in.vcount) >= ystart) && (12'(vga_in.vcount) < ystart + BITMAP.HEIGHT);
 
     addr = (12'(vga_in.vcount) - ystart) * BITMAP.WIDTH + (12'(vga_in.hcount) - xstart);
-    mem_addr = addr;
   end
 
+  generate
+    if (USE_RAM) begin : gen_ram
+      assign bmp_bram.addr = addr;
+      assign bmp_bram.en   = 1'b1;
+      assign active_data   = bmp_bram.dout;
+    end else begin : gen_rom
+      logic [11:0] rom[0:BITMAP.WIDTH*BITMAP.HEIGHT-1];
+      logic [11:0] rom_data;
 
-  always_ff @(posedge clk) begin
-    if (in_region) begin
-      rom_data <= rom[addr];
+      initial begin
+        if (BITMAP_PATH != "") $readmemh(BITMAP_PATH, rom);
+      end
+
+      always_ff @(posedge clk) begin
+        if (in_region) begin
+          rom_data <= rom[addr];
+        end
+      end
+
+      assign active_data   = rom_data;
+
+      // Bezpieczne stany domyślne dla nieużywanego interfejsu (żeby zapobiec High-Z)
+      assign bmp_bram.addr = '0;
+      assign bmp_bram.en   = 1'b0;
     end
-  end
+  endgenerate
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -77,9 +85,6 @@ module draw_bitmap #(
       in_region_d1 <= in_region;
     end
   end
-
-  logic [11:0] active_data;
-  assign active_data = USE_RAM ? mem_data : rom_data;
 
   always_comb begin : bitmap_comb_blk
     if (in_region_d1 && !(USE_TRANSPARENCY && active_data == TRANSPARENT_COLOR)) begin

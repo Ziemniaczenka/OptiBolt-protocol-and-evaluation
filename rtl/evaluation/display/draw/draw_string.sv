@@ -31,9 +31,8 @@ module draw_string #(
     input logic [11:0] end_y,
     input logic wrap_text,
 
-    // Memory / ROM Interface
-    output logic [$clog2(MAX_STRING_LEN+1)-1:0] char_addr,
-    input  logic [                         7:0] char_data,
+    // Memory Interface
+    bram_if.read char_bram,
     input  logic [                         7:0] letter_spacing,
     input  logic [                         7:0] row_spacing,
 
@@ -149,7 +148,8 @@ module draw_string #(
   logic [3:0] fifo_count;
   logic [(PIXEL_ROW_W*2)+7:0] fifo_dout;
 
-  assign char_addr = fetch_idx;
+  assign char_bram.addr = fetch_idx;
+  assign char_bram.en   = 1'b1;
 
   // Keep track of requests currently propagating through the pipeline to prevent FIFO overflow
   logic [3:0] in_flight;
@@ -188,14 +188,14 @@ module draw_string #(
 
         // Pipeline Stage 2: Memory output is valid, capture char, request pixels from Font ROM
         valid_pipe[1] <= valid_pipe[0];
-        if (valid_pipe[0]) char_data_q1 <= char_data;
+        if (valid_pipe[0]) char_data_q1 <= char_bram.dout;
 
         // Pipeline Stage 3: Font ROM output is valid, capture data for pushing to FIFO
         valid_pipe[2] <= valid_pipe[1];
         if (valid_pipe[1]) char_data_q2 <= char_data_q1;
 
         // Stop fetch if terminal char (data valid at end of stage 1)
-        if (valid_pipe[0] && (char_data == 8'h0A || char_data == 8'h00)) begin
+        if (valid_pipe[0] && (char_bram.dout == 8'h0A || char_bram.dout == 8'h00)) begin
           stop_line_fetch <= 1'b1;
         end
       end

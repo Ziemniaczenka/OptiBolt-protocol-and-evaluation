@@ -66,6 +66,8 @@ module draw_bitmap_tb;
       .vga_out(tim_if.out)
   );
 
+  bram_if #(.ADDR_WIDTH(1), .DATA_WIDTH(12), .READ_ONLY(1)) rom_if(); // Defaultowy rom w tb nie uzywa BRAM do adresacji
+
   // --- ROM DUT ---
   draw_bitmap #(
       .BITMAP(BITMAP_TEST_128x64),
@@ -77,31 +79,23 @@ module draw_bitmap_tb;
       .xstart(xstart_rom),
       .ystart(ystart_rom),
       .vga_in(tim_if.in),
-      .mem_addr(),  // unused
-      .mem_data(12'h0),  // unused
+      .bmp_bram(rom_if),
       .rgb_out(rgb_rom),
       .draw_en_out(en_rom)
   );
 
   // --- RAM DUT ---
-  logic ram_we;
-  logic [$clog2(BITMAP_TEST_69x153.WIDTH*BITMAP_TEST_69x153.HEIGHT)-1:0] ram_addr_w, ram_addr;
-  logic [11:0] ram_din, ram_data;
+  bram_if #(.ADDR_WIDTH($clog2(BITMAP_TEST_69x153.WIDTH*BITMAP_TEST_69x153.HEIGHT)), .DATA_WIDTH(12)) ram_if_a();
+  bram_if #(.ADDR_WIDTH($clog2(BITMAP_TEST_69x153.WIDTH*BITMAP_TEST_69x153.HEIGHT)), .DATA_WIDTH(12), .READ_ONLY(1)) ram_if_b();
 
   bram_tdp #(
       .DATA_WIDTH(12),
       .ADDR_WIDTH($clog2(BITMAP_TEST_69x153.WIDTH * BITMAP_TEST_69x153.HEIGHT))
   ) u_ram (
       .clk_a (clk),
-      .we_a  (ram_we),
-      .addr_a(ram_addr_w),
-      .din_a (ram_din),
-      .dout_a(),
       .clk_b (clk),
-      .we_b  (1'b0),
-      .addr_b(ram_addr),
-      .din_b (12'h0),
-      .dout_b(ram_data)
+      .port_a(ram_if_a),
+      .port_b(ram_if_b)
   );
 
   draw_bitmap #(
@@ -114,8 +108,7 @@ module draw_bitmap_tb;
       .xstart(xstart_ram),
       .ystart(ystart_ram),
       .vga_in(tim_if.in),
-      .mem_addr(ram_addr),
-      .mem_data(ram_data),
+      .bmp_bram(ram_if_b),
       .rgb_out(rgb_ram),
       .draw_en_out(en_ram)
   );
@@ -153,9 +146,10 @@ module draw_bitmap_tb;
     ystart_rom = 12'd0;
     xstart_ram = 12'd0;
     ystart_ram = 12'd0;
-    ram_we = 0;
-    ram_addr_w = 0;
-    ram_din = 0;
+    ram_if_a.we = 0;
+    ram_if_a.en = 0;
+    ram_if_a.addr = 0;
+    ram_if_a.din = 0;
 
     #(RST_START_TIME) rst_n = 1'b0;
     #(RST_ACTIVE_TIME) rst_n = 1'b1;
@@ -164,12 +158,14 @@ module draw_bitmap_tb;
     $readmemh(BITMAP_TEST_69x153_PATH, bmp_mem);
     for (int i = 0; i < BITMAP_TEST_69x153.WIDTH * BITMAP_TEST_69x153.HEIGHT; i++) begin
       @(posedge clk);
-      ram_we = 1'b1;
-      ram_addr_w = i;
-      ram_din = bmp_mem[i];
+      ram_if_a.we = 1'b1;
+      ram_if_a.en = 1'b1;
+      ram_if_a.addr = i;
+      ram_if_a.din = bmp_mem[i];
     end
     @(posedge clk);
-    ram_we = 1'b0;
+    ram_if_a.we = 1'b0;
+    ram_if_a.en = 1'b0;
 
     wait (vs == 1'b0);
     @(negedge vs);

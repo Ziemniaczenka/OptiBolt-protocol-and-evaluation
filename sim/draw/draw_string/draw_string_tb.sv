@@ -53,10 +53,12 @@ module draw_string_tb;
   );
 
   // --- ROM DUT ---
-  logic [$clog2(MAX_LEN+1)-1:0] rom_addr;
-  logic [7:0] rom_data;
+  bram_if #(.ADDR_WIDTH($clog2(MAX_LEN+1)), .DATA_WIDTH(8), .READ_ONLY(1)) rom_if();
+
   logic [7:0] rom_str[0:MAX_LEN];
-  always_ff @(posedge clk) rom_data <= rom_str[rom_addr];
+  always_ff @(posedge clk) begin
+    if(rom_if.en) rom_if.dout <= rom_str[rom_if.addr];
+  end
 
   draw_string #(
       .FONT(FONT_11x7),
@@ -72,8 +74,7 @@ module draw_string_tb;
       .end_x(12'd400),
       .end_y(12'd200),
       .wrap_text(wrap_text),
-      .char_addr(rom_addr),
-      .char_data(rom_data),
+      .char_bram(rom_if),
       .letter_spacing(letter_spacing),
       .row_spacing(8'd1),
       .pixel_color(rgb_rom),
@@ -81,24 +82,17 @@ module draw_string_tb;
   );
 
   // --- RAM DUT ---
-  logic ram_we;
-  logic [$clog2(MAX_LEN+1)-1:0] ram_addr_w, ram_addr;
-  logic [7:0] ram_din, ram_data;
+  bram_if #(.ADDR_WIDTH($clog2(MAX_LEN+1)), .DATA_WIDTH(8)) ram_if_a();
+  bram_if #(.ADDR_WIDTH($clog2(MAX_LEN+1)), .DATA_WIDTH(8), .READ_ONLY(1)) ram_if_b();
 
   bram_tdp #(
       .DATA_WIDTH(8),
       .ADDR_WIDTH($clog2(MAX_LEN + 1))
   ) u_ram (
       .clk_a (clk),
-      .we_a  (ram_we),
-      .addr_a(ram_addr_w),
-      .din_a (ram_din),
-      .dout_a(),
       .clk_b (clk),
-      .we_b  (1'b0),
-      .addr_b(ram_addr),
-      .din_b (8'h0),
-      .dout_b(ram_data)
+      .port_a(ram_if_a),
+      .port_b(ram_if_b)
   );
 
   draw_string #(
@@ -115,8 +109,7 @@ module draw_string_tb;
       .end_x(12'd400),
       .end_y(12'd350),  // Shifted down
       .wrap_text(wrap_text),
-      .char_addr(ram_addr),
-      .char_data(ram_data),
+      .char_bram(ram_if_b),
       .letter_spacing(letter_spacing),
       .row_spacing(8'd1),
       .pixel_color(rgb_ram),
@@ -146,11 +139,13 @@ module draw_string_tb;
 
   task write_ram(input int addr, input [7:0] data);
     @(posedge clk);
-    ram_we = 1'b1;
-    ram_addr_w = addr;
-    ram_din = data;
+    ram_if_a.we = 1'b1;
+    ram_if_a.en = 1'b1;
+    ram_if_a.addr = addr;
+    ram_if_a.din = data;
     @(posedge clk);
-    ram_we = 1'b0;
+    ram_if_a.we = 1'b0;
+    ram_if_a.en = 1'b0;
   endtask
 
   task write_rom_str(string s);
@@ -203,9 +198,10 @@ module draw_string_tb;
   initial begin
     rst_n = 1'b1;
 
-    ram_we = 0;
-    ram_addr_w = 0;
-    ram_din = 0;
+    ram_if_a.we = 1'b0;
+    ram_if_a.en = 1'b0;
+    ram_if_a.addr = 0;
+    ram_if_a.din = 8'h0;
 
     wrap_text = 1'b1;
     letter_spacing = 8'd1;
@@ -243,7 +239,7 @@ module draw_string_tb;
     // write_rom_str("Test Zażółć gęślą jaźń.");  // Keep original for comparison if needed
     write_rom_bytes(polish_str);
 
-    write_ram_str("Z B C\nD E F\nG H I");
+    write_ram_str("A B C\nD E F\nG H I");
     @(posedge vs) $display("Info: Frame 3 done at %t", $time);
 
     // Frame 4 - no wrap test

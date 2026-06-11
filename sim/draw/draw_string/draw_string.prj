@@ -14,6 +14,7 @@ sv work ../../../rtl/evaluation/display/vga/vga_pkg.sv \
         ../../../rtl/evaluation/display/draw/string_pkg.sv \
         ../../../rtl/evaluation/display/draw/draw_string.sv \
         ../../../rtl/helpers/bram_tdp.sv \
+        ../../../rtl/helpers/bram_if.sv \
         ../../../rtl/helpers/edge_detector.sv \
         ../../common/tiff_writer.sv \
         draw_string_tb.sv
