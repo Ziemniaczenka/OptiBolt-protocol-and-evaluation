@@ -22,10 +22,23 @@ module draw_progress_bar (
     output logic            draw_en_out
 );
 
+  /**
+    * Local variables and signals
+    */
+
   logic [11:0] rgb_bg, rgb_fill;
   logic en_bg, en_fill;
   logic [10:0] fill_width;
-  assign fill_width = 11'((20'(width-11'd1) * progress) >> 8);  // Scale 0-255 to width
+
+  /**
+    * Internal logic
+    */
+
+  assign fill_width = 11'((20'(width - 11'd1) * progress) >> 8);  // Scale 0-255 to width
+
+  /**
+    * Submodules instances
+    */
 
   draw_rect u_bg (
       .clk(clk),

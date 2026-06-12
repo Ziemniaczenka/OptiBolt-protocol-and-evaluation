@@ -17,6 +17,7 @@ package bitmap_pkg;
   localparam bitmap_t BITMAP_152x64 = '{WIDTH: 152, HEIGHT: 64};
   localparam bitmap_t BITMAP_TEST_128x64 = '{WIDTH: 128, HEIGHT: 64};
   localparam bitmap_t BITMAP_TEST_69x153 = '{WIDTH: 69, HEIGHT: 153};
+  localparam bitmap_t BITMAP_DYN_64x64   = '{WIDTH: 64, HEIGHT: 64};
 
 `ifndef SYNTHESIS
   localparam string BITMAP_152x64_PATH = "../../rtl/evaluation/display/data/bitmap1_152x64.mem";

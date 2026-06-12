@@ -41,10 +41,18 @@ module draw_string_tb;
   assign vs = tim_if.vsync;
   assign hs = tim_if.hsync;
 
+  /**
+    * Clock generation
+    */
+
   initial begin
     clk = 1'b0;
     forever #(CLK_PERIOD / 2) clk = ~clk;
   end
+
+  /**
+    * Submodules instances
+    */
 
   vga_timing u_timing (
       .clk(clk),
@@ -53,11 +61,15 @@ module draw_string_tb;
   );
 
   // --- ROM DUT ---
-  bram_if #(.ADDR_WIDTH($clog2(MAX_LEN+1)), .DATA_WIDTH(8), .READ_ONLY(1)) rom_if();
+  bram_if #(
+      .ADDR_WIDTH($clog2(MAX_LEN + 1)),
+      .DATA_WIDTH(8),
+      .READ_ONLY (1)
+  ) rom_if ();
 
   logic [7:0] rom_str[0:MAX_LEN];
   always_ff @(posedge clk) begin
-    if(rom_if.en) rom_if.dout <= rom_str[rom_if.addr];
+    if (rom_if.en) rom_if.dout <= rom_str[rom_if.addr];
   end
 
   draw_string #(
@@ -82,8 +94,15 @@ module draw_string_tb;
   );
 
   // --- RAM DUT ---
-  bram_if #(.ADDR_WIDTH($clog2(MAX_LEN+1)), .DATA_WIDTH(8)) ram_if_a();
-  bram_if #(.ADDR_WIDTH($clog2(MAX_LEN+1)), .DATA_WIDTH(8), .READ_ONLY(1)) ram_if_b();
+  bram_if #(
+      .ADDR_WIDTH($clog2(MAX_LEN + 1)),
+      .DATA_WIDTH(8)
+  ) ram_if_a ();
+  bram_if #(
+      .ADDR_WIDTH($clog2(MAX_LEN + 1)),
+      .DATA_WIDTH(8),
+      .READ_ONLY (1)
+  ) ram_if_b ();
 
   bram_tdp #(
       .DATA_WIDTH(8),
@@ -93,6 +112,13 @@ module draw_string_tb;
       .clk_b (clk),
       .port_a(ram_if_a),
       .port_b(ram_if_b)
+  );
+
+  bram_writer #(
+      .MAX_LEN(MAX_LEN + 1)
+  ) u_writer_ram (
+      .clk (clk),
+      .port(ram_if_a)
   );
 
   draw_string #(
@@ -137,16 +163,9 @@ module draw_string_tb;
       .go (vs)
   );
 
-  task write_ram(input int addr, input [7:0] data);
-    @(posedge clk);
-    ram_if_a.we = 1'b1;
-    ram_if_a.en = 1'b1;
-    ram_if_a.addr = addr;
-    ram_if_a.din = data;
-    @(posedge clk);
-    ram_if_a.we = 1'b0;
-    ram_if_a.en = 1'b0;
-  endtask
+  /**
+    * Helper tasks
+    */
 
   task write_rom_str(string s);
     for (int i = 0; i <= MAX_LEN; i++) begin
@@ -159,13 +178,6 @@ module draw_string_tb;
     for (int i = 0; i <= MAX_LEN; i++) begin
       if (i < s.size()) rom_str[i] = s[i];
       else rom_str[i] = 8'h00;
-    end
-  endtask
-
-  task write_ram_str(string s);
-    for (int i = 0; i <= MAX_LEN; i++) begin
-      if (i < s.len()) write_ram(i, s[i]);
-      else write_ram(i, 8'h00);
     end
   endtask
 
@@ -195,6 +207,10 @@ module draw_string_tb;
       8'h2e  // "."
   };
 
+  /**
+    * Main test
+    */
+
   initial begin
     rst_n = 1'b1;
 
@@ -211,7 +227,7 @@ module draw_string_tb;
 
     // Initial strings for frame 0
     write_rom_str("Hello\nWorld!");
-    write_ram_str("RAM Test");
+    u_writer_ram.write_string("RAM Test");
 
     wait (vs == 1'b0);
     @(negedge vs);
@@ -223,14 +239,14 @@ module draw_string_tb;
     // Frame 1
     letter_spacing = 8'd0;
     write_rom_str("0_spacing_test (`|.`|.)");
-    write_ram_str("NoSpace (`|.`|.)");
+    u_writer_ram.write_string("NoSpace (`|.`|.)");
     @(posedge vs) $display("Info: Frame 1 done at %t", $time);
 
     // Frame 2
     letter_spacing = 8'd5;
     write_rom_str(
         "This is a very long line of text that should wrap around the screen boundary to test the line wrapping feature.");
-    write_ram_str("Another test for RAM with a newline character \n  <- here.");
+    u_writer_ram.write_string("Another test for RAM with a newline character \n  <- here.");
     @(posedge vs) $display("Info: Frame 2 done at %t", $time);
 
     // Frame 3
@@ -239,14 +255,14 @@ module draw_string_tb;
     // write_rom_str("Test Zażółć gęślą jaźń.");  // Keep original for comparison if needed
     write_rom_bytes(polish_str);
 
-    write_ram_str("A B C\nD E F\nG H I");
+    u_writer_ram.write_string("A B C\nD E F\nG H I");
     @(posedge vs) $display("Info: Frame 3 done at %t", $time);
 
     // Frame 4 - no wrap test
     wrap_text = 1'b0;
     letter_spacing = 8'd4;
     write_rom_str("This very long line should be clipped and not wrap at all.");
-    write_ram_str(
+    u_writer_ram.write_string(
         "This line has a newline and first line is very long.\nThis part should be on the next line.");
     @(posedge vs) $display("Info: Frame 4 (no wrap) done at %t", $time);
 

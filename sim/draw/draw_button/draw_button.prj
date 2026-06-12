@@ -11,11 +11,13 @@ sv work ../../../rtl/evaluation/display/vga/vga_pkg.sv \
         ../../../rtl/evaluation/display/draw/font/font_pkg.sv \
         ../../../rtl/evaluation/display/draw/font/font.sv \
         ../../../rtl/helpers/fwft_fifo.sv \
+        ../../../rtl/helpers/edge_detector.sv \
         ../../../rtl/evaluation/display/draw/string_pkg.sv \
         ../../../rtl/evaluation/display/draw/draw_string.sv \
-        ../../../rtl/helpers/bram_tdp.sv \
+        ../../../rtl/evaluation/display/draw/draw_rect.sv \
+        ../../../rtl/evaluation/display/draw/draw_button.sv \
         ../../../rtl/helpers/bram_if.sv \
-        ../../../rtl/helpers/edge_detector.sv \
+        ../../../rtl/helpers/bram_tdp.sv \
         ../../common/tiff_writer.sv \
         ../../common/bram_writer.sv \
-        draw_string_tb.sv
+        draw_button_tb.sv

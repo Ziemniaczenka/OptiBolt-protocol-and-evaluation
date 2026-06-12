@@ -32,17 +32,17 @@ module draw_string #(
     input logic wrap_text,
 
     // Memory Interface
-    bram_if.read char_bram,
-    input  logic [                         7:0] letter_spacing,
-    input  logic [                         7:0] row_spacing,
+          bram_if.read       char_bram,
+    input logic        [7:0] letter_spacing,
+    input logic        [7:0] row_spacing,
 
     output logic [11:0] pixel_color,
     output logic        draw_en
 );
 
-  /*
-  * Local variables and signals
-  */
+  /**
+    * Local variables and signals
+    */
 
   localparam PIXEL_ROW_W = (FONT.BYTES_PER_ROW << 3);  // Max width of a character in pixels
   localparam IDX_W = $clog2(MAX_STRING_LEN + 1);  // Bit width for character index

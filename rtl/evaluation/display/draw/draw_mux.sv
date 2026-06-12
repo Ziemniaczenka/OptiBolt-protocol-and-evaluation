@@ -22,6 +22,10 @@ module draw_mux #(
 
     import vga_pkg::*;
 
+    /**
+     * Local variables and signals
+     */
+
     logic [11:0] out_rgb_nxt;
 
     always_comb begin : mux_comb_blk
