@@ -10,16 +10,26 @@ sv work ../../rtl/evaluation/display/vga/vga_pkg.sv \
         ../../rtl/evaluation/display/vga/vga_timing.sv \
         ../../rtl/evaluation/display/draw/font/font_pkg.sv \
         ../../rtl/evaluation/display/draw/font/font.sv \
-        ../../rtl/helpers/prefetch_buffer.sv \
+        ../../rtl/helpers/fwft_fifo.sv \
+        ../../rtl/helpers/edge_detector.sv \
         ../../rtl/evaluation/display/draw/draw_bg.sv \
         ../../rtl/evaluation/display/draw/draw_string.sv \
         ../../rtl/evaluation/display/draw/draw_mux.sv \
         ../../rtl/helpers/delay.sv \
         ../../rtl/evaluation/display/draw/string_pkg.sv \
+        ../../rtl/evaluation/display/draw/string_rom.sv \
         ../../rtl/evaluation/display/draw/bitmap_pkg.sv \
         ../../rtl/evaluation/display/draw/draw_bitmap.sv \
         ../../rtl/evaluation/display/draw/draw_rect.sv \
+        ../../rtl/evaluation/display/draw/draw_button.sv \
+        ../../rtl/evaluation/display/draw/draw_progress_bar.sv \
+        ../../rtl/evaluation/display/draw/draw_popup.sv \
+        ../../rtl/evaluation/ui_pkg.sv \
         ../../rtl/evaluation/display/draw/top_draw.sv \
+        ../../rtl/evaluation/ui_navigation.sv \
         ../../rtl/evaluation/display/top_display.sv \
+        ../../rtl/helpers/bram_if.sv \
+        ../../rtl/helpers/bram_tdp.sv \
         ../common/tiff_writer.sv \
+        ../common/bram_writer.sv \
         top_display_tb.sv
