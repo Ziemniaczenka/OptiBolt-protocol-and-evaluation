@@ -4,6 +4,8 @@
 # MTM UEC2
 # Author: Piotr Kaczmarczyk
 #
+# Modified by MP to accept test_dir inside directory
+#
 # Description:
 # This script runs simulations outside Vivado, making them faster.
 # For usage details run the script with no arguments.
@@ -27,7 +29,7 @@ function usage {
 }
 
 function list_available_tests {
-    ls -1 --ignore 'build' --ignore 'common' --ignore '*.*' .
+    find . -type f -name "*.prj" | sed 's|^\./||' | sed 's|/[^/]*$||'
     exit 0
 }
 
@@ -38,10 +40,11 @@ function execute_test {
     mkdir -p build
     cd build
 
-    test_name=$1
+    test_path=$1
+    test_name=$(basename "$test_path")
+    PRJ_FILE=${ROOT_DIR}/sim/${test_path}/${test_name}.prj
 
-    # Elaboration and simulation options
-    if [[ $(grep 'glbl.v' -oc  ${ROOT_DIR}/sim/${test_name}/${test_name}.prj) -gt 0 ]]; then
+    if [[ $(grep 'glbl.v' -oc  ${PRJ_FILE}) -gt 0 ]]; then
         COMPILE_GLBL='work.glbl'
     else
         COMPILE_GLBL=''
@@ -50,7 +53,7 @@ function execute_test {
     XELAB_OPTS="work.${test_name}_tb
                 ${COMPILE_GLBL}
                 -snapshot ${test_name}_tb
-                -prj ${ROOT_DIR}/sim/${test_name}/${test_name}.prj
+                -prj ${PRJ_FILE}
                 -timescale 1ns/1ps
                 -L unisims_ver"
 
@@ -66,9 +69,8 @@ function execute_test {
     cd ..
 }
 
-# Run all available simulations
 function run_all {
-    for test in $(list_available_tests); do
+    for test in $(find . -type f -name "*.prj" | sed 's|^\./||' | sed 's|/[^/]*$||'); do
         err_ctr=0
         echo -en "${test}:\t"
         err_ctr=$(execute_test ${test} | grep -oic 'error')
@@ -81,14 +83,11 @@ function run_all {
     exit 0
 }
 
-# ------------------------------------------------------------------------------
-# Arguments parsing and checking
-# ------------------------------------------------------------------------------
-
 if [[ $# -eq 0 ]]; then
     usage
 fi
 
+ROOT_DIR=$(pwd)
 cd sim
 
 while getopts aglrs:t: option; do

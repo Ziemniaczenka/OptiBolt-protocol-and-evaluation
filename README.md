@@ -28,10 +28,10 @@
     | 4.05  | 4 | PRZERWA (Egzamin 0 UEA2)                                | @Ziemniaczenka    | 🟢 Done |
     | 11.05 | 5 | Pozostałe funkcje draw, top_draw                        | @Ziemniaczenka    | 🟡 WiP  |
     | 11.05 | 5 | Ustalenie parametrów i sygnałów sterujących protokołu   | @TomaszWieclawski | 🟡 WiP  |
-    | 18.05 | 6 | Klawiatura, wiersz poleceń                              | @Ziemniaczenka    | 🔴 TODO |
-    | 18.05 | 6 | Przerobienie modułu UART na OptiBolt                    | @TomaszWieclawski | 🔴 TODO |
-    | 25.05 | 7 | Złożenie hardware, generacja bitstreamu, pierwsze testy | Wszyscy           | 🔴 TODO |
-    | 01.06 | 8 | Integracja protokołu z evaluacją                        | Wszyscy           | 🔴 TODO |
+    | 18.05 | 6 | Klawiatura, wiersz poleceń                              | @Ziemniaczenka    | 🟡 WiP  |
+    | 18.05 | 6 | Przerobienie modułu UART na OptiBolt                    | @TomaszWieclawski | 🟡 WiP  |
+    | 25.05 | 7 | Złożenie hardware, generacja bitstreamu, pierwsze testy | Wszyscy           | 🟡 WiP  |
+    | 01.06 | 8 | Integracja protokołu z ewaluacją                        | Wszyscy           | 🔴 TODO |
     | 08.06 | 9 | Testy końcowe i finalizacja dokumentacji                | Wszyscy           | 🔴 TODO |
     | 15.06 | 10| 16.06 PIERWSZY TERMIN ODDANIA PROJEKTU                  | Wszyscy           | 🔴 TODO |
     </details>
@@ -60,13 +60,17 @@
 
     - [x] Ustalić nazwę projektu
     - [x] Krótki opis
-    - [ ] Git
+    - [x] Git
       - [x] Stworzyć Repo
-      - [ ] Dowiedzieć się jak działają pull request i review
+      - [x] Dowiedzieć się jak działają pull request i review
     - [x] Napisać README
     - [x] Dodać referencyjne dokumenty (np. zielony pdf z konwencjami)
     - [ ] VSCode settings + formatter config
     - [ ] Nauczyć się Markdown i Mermaid
+    - [ ] Przygotować raport
+      - [ ] Struktura plików
+      - [ ] Schematy
+    - [ ] Wyeksportować raport do PDF
 
     </details>
 
@@ -75,8 +79,8 @@
 
     - [x] Znaleźć złącze
     - [x] Narysować schemat
-    - [ ] Zamówić brakujące części
-    - [ ] Zlutować
+    - [x] Zamówić brakujące części
+    - [x] Zlutować
     </details>
 
 *   <details open>
@@ -85,7 +89,7 @@
     - [ ] Podział na moduły, diagram
     - [ ] Testbenche do grup modułów
     - [x] Sprawdzić czy Vivado robi timing analisys by default
-    - [ ] Ustalenie Clock domains
+    - [x] Ustalenie Clock domains
       - [ ] CDC pomiędzy sekcjami
     </details>
 
@@ -93,16 +97,28 @@
     <summary><b>Protokół</b></summary>
 
     - [x] Założenia, teoria
-    - [ ] Manchester encoder/decoder
-    - [ ] Ustalić zakres BAUDRATE i Oversampling, min and max speed
-      - [ ] tabela dopuszczalnych (lookup table)
-      - [ ] enumy do maszyn stanów (IDLE, PREAMBLE, ERROR itp.)
+    - [x] Manchester encoder/decoder
+    - [x] Ustalić zakres BAUDRATE i Oversampling, min and max speed
+      - [x] tabela dopuszczalnych (lookup table)
+      - [x] enumy do maszyn stanów (IDLE, PREAMBLE, ERROR itp.)
     - [ ] Warstwy modelu
     - [ ] Rejestry konfiguracyjne do protokołu
       - [ ] np. Baudrate
-      - [ ] sygnały sterujące (np. zmień baudrate)
-        - [ ] odpowiedź zwrotna (wait, success, error)
+      - [ ] sygnały sterujące (np. zmień baudrate)?
+        - [ ] odpowiedź zwrotna (wait, success, error)?
+        - [ ] Sterowanie przełącznikami / komendami
+    - [ ] Tryb testowy loopback
     - [ ] Flowchart, Sequence diagrams
+    - [ ] Typy danych do przesyłania
+      - [ ] Dane konfiguracyjne
+      - [ ] Tekst
+      - [ ] Obraz/bitmapa
+        - [ ] Ramka początku bitmapy
+        - [ ] 
+        - [ ] Ramki bitmapy
+        - [ ] Ramka końca bitmapy
+        - [ ] Odpowiedź wystąpienia błędu gdyby się nie zgadzało
+      - [ ] 
     </details>
 
 *   <details open>
@@ -110,7 +126,7 @@
 
     - [ ] Wyświetlanie VGA
       - [x] VGA Parameters include 
-      - [ ] Ustalenie layoutu ekranu
+      - [x] Ustalenie layoutu ekranu
       - [x] DrawBitmap
       - [x] DrawRect
       - [x] DrawString
@@ -119,7 +135,20 @@
         - [ ] Add more fonts
       - [ ] DrawChart
     - [ ] Obsługa klawiatury
+      - [x] Interfejs PS/2
+      - [x] Dekodowanie znaków
+      - [ ] Wpisywanie tekstu na ekran
+      - [ ] Detekcja komend
+      - [ ] Poruszanie się po interfejsie strzałkami
+    - [ ] Główny moduł sterujący
+      - [ ] Licznik błędów, wyliczenie BER
     - [ ] Różne testy (max baudrate, BER, latency, wysyłanie wiadomości, itd.)
+      - [ ] Ping (Latency test)
+      - [ ] Baudrate sweep
+      - [ ] Generate bitmap
+        - [ ] Losowe kolory dane
+        - [ ] Przesył do drugiego basysa
+      - [ ] ???
     </details>
 
 </details>
