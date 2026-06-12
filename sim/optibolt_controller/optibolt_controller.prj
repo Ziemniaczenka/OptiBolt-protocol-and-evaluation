@@ -1,0 +1,20 @@
+# Copyright (C) 2026  AGH University of Science and Technology
+# MTM UEC2
+# Author: Tomasz Więcławski & Sebastian Zoń
+#
+# Description:
+# List of files defining the modules used during the test.
+
+sv work ../../rtl/protocol/protocol_pkg.sv
+
+verilog work ../../rtl/protocol/list_ch04_20_fifo.v
+verilog work ../../rtl/protocol/list_ch04_11_mod_m_counter.v
+
+sv work ../../rtl/protocol/sampling_tick_generator.sv
+sv work ../../rtl/protocol/manchester_decoder.sv
+sv work ../../rtl/protocol/manchester_coder.sv
+sv work ../../rtl/protocol/optibolt_receiver.sv
+sv work ../../rtl/protocol/optibolt_transmitter.sv
+sv work ../../rtl/protocol/optibolt_controller.sv
+
+sv work optibolt_controller_tb.sv

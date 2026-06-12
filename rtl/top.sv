@@ -46,19 +46,10 @@ module top (
     * FPGA submodules placement
     */
 
-  top_evaluation u_top_evaluation (
-      .clk74p25(clk74p25),
-      .clk100(clk100),
-      .rst_n(rst_n),
-      .vs(Vsync),
-      .hs(Hsync),
-      .r(vgaRed),
-      .g(vgaGreen),
-      .b(vgaBlue),
-      .ps2_clk(PS2Clk),
-      .ps2_data(PS2Data)
-  );
+optibolt_controller u_optibolt_controller (
 
+
+);
   //   top_protocol u_top_protocol(
   //   );
 
