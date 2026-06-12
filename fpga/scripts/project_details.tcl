@@ -1,7 +1,7 @@
 # Copyright (C) 2025  AGH University of Science and Technology
 # MTM UEC2
 # Author: Piotr Kaczmarczyk
-#
+# Edited by: Tomasz Więcławski & Sebastian Zoń
 # Description:
 # Project detiles required for generate_bitstream.tcl
 # Make sure that project_name, top_module and target are correct.
@@ -35,22 +35,14 @@ set xdc_files {
 
 # Specify SystemVerilog design files location   -- EDIT
 set sv_files {
-    ../rtl/evaluation/display/vga/vga_pkg.sv
-    ../rtl/evaluation/display/vga/vga_if.sv
-    ../rtl/evaluation/display/vga/vga_timing.sv
-    ../rtl/evaluation/display/draw/font/font_pkg.sv
-    ../rtl/evaluation/display/draw/font/font.sv
-    ../rtl/helpers/prefetch_buffer.sv
-    ../rtl/evaluation/display/draw/draw_bg.sv
-    ../rtl/evaluation/display/draw/draw_string.sv
-    ../rtl/evaluation/display/draw/draw_mux.sv
-    ../rtl/helpers/delay.sv
-    ../rtl/evaluation/display/draw/string_pkg.sv
-    ../rtl/evaluation/display/draw/bitmap_pkg.sv
-    ../rtl/evaluation/display/draw/draw_bitmap.sv
-    ../rtl/evaluation/display/draw/draw_rect.sv
-    ../rtl/evaluation/display/draw/top_draw.sv
-    ../rtl/evaluation/display/top_display.sv
+    ../rtl/protocol/protocol_pkg.sv
+    ../rtl/protocol/sampling_tick_generator.sv
+    ../rtl/protocol/manchester_decoder.sv
+    ../rtl/protocol/manchester_coder.sv
+    ../rtl/protocol/optibolt_receiver.sv
+    ../rtl/protocol/optibolt_transmitter.sv
+    ../rtl/protocol/optibolt_controller.sv
+    ../rtl/top.sv
     rtl/top_basys3.sv
 }
 
@@ -60,6 +52,8 @@ set verilog_files {
     rtl/clk_wiz_0_clk_wiz.v
     rtl/clk_wiz_1.v
     rtl/clk_wiz_1_clk_wiz.v
+    ../rtl/protocol/list_ch04_20_fifo.v
+    ../rtl/protocol/list_ch04_11_mod_m_counter.v
 }
 
 # Specify VHDL design files location            -- EDIT

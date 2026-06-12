@@ -10,18 +10,26 @@
 module top_basys3 (
     input wire clk,
     input wire btnC,  // reset
+
     // VGA
     output wire Vsync,
     output wire Hsync,
     output wire [3:0] vgaRed,
     output wire [3:0] vgaGreen,
     output wire [3:0] vgaBlue,
+
     // PS/2
     inout wire PS2Clk,
     inout wire PS2Data,
+
     // PMOD OptiBolt
     output wire JB1,  //  JB1: A14 TX
     input wire JB3,  //  JB3: B15 RX
+
+    //peripherals
+    input  wire [5:0]  sw,
+    output wire [15:0] led,
+
     // Monitor signals
     output wire JA1
 );
@@ -91,22 +99,24 @@ module top_basys3 (
      */
 
   top u_top (
-      .clk74p25(clk_74p25MHz),
-      .clk100(clk_100MHz),
-      .clk400(clk_400MHz),
-      .rst_n(!btnC & all_clocks_locked),
+    .clk74p25(clk_74p25MHz),
+    .clk100(clk_100MHz),
+    .clk400(clk_400MHz),
+    .rst_n(!btnC & all_clocks_locked), // btnC active-high
 
-      .vs(Vsync),
-      .hs(Hsync),
-      .r(vgaRed),
-      .g(vgaGreen),
-      .b(vgaBlue),
-      .ps2_clk(PS2Clk),
-      .ps2_data(PS2Data),
-
-      .OptiBolt_tx(JB1),
-      .OptiBolt_rx(JB3)
-
-  );
+    .vs(Vsync),
+    .hs(Hsync),
+    .r(vgaRed),
+    .g(vgaGreen),
+    .b(vgaBlue),
+    .ps2_clk(PS2Clk),
+    .ps2_data(PS2Data),
+    
+    .sw(sw),
+    .led(led),
+    
+    .OptiBolt_tx(JB1),
+    .OptiBolt_rx(JB3)
+);
 
 endmodule
