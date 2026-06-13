@@ -78,6 +78,7 @@ set verilog_files {
     rtl/clk_wiz_0_clk_wiz.v
     rtl/clk_wiz_1.v
     rtl/clk_wiz_1_clk_wiz.v
+    ../rtl/evaluation/7seg/disp_hex_mux.v
 }
 
 # Specify VHDL design files location            -- EDIT

@@ -16,7 +16,9 @@ module keyboard_decoder (
     inout  wire          ps2_data,
     output logic [511:0] keys_pressed,
     output logic         key_make_strobe,
-    output logic [  8:0] key_code
+    output logic [  8:0] key_code,
+    output logic [  7:0] dbg_rx_data,
+    output logic         dbg_rx_valid
 );
 
   timeunit 1ns; timeprecision 1ps;
@@ -58,6 +60,9 @@ module keyboard_decoder (
       .busy      (ps2_busy),
       .err       (ps2_err)
   );
+
+  assign dbg_rx_data  = ps2_rx_data;
+  assign dbg_rx_valid = ps2_read_data;
 
   /**
      * Internal logic
