@@ -38,25 +38,24 @@ module top (
     * Signals assignments
     */
 
-  // dummy assigment for now
+  // Dummy assignment for now, should be driven by top_protocol
   assign OptiBolt_tx = 1'b0;
 
-
   /**
-    * FPGA submodules placement
+    *  Submodules instances
     */
 
   top_evaluation u_top_evaluation (
       .clk74p25(clk74p25),
       .clk100(clk100),
       .rst_n(rst_n),
-      .vs(Vsync),
-      .hs(Hsync),
-      .r(vgaRed),
-      .g(vgaGreen),
-      .b(vgaBlue),
-      .ps2_clk(PS2Clk),
-      .ps2_data(PS2Data)
+      .vs(vs),
+      .hs(hs),
+      .r(r),
+      .g(g),
+      .b(b),
+      .ps2_clk(ps2_clk),
+      .ps2_data(ps2_data)
   );
 
   //   top_protocol u_top_protocol(

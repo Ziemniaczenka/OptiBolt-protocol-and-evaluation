@@ -297,3 +297,6 @@ set_property PACKAGE_PIN B17 [get_ports PS2Data]
 ## Configuration options, can be used for all designs
 set_property CONFIG_VOLTAGE 3.3 [current_design]
 set_property CFGBVS VCCO [current_design]
+
+## Ignore timing violations between clock domains
+set_false_path -to [get_cells -hierarchical -filter {NAME =~ *u_cdc_ui_sync/sync_0_reg*}]
