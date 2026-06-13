@@ -35,12 +35,15 @@ module top_ps2_test (
 
   logic cmd_up, cmd_down, cmd_left, cmd_right, cmd_enter, cmd_esc, cmd_backspace, char_valid;
   logic [7:0] char_ascii;
+  logic shift_held;
+  assign shift_held = keys_pressed[8'h12] | keys_pressed[8'h59];
 
   keyboard_controller u_kbd_ctrl (
       .clk(clk),
       .rst_n(~btnC),
       .key_make_strobe(key_make_strobe),
       .key_code(key_code),
+      .shift_held(shift_held),
       .mode_text(1'b1), // Force text mode to see ASCII
       .cmd_up(cmd_up),
       .cmd_down(cmd_down),
