@@ -17,7 +17,7 @@
 set project_name optibolt_project
 
 # Top module name                               -- EDIT
-set top_module top_basys3
+set top_module top_ps2_test
 
 # FPGA device
 set target xc7a35tcpg236-1
@@ -67,6 +67,7 @@ set sv_files {
     ../rtl/evaluation/keyboard/keyboard_decoder.sv
     ../rtl/evaluation/keyboard/top_keyboard.sv
     ../rtl/evaluation/top_evaluation.sv
+    ../rtl/top_ps2_test.sv
     rtl/top_basys3.sv
     ../rtl/top.sv
 }
