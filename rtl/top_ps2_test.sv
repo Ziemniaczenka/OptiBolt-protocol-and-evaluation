@@ -12,6 +12,7 @@ module top_ps2_test (
 
   logic [7:0] rx_data;
   logic       read_data;
+  logic       err;
 
   Ps2Interface ps2_inst (
       .ps2_clk(PS2Clk),
@@ -23,16 +24,19 @@ module top_ps2_test (
       .rx_data(rx_data),
       .read_data(read_data),
       .busy(),
-      .err()
+      .err(err)
   );
 
-  // Shift register to display last two bytes on LEDs
+  logic [15:0] history = 0;
+
   always_ff @(posedge clk) begin
     if (btnC) begin
-      led <= 16'h0000;
+      history <= 16'h0000;
     end else if (read_data) begin
-      led <= {led[7:0], rx_data};
+      history <= {history[7:0], rx_data};
     end
   end
+
+  assign led = history;
 
 endmodule
