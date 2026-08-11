@@ -19,6 +19,9 @@ module top_basys3 (
     // PS/2
     inout wire PS2Clk,
     inout wire PS2Data,
+    output wire [3:0] an,
+    output wire [6:0] seg,
+    output wire dp,
     // PMOD OptiBolt
     output wire JB1,  //  JB1: A14 TX
     input wire JB3,  //  JB3: B15 RX
@@ -104,6 +107,9 @@ module top_basys3 (
       .ps2_clk(PS2Clk),
       .ps2_data(PS2Data),
 
+      .an(an),
+      .seg(seg),
+      .dp(dp),
       .OptiBolt_tx(JB1),
       .OptiBolt_rx(JB3)
 

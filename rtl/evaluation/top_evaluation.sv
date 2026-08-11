@@ -19,7 +19,10 @@ module top_evaluation (
     output logic [3:0] g,
     output logic [3:0] b,
     inout  wire        ps2_clk,
-    inout  wire        ps2_data
+    inout  wire        ps2_data,
+    output logic [ 3:0] an,
+    output logic [ 6:0] seg,
+    output logic        dp
 );
 
   /**
@@ -33,6 +36,12 @@ module top_evaluation (
 
   // UI state signals
   logic [3:0] ui_selected_item;
+  logic       mode_text;
+  logic       show_popup;
+  logic       show_progress;
+  logic [7:0] progress_val;
+  
+  logic [8:0] key_code; // Need it for 7-segment display
 
   // Memory Interfaces
   logic console_we, input_we, bmp_we;
@@ -47,13 +56,17 @@ module top_evaluation (
 
   // CDC UI Navigation
   logic [3:0] ui_selected_item_clk74;
+  logic       mode_text_clk74;
+  logic       show_popup_clk74;
+  logic       show_progress_clk74;
+  logic [7:0] progress_val_clk74;
   cdc_sync #(
-      .WIDTH(4)
+      .WIDTH(15)
   ) u_cdc_ui_sync (
       .clk_dst(clk74p25),
       .rst_n(rst_n),
-      .d_in(ui_selected_item),
-      .d_out(ui_selected_item_clk74)
+      .d_in({mode_text, ui_selected_item, show_popup, show_progress, progress_val}),
+      .d_out({mode_text_clk74, ui_selected_item_clk74, show_popup_clk74, show_progress_clk74, progress_val_clk74})
   );
 
   /**
@@ -147,10 +160,10 @@ module top_evaluation (
   ui_navigation u_ui_nav (
       .clk(clk100),
       .rst_n(rst_n),
-      .cmd_up(cmd_up),
-      .cmd_down(cmd_down),
-      .cmd_left(cmd_left),
-      .cmd_right(cmd_right),
+      .cmd_up(mode_text ? 1'b0 : cmd_up),
+      .cmd_down(mode_text ? 1'b0 : cmd_down),
+      .cmd_left(mode_text ? 1'b0 : cmd_left),
+      .cmd_right(mode_text ? 1'b0 : cmd_right),
       .ui_selected_item(ui_selected_item)
   );
 
@@ -159,7 +172,7 @@ module top_evaluation (
       .rst_n(rst_n),
       .ps2_clk(ps2_clk),
       .ps2_data(ps2_data),
-      .mode_text(ui_selected_item == 4'd1),
+      .mode_text(mode_text),
       .cmd_up(cmd_up),
       .cmd_down(cmd_down),
       .cmd_left(cmd_left),
@@ -168,7 +181,8 @@ module top_evaluation (
       .cmd_esc(cmd_esc),
       .char_valid(char_valid),
       .cmd_backspace(cmd_backspace),
-      .char_ascii(char_ascii)
+      .char_ascii(char_ascii),
+      .key_code(key_code)
   );
 
   evaluation_controller u_eval_ctl (
@@ -192,7 +206,11 @@ module top_evaluation (
       .bmp_we(bmp_we),
       .bmp_addr(bmp_addr_w),
       .bmp_din(bmp_din),
-      .ui_selected_item(ui_selected_item)
+      .ui_selected_item(ui_selected_item),
+      .mode_text(mode_text),
+      .show_popup(show_popup),
+      .show_progress(show_progress),
+      .progress_val(progress_val)
       // TODO: Connect protocol interface
   );
 
@@ -200,9 +218,10 @@ module top_evaluation (
       .clk(clk74p25),
       .rst_n(rst_n),
       .ui_selected_item(ui_selected_item_clk74),
-      .show_popup(1'b0),
-      .show_progress(1'b0),
-      .progress_val(8'd0),
+      .mode_text(mode_text_clk74),
+      .show_popup(show_popup_clk74),
+      .show_progress(show_progress_clk74),
+      .progress_val(progress_val_clk74),
       .console_bram(console_if_b),
       .input_bram(input_if_b),
       .dyn_bmp_bram(bmp_if_b),
@@ -213,4 +232,41 @@ module top_evaluation (
       .b(b)
 
   );
+
+  // --- 7-Segment Debug ---
+  logic [15:0] display_data;
+  logic [ 7:0] sseg_out;
+
+  always_ff @(posedge clk100 or negedge rst_n) begin
+    if (!rst_n) display_data <= 16'h0000;
+    else begin
+      if (cmd_up || cmd_down || cmd_left || cmd_right || cmd_enter || cmd_esc || cmd_backspace || char_valid) begin
+        display_data[15:8] <= key_code[7:0]; // Lewa połówka pokazuje kody wciskanych klawiszy PS/2
+      end
+      if (char_valid) begin
+        display_data[7:0] <= char_ascii;
+      end else if (cmd_up) display_data[7:0] <= 8'hAA;
+      else if (cmd_down) display_data[7:0] <= 8'hBB;
+      else if (cmd_left) display_data[7:0] <= 8'hCC;
+      else if (cmd_right) display_data[7:0] <= 8'hDD;
+      else if (cmd_enter) display_data[7:0] <= 8'hEE;
+      else if (cmd_esc) display_data[7:0] <= 8'hFF;
+      else if (cmd_backspace) display_data[7:0] <= 8'h88;
+    end
+  end
+
+  disp_hex_mux u_disp (
+      .clk  (clk100),
+      .reset(~rst_n),
+      .hex3 (display_data[15:12]),
+      .hex2 (display_data[11:8]),
+      .hex1 (display_data[7:4]),
+      .hex0 (display_data[3:0]),
+      .dp_in(4'b1111), // Wszystkie kropki dziesiętne zgaszone
+      .an   (an),
+      .sseg (sseg_out)
+  );
+  assign seg = {sseg_out[0], sseg_out[1], sseg_out[2], sseg_out[3], sseg_out[4], sseg_out[5], sseg_out[6]};
+  assign dp  = sseg_out[7];
+
 endmodule

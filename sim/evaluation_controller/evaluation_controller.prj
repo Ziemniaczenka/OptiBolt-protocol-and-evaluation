@@ -1,0 +1,10 @@
+# Copyright (C) 2026  AGH University of Science and Technology
+# MTM UEC2
+# Author: Tomasz Więcławski & Sebastian Zoń
+#
+# Description:
+# List of files defining the modules used during the test.
+
+sv work ../../rtl/evaluation/evaluation_controller.sv \
+        ../../rtl/evaluation/keyboard/keyboard_controller.sv \
+        evaluation_controller_tb.sv

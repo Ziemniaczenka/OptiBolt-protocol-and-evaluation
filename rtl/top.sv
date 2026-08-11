@@ -22,6 +22,9 @@ module top (
     output logic [3:0] b,
     inout  wire        ps2_clk,
     inout  wire        ps2_data,
+    output logic [ 3:0] an,
+    output logic [ 6:0] seg,
+    output logic        dp,
 
     //OptiBolt
     input  logic OptiBolt_rx,
@@ -55,7 +58,10 @@ module top (
       .g(g),
       .b(b),
       .ps2_clk(ps2_clk),
-      .ps2_data(ps2_data)
+      .ps2_data(ps2_data),
+      .an(an),
+      .seg(seg),
+      .dp(dp)
   );
 
   //   top_protocol u_top_protocol(

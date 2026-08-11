@@ -56,28 +56,28 @@ module ui_navigation (
 
     if (cmd_up) begin
       for (int i = GRID_Y - 1; i >= 0; i--) begin
-        if (i < cursor_y && UI_GRID[i][cursor_x] != UI_GRID[cursor_y][cursor_x]) begin
+        if (i < cursor_y && UI_GRID[i][cursor_x] != UI_GRID[cursor_y][cursor_x] && UI_GRID[i][cursor_x] != ITEM_NONE) begin
           cursor_y_nxt = 2'(i);
           break;
         end
       end
     end else if (cmd_down) begin
       for (int i = 0; i < GRID_Y; i++) begin
-        if (i > cursor_y && UI_GRID[i][cursor_x] != UI_GRID[cursor_y][cursor_x]) begin
+        if (i > cursor_y && UI_GRID[i][cursor_x] != UI_GRID[cursor_y][cursor_x] && UI_GRID[i][cursor_x] != ITEM_NONE) begin
           cursor_y_nxt = 2'(i);
           break;
         end
       end
     end else if (cmd_left) begin
       for (int i = GRID_X - 1; i >= 0; i--) begin
-        if (i < cursor_x && UI_GRID[cursor_y][i] != UI_GRID[cursor_y][cursor_x]) begin
+        if (i < cursor_x && UI_GRID[cursor_y][i] != UI_GRID[cursor_y][cursor_x] && UI_GRID[cursor_y][i] != ITEM_NONE) begin
           cursor_x_nxt = 2'(i);
           break;
         end
       end
     end else if (cmd_right) begin
       for (int i = 0; i < GRID_X; i++) begin
-        if (i > cursor_x && UI_GRID[cursor_y][i] != UI_GRID[cursor_y][cursor_x]) begin
+        if (i > cursor_x && UI_GRID[cursor_y][i] != UI_GRID[cursor_y][cursor_x] && UI_GRID[cursor_y][i] != ITEM_NONE) begin
           cursor_x_nxt = 2'(i);
           break;
         end

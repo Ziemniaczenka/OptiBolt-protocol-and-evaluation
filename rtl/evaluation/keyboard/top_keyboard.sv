@@ -21,12 +21,15 @@ module top_keyboard (
     cmd_esc,
     output logic       char_valid,
     cmd_backspace,
-    output logic [7:0] char_ascii
+    output logic [7:0] char_ascii,
+    output logic [8:0] key_code
 );
 
   logic [511:0] keys_pressed;
   logic         key_make_strobe;
-  logic [  8:0] key_code;
+  logic         shift_held;
+
+  assign shift_held = keys_pressed[8'h12] | keys_pressed[8'h59];
 
   keyboard_decoder u_kbd_dec (
       .clk(clk),
@@ -43,6 +46,7 @@ module top_keyboard (
       .rst_n(rst_n),
       .key_make_strobe(key_make_strobe),
       .key_code(key_code),
+      .shift_held(shift_held),
       .mode_text(mode_text),
       .cmd_up(cmd_up),
       .cmd_down(cmd_down),

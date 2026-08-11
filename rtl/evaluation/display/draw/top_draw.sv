@@ -17,6 +17,7 @@ module top_draw (
 
     // UI Control inputs from evaluation controller
     input logic [3:0] ui_selected_item,
+    input logic       mode_text,
     input logic       show_popup,
     input logic       show_progress,
     input logic [7:0] progress_val,
@@ -299,12 +300,14 @@ module top_draw (
       .draw_en_out(draw_en[8])
   );
 
+  logic [11:0] raw_input_txt_rgb;
+
   // [9] Input Text
   draw_string #(
       .FONT(FONT_11x7),
       .FONT_PATH(FONT_11x7_PATH),
       .MAX_STRING_LEN(INPUT_MAX_LEN),
-      .COLOR(COLOR_INPUT)
+      .COLOR(12'hFFF)
   ) u_draw_input_txt (
       .clk(clk),
       .rst_n(rst_n),
@@ -317,9 +320,11 @@ module top_draw (
       .char_bram(input_bram),
       .letter_spacing(8'd1),
       .row_spacing(8'd1),
-      .pixel_color(draw_rgb[9]),
+      .pixel_color(raw_input_txt_rgb),
       .draw_en(draw_en[9])
   );
+  
+  assign draw_rgb[9] = draw_en[9] ? (mode_text ? 12'h0_F_0 : COLOR_INPUT) : 12'h000;
 
   // [10] Dynamic Bitmap (np. 64x64)
   draw_bitmap #(
