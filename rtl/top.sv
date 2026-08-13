@@ -7,7 +7,7 @@
  * Top module connecting Evaluation and OptiBolt
  */
 
-module top (
+ module top (
     // Common
     input logic clk74p25,
     input logic clk100,
@@ -36,7 +36,7 @@ module top (
     * Local variables and signals
     */
 
-    logic [3:0] oversampling = 4'b0000;
+    logic [3:0] oversampling = 4'b0000; // Na sztywno 8x, bo mamy tylko 6 switchy
     logic [3:0] bit_rate;
 
     //rx
@@ -50,78 +50,99 @@ module top (
     logic [2:0] tx_msg_type;
     logic [7:0] tx_data;
 
-    logic [31:0] tx_timer;
+    logic [19:0] tx_timer;
     logic rx_enable_dly;
-    logic [24:0] err_stretch_man;
-    logic [24:0] err_stretch_pre;
-    logic [24:0] err_stretch_par;
+    logic rx_enable_dly2; // Dodatkowy rejestr opóźniający dla potokowanego kontrolera
+    logic [15:0] err_stretch_man;
+    logic [15:0] err_stretch_pre;
+    logic [15:0] err_stretch_par;
+
+    logic [8:0] prescaler;
+    logic tick_slow;
 
 
     always_comb begin
-      if      (sw[5]) begin bit_rate = 4'b0110; led[5:0] = 6'b100000; end // 50M
-      else if (sw[4]) begin bit_rate = 4'b0101; led[5:0] = 6'b010000; end // 25M
-      else if (sw[3]) begin bit_rate = 4'b0100; led[5:0] = 6'b001000; end // 10M
-      else if (sw[2]) begin bit_rate = 4'b0010; led[5:0] = 6'b000100; end // 2M
-      else if (sw[1]) begin bit_rate = 4'b0001; led[5:0] = 6'b000010; end // 1M
-      else            begin bit_rate = 4'b0000; led[5:0] = 6'b000001; end // 100k
+        // Priorytetowy koder prędkości: od najszybszej do najwolniejszej
+        if      (sw[5]) begin bit_rate = 4'b0110; led[5:0] = 6'b100000; end // 12.5M (Crash Test)
+        else if (sw[4]) begin bit_rate = 4'b0101; led[5:0] = 6'b010000; end // 6.25M
+        else if (sw[3]) begin bit_rate = 4'b0100; led[5:0] = 6'b001000; end // 5M
+        else if (sw[2]) begin bit_rate = 4'b0011; led[5:0] = 6'b000100; end // 3.125M
+        else if (sw[1]) begin bit_rate = 4'b0010; led[5:0] = 6'b000010; end // 2.5M
+        else if (sw[0]) begin bit_rate = 4'b0001; led[5:0] = 6'b000001; end // 1M (lub 1.25M dla 16x)
+        else            begin bit_rate = 4'b0000; led[5:0] = 6'b000000; end // 100k (Domyślna, zero diod)
+      end
+
+    always_ff @(posedge clk400 or negedge rst_n) begin
+        if (!rst_n) begin
+            prescaler <= '0;
+            tick_slow <= 1'b0;
+        end else begin
+            if (prescaler == 9'd199) begin
+                prescaler <= '0;
+                tick_slow <= 1'b1;
+            end else begin
+                prescaler <= prescaler + 1'b1;
+                tick_slow <= 1'b0;
+            end
+        end
     end
 
     always_ff @(posedge clk400 or negedge rst_n) begin
-      if (!rst_n) begin
-          tx_timer <= '0;
-          tx_data <= '0;
-          tx_msg_type <= 3'b100; // MSG_TEXT
-          tx_enable <= 1'b0;
-      end else begin
-          tx_enable <= 1'b0; 
-          if (tx_timer == 400_000_000 - 1) begin
-              tx_timer <= '0;
-              if (!tx_full) begin
-                  tx_enable <= 1'b1;
-                  tx_data <= tx_data + 1'b1; 
-              end
-          end else begin
-              tx_timer <= tx_timer + 1'b1;
-          end
-      end
-  end
+        if (!rst_n) begin
+            tx_timer <= 20'd999_998;
+            tx_data <= '0;
+            tx_msg_type <= 3'b100;
+            tx_enable <= 1'b0;
+        end else begin
+            tx_enable <= 1'b0; 
+            if(tick_slow) begin
+                if (tx_timer == 20'd0) begin
+                    tx_timer <= 20'd999_998;
+                    if (!tx_full) begin
+                        tx_enable <= 1'b1;
+                        tx_data <= tx_data + 1'b1; 
+                    end
+                end else begin
+                    tx_timer <= tx_timer - 1'b1;
+                end
+            end
+        end
+    end
 
 
-  // 2. Odbiornik i Rozciągacze impulsów LED (50 ms błysku dla każdego błędu)
   always_ff @(posedge clk400 or negedge rst_n) begin
     if (!rst_n) begin
         rx_enable <= 1'b0;
         rx_enable_dly <= 1'b0;
+        rx_enable_dly2 <= 1'b0;
         led[12:6] <= '0;
         err_stretch_man <= '0;
         err_stretch_pre <= '0;
         err_stretch_par <= '0;
     end else begin
-        // Obsługa RX FIFO
         if (!rx_empty && !rx_enable) rx_enable <= 1'b1;
         else                         rx_enable <= 1'b0;
 
+        // Podwójne opóźnienie, by zsynchronizować się z Pipeline'm w optibolt_controller
         rx_enable_dly <= rx_enable;
+        rx_enable_dly2 <= rx_enable_dly;
 
-        // Zapis odebranych danych (tylko dolne 7 bitów, by starczyło diod)
-        if (rx_enable_dly) begin
+        // Odczyt danych do diod dopiero po wyjściu z wewnętrznego bufora z parzystością
+        if (rx_enable_dly2) begin
             led[12:6] <= data_out[6:0]; 
         end
 
-        // Niezależne wydłużanie impulsów dla poszczególnych błędów
-        // Zegar 400MHz -> 20_000_000 cykli = 50 milisekund
-        if (manchester_code_error) err_stretch_man <= 20_000_000;
-        else if (err_stretch_man > 0) err_stretch_man <= err_stretch_man - 1'b1;
+        if (manchester_code_error) err_stretch_man <= 16'd50_000;
+        else if (tick_slow && err_stretch_man != 0) err_stretch_man <= err_stretch_man - 1'b1;
 
-        if (preamble_error) err_stretch_pre <= 20_000_000;
-        else if (err_stretch_pre > 0) err_stretch_pre <= err_stretch_pre - 1'b1;
+        if (preamble_error) err_stretch_pre <= 16'd50_000;
+        else if (tick_slow && err_stretch_pre != 0) err_stretch_pre <= err_stretch_pre - 1'b1;
 
-        if (parity_error) err_stretch_par <= 20_000_000;
-        else if (err_stretch_par > 0) err_stretch_par <= err_stretch_par - 1'b1;
+        if (parity_error) err_stretch_par <= 16'd50_000;
+        else if (tick_slow && err_stretch_par != 0) err_stretch_par <= err_stretch_par - 1'b1;
     end
 end
 
-// Przypisanie 3 najwyższych diod do rozciągaczy impulsów
 assign led[15] = (err_stretch_man != 0);
 assign led[14] = (err_stretch_pre != 0);
 assign led[13] = (err_stretch_par != 0);
