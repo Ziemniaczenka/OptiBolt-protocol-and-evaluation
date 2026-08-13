@@ -41,6 +41,15 @@ set sv_files {
     ../rtl/evaluation/display/draw/string_pkg.sv
     ../rtl/evaluation/display/draw/bitmap_pkg.sv
     ../rtl/evaluation/ui_pkg.sv
+    ../rtl/protocol/protocol_pkg.sv
+    ../rtl/protocol/sampling_tick_generator.sv
+    ../rtl/protocol/manchester_coder.sv
+    ../rtl/protocol/manchester_decoder.sv
+    ../rtl/protocol/optibolt_receiver.sv
+    ../rtl/protocol/optibolt_transmitter.sv
+    ../rtl/protocol/optibolt_controller.sv
+    ../rtl/protocol/list_ch04_11_mod_m_counter.v
+    ../rtl/protocol/list_ch04_20_fifo.v
     ../rtl/helpers/bram_if.sv
     ../rtl/evaluation/display/vga/vga_if.sv
     ../rtl/evaluation/display/vga/vga_timing.sv

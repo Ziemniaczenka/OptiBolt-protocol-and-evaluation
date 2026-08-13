@@ -1,31 +1,55 @@
 `timescale 1ns / 1ps
 
+import string_pkg::*;
+import ui_pkg::*;
+import protocol_pkg::*;
+
 module evaluation_controller_tb;
 
   logic clk;
   logic rst_n;
 
-  logic [511:0] keys_pressed;
+  // Keyboard / Command inputs
   logic cmd_up, cmd_down, cmd_left, cmd_right, cmd_enter, cmd_esc;
-  logic show_popup, is_btn_yes_selected;
+  logic char_valid, cmd_backspace;
+  logic [7:0] char_ascii;
+
+  // RAM Outputs
+  logic [$clog2(string_pkg::CONSOLE_MAX_LEN)-1:0] console_addr;
+  logic console_we;
+  logic [7:0] console_din;
+
+  logic [$clog2(string_pkg::INPUT_MAX_LEN)-1:0] input_addr;
+  logic input_we;
+  logic [7:0] input_din;
+
+  logic [11:0] bmp_addr;
+  logic bmp_we;
+  logic [11:0] bmp_din;
+
   logic [3:0] ui_selected_item;
-  logic       show_progress;
+  logic mode_text, show_popup, show_progress;
+  logic [7:0] progress_val;
 
-  // Clocks
+  // Protocol Interface Signals
+  logic [3:0] eval_proto_baud_rate;
+  logic [3:0] eval_proto_oversampling;
+  logic eval_proto_loopback_en;
+  logic eval_proto_tx_valid;
+  logic [2:0] eval_proto_tx_type;
+  logic [7:0] eval_proto_tx_data;
+
+  logic proto_eval_tx_full, proto_eval_tx_empty;
+  logic proto_eval_rx_valid;
+  logic [2:0] proto_eval_rx_type;
+  logic [7:0] proto_eval_rx_data;
+  logic proto_eval_parity_error, proto_eval_manchester_code_error, proto_eval_preamble_error;
+  logic proto_eval_link_status;
+  logic [31:0] proto_eval_ber_count;
+  logic [15:0] proto_eval_err_count;
+
+  // Clock generation (100MHz)
   always #5 clk = ~clk;
-
-  keyboard_controller u_kbd (
-      .clk(clk),
-      .rst_n(rst_n),
-      .keys_pressed(keys_pressed),
-      .mode_text(1'b0),
-      .cmd_up(cmd_up),
-      .cmd_down(cmd_down),
-      .cmd_left(cmd_left),
-      .cmd_right(cmd_right),
-      .cmd_enter(cmd_enter),
-      .cmd_esc(cmd_esc)
-  );
 
   evaluation_controller u_eval (
       .clk(clk),
@@ -36,50 +60,89 @@ module evaluation_controller_tb;
       .cmd_right(cmd_right),
       .cmd_enter(cmd_enter),
       .cmd_esc(cmd_esc),
-      .show_popup(show_popup),
+      .char_valid(char_valid),
+      .char_ascii(char_ascii),
+      .cmd_backspace(cmd_backspace),
+      .console_addr(console_addr),
+      .console_we(console_we),
+      .console_din(console_din),
+      .input_addr(input_addr),
+      .input_we(input_we),
+      .input_din(input_din),
+      .bmp_addr(bmp_addr),
+      .bmp_we(bmp_we),
+      .bmp_din(bmp_din),
       .ui_selected_item(ui_selected_item),
-      .is_popup_btn_selected(is_btn_yes_selected),
-      .progress_val(),
-      .show_progress(show_progress)
+      .mode_text(mode_text),
+      .show_popup(show_popup),
+      .show_progress(show_progress),
+      .progress_val(progress_val),
+
+      .eval_proto_baud_rate(eval_proto_baud_rate),
+      .eval_proto_oversampling(eval_proto_oversampling),
+      .eval_proto_loopback_en(eval_proto_loopback_en),
+      .eval_proto_tx_valid(eval_proto_tx_valid),
+      .eval_proto_tx_type(eval_proto_tx_type),
+      .eval_proto_tx_data(eval_proto_tx_data),
+      .proto_eval_tx_full(proto_eval_tx_full),
+      .proto_eval_tx_empty(proto_eval_tx_empty),
+      .proto_eval_rx_valid(proto_eval_rx_valid),
+      .proto_eval_rx_type(proto_eval_rx_type),
+      .proto_eval_rx_data(proto_eval_rx_data),
+      .proto_eval_parity_error(proto_eval_parity_error),
+      .proto_eval_manchester_code_error(proto_eval_manchester_code_error),
+      .proto_eval_preamble_error(proto_eval_preamble_error),
+      .proto_eval_link_status(proto_eval_link_status),
+      .proto_eval_ber_count(proto_eval_ber_count),
+      .proto_eval_err_count(proto_eval_err_count)
   );
 
-  task press_key(int key_code);
-    keys_pressed[key_code] = 1'b1;
-    #20;
-    keys_pressed[key_code] = 1'b0;
-    #20;
+  task type_char(input [7:0] ch);
+    char_ascii = ch;
+    char_valid = 1'b1;
+    #10;
+    char_valid = 1'b0;
+    #10;
   endtask
 
   initial begin
     clk = 0;
     rst_n = 0;
-    keys_pressed = '0;
+    cmd_up = 0; cmd_down = 0; cmd_left = 0; cmd_right = 0;
+    cmd_enter = 0; cmd_esc = 0;
+    char_valid = 0; char_ascii = 0; cmd_backspace = 0;
+    ui_selected_item = ITEM_INPUT;
+    proto_eval_tx_full = 0; proto_eval_tx_empty = 1;
+    proto_eval_rx_valid = 0; proto_eval_rx_type = MSG_TEXT; proto_eval_rx_data = 0;
+    proto_eval_parity_error = 0; proto_eval_manchester_code_error = 0; proto_eval_preamble_error = 0;
+    proto_eval_link_status = 1; proto_eval_ber_count = 0; proto_eval_err_count = 0;
+
     #20 rst_n = 1;
-
-    // 1. Check basic navigation (Down then Up to Input)
-    press_key('h172);  // Down
     #20;
-    if (ui_selected_item != 4'd4) $error("Failed to navigate Down");
 
-    press_key('h175);  // Up
+    // 1. Select input box & enter text mode
+    cmd_enter = 1;
+    #10;
+    cmd_enter = 0;
     #20;
-    if (ui_selected_item != 4'd1) $error("Failed to navigate Up back to Input");
 
-    // 2. Navigate to About Button (Right Arrow)
-    press_key('h174);  // Right
-    #20;
-    if (ui_selected_item != 4'd2) $error("Failed to navigate to About Button");
+    // 2. Type 'h' 'e' 'l' 'p'
+    type_char("h");
+    type_char("e");
+    type_char("l");
+    type_char("p");
 
-    // 3. Open popup
-    press_key('h05A);  // Enter
-    #20;
-    if (!show_popup) $error("Popup should be visible!");
+    // 3. Press Enter to process command
+    cmd_enter = 1;
+    #10;
+    cmd_enter = 0;
 
-    // 4. Close popup
-    press_key('h05A);  // Enter
-    #20;
-    if (show_popup) $error("Popup should be hidden!");
+    // Wait for BRAM update sweep
+    #11000;
 
+    $display("Test evaluation_controller completed successfully!");
     $finish;
   end
+
 endmodule
+

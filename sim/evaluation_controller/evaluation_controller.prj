@@ -5,6 +5,9 @@
 # Description:
 # List of files defining the modules used during the test.
 
-sv work ../../rtl/evaluation/evaluation_controller.sv \
+sv work ../../rtl/evaluation/display/draw/string_pkg.sv \
+        ../../rtl/evaluation/ui_pkg.sv \
+        ../../rtl/protocol/protocol_pkg.sv \
+        ../../rtl/evaluation/evaluation_controller.sv \
         ../../rtl/evaluation/keyboard/keyboard_controller.sv \
         evaluation_controller_tb.sv

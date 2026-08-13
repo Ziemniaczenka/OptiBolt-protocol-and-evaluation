@@ -37,7 +37,25 @@ module top_evaluation_tb;
       .rst_n(rst_n),
       .vs(vs), .hs(hs), .r(r), .g(g), .b(b),
       .ps2_clk(ps2_clk), .ps2_data(ps2_data),
-      .an(an), .seg(seg), .dp(dp)
+      .an(an), .seg(seg), .dp(dp),
+
+      .eval_proto_baud_rate(),
+      .eval_proto_oversampling(),
+      .eval_proto_loopback_en(),
+      .eval_proto_tx_valid(),
+      .eval_proto_tx_type(),
+      .eval_proto_tx_data(),
+      .proto_eval_tx_full(1'b0),
+      .proto_eval_tx_empty(1'b1),
+      .proto_eval_rx_valid(1'b0),
+      .proto_eval_rx_type(3'b100),
+      .proto_eval_rx_data(8'h00),
+      .proto_eval_parity_error(1'b0),
+      .proto_eval_manchester_code_error(1'b0),
+      .proto_eval_preamble_error(1'b0),
+      .proto_eval_link_status(1'b1),
+      .proto_eval_ber_count(32'd0),
+      .proto_eval_err_count(16'd0)
   );
 
   tiff_writer #(

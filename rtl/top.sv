@@ -26,7 +26,7 @@ module top (
     output logic [ 6:0] seg,
     output logic        dp,
 
-    //OptiBolt
+    // OptiBolt
     input  logic OptiBolt_rx,
     output logic OptiBolt_tx
 );
@@ -35,14 +35,38 @@ module top (
     * Local variables and signals
     */
 
-  // TODO signal assigments between Eval and OptiBolt
+  // Control & Settings
+  logic [3:0] eval_proto_baud_rate;
+  logic [3:0] eval_proto_oversampling;
+  logic       eval_proto_loopback_en;
 
-  /**
-    * Signals assignments
-    */
+  // TX Interface
+  logic       eval_proto_tx_valid;
+  logic [2:0] eval_proto_tx_type;
+  logic [7:0] eval_proto_tx_data;
+  logic       proto_eval_tx_full;
+  logic       proto_eval_tx_empty;
 
-  // Dummy assignment for now, should be driven by top_protocol
-  assign OptiBolt_tx = 1'b0;
+  // RX Interface
+  logic       proto_eval_rx_valid;
+  logic [2:0] proto_eval_rx_type;
+  logic [7:0] proto_eval_rx_data;
+  logic       proto_eval_parity_error;
+  logic       proto_eval_manchester_code_error;
+  logic       proto_eval_preamble_error;
+
+  // Telemetry & Status
+  logic        proto_eval_link_status;
+  logic [31:0] proto_eval_ber_count;
+  logic [15:0] proto_eval_err_count;
+
+  // OptiBolt Physical Signals (Physical TOSLINK cable connection: TX -> RX)
+  logic tx_manchester_sig;
+  logic rx_manchester_sig;
+
+  assign OptiBolt_tx = tx_manchester_sig;
+  assign rx_manchester_sig = OptiBolt_rx;
+  assign proto_eval_link_status = ~proto_eval_preamble_error;
 
   /**
     *  Submodules instances
@@ -61,10 +85,52 @@ module top (
       .ps2_data(ps2_data),
       .an(an),
       .seg(seg),
-      .dp(dp)
+      .dp(dp),
+
+      // OptiBolt Protocol Interface
+      .eval_proto_baud_rate(eval_proto_baud_rate),
+      .eval_proto_oversampling(eval_proto_oversampling),
+      .eval_proto_loopback_en(eval_proto_loopback_en),
+      .eval_proto_tx_valid(eval_proto_tx_valid),
+      .eval_proto_tx_type(eval_proto_tx_type),
+      .eval_proto_tx_data(eval_proto_tx_data),
+      .proto_eval_tx_full(proto_eval_tx_full),
+      .proto_eval_tx_empty(proto_eval_tx_empty),
+      .proto_eval_rx_valid(proto_eval_rx_valid),
+      .proto_eval_rx_type(proto_eval_rx_type),
+      .proto_eval_rx_data(proto_eval_rx_data),
+      .proto_eval_parity_error(proto_eval_parity_error),
+      .proto_eval_manchester_code_error(proto_eval_manchester_code_error),
+      .proto_eval_preamble_error(proto_eval_preamble_error),
+      .proto_eval_link_status(proto_eval_link_status),
+      .proto_eval_ber_count(proto_eval_ber_count),
+      .proto_eval_err_count(proto_eval_err_count)
   );
 
-  //   top_protocol u_top_protocol(
-  //   );
+  optibolt_controller u_optibolt_controller (
+      .clk400(clk400),
+      .rst_n(rst_n),
+      .oversampling(eval_proto_oversampling),
+      .bit_rate(eval_proto_baud_rate),
+
+      .rx_manchester(rx_manchester_sig),
+      .tx_manchester(tx_manchester_sig),
+
+      .rx_enable(~proto_eval_rx_valid),
+      .rx_empty(),
+      .rx_full(),
+      .data_out(proto_eval_rx_data),
+      .msg_type_out(proto_eval_rx_type),
+      .parity_error(proto_eval_parity_error),
+      .manchester_code_error(proto_eval_manchester_code_error),
+      .preamble_error(proto_eval_preamble_error),
+
+      .tx_enable(eval_proto_tx_valid),
+      .tx_msg_type(eval_proto_tx_type),
+      .tx_data(eval_proto_tx_data),
+      .tx_empty(proto_eval_tx_empty),
+      .tx_full(proto_eval_tx_full)
+  );
 
 endmodule
+

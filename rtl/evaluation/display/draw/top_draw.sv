@@ -323,7 +323,7 @@ module top_draw (
       .pixel_color(raw_input_txt_rgb),
       .draw_en(draw_en[9])
   );
-  
+
   assign draw_rgb[9] = draw_en[9] ? (mode_text ? 12'h0_F_0 : COLOR_INPUT) : 12'h000;
 
   // [10] Dynamic Bitmap (np. 64x64)

@@ -37,7 +37,12 @@ module fwft_fifo #(
   // FWFT Combinational Read
   assign dout = mem[rptr];
 
-  // Handling pointers, flags, and pushing data
+  // Synchronous Memory Write (No Async Reset on Memory Array to allow LUTRAM/BRAM inference)
+  always_ff @(posedge clk) begin
+    if (push && !full) mem[wptr] <= din;
+  end
+
+  // Handling pointers and flags
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n || flush) begin
       // Reset state
@@ -47,9 +52,6 @@ module fwft_fifo #(
       empty <= 1'b1;
       full  <= 1'b0;
     end else begin
-      // Synchronous Memory Write
-      if (push && !full) mem[wptr] <= din;
-
       case ({
         push && !full, pop && !empty
       })

@@ -22,7 +22,32 @@ module top_evaluation (
     inout  wire        ps2_data,
     output logic [ 3:0] an,
     output logic [ 6:0] seg,
-    output logic        dp
+    output logic        dp,
+
+    // OptiBolt Protocol Control & Telemetry Interface
+    output logic [3:0] eval_proto_baud_rate,
+    output logic [3:0] eval_proto_oversampling,
+    output logic       eval_proto_loopback_en,
+
+    // TX Interface
+    output logic       eval_proto_tx_valid,
+    output logic [2:0] eval_proto_tx_type,
+    output logic [7:0] eval_proto_tx_data,
+    input  logic       proto_eval_tx_full,
+    input  logic       proto_eval_tx_empty,
+
+    // RX Interface
+    input  logic       proto_eval_rx_valid,
+    input  logic [2:0] proto_eval_rx_type,
+    input  logic [7:0] proto_eval_rx_data,
+    input  logic       proto_eval_parity_error,
+    input  logic       proto_eval_manchester_code_error,
+    input  logic       proto_eval_preamble_error,
+
+    // Telemetry / Status
+    input  logic        proto_eval_link_status,
+    input  logic [31:0] proto_eval_ber_count,
+    input  logic [15:0] proto_eval_err_count
 );
 
   /**
@@ -210,8 +235,26 @@ module top_evaluation (
       .mode_text(mode_text),
       .show_popup(show_popup),
       .show_progress(show_progress),
-      .progress_val(progress_val)
-      // TODO: Connect protocol interface
+      .progress_val(progress_val),
+
+      // OptiBolt Protocol Interface
+      .eval_proto_baud_rate(eval_proto_baud_rate),
+      .eval_proto_oversampling(eval_proto_oversampling),
+      .eval_proto_loopback_en(eval_proto_loopback_en),
+      .eval_proto_tx_valid(eval_proto_tx_valid),
+      .eval_proto_tx_type(eval_proto_tx_type),
+      .eval_proto_tx_data(eval_proto_tx_data),
+      .proto_eval_tx_full(proto_eval_tx_full),
+      .proto_eval_tx_empty(proto_eval_tx_empty),
+      .proto_eval_rx_valid(proto_eval_rx_valid),
+      .proto_eval_rx_type(proto_eval_rx_type),
+      .proto_eval_rx_data(proto_eval_rx_data),
+      .proto_eval_parity_error(proto_eval_parity_error),
+      .proto_eval_manchester_code_error(proto_eval_manchester_code_error),
+      .proto_eval_preamble_error(proto_eval_preamble_error),
+      .proto_eval_link_status(proto_eval_link_status),
+      .proto_eval_ber_count(proto_eval_ber_count),
+      .proto_eval_err_count(proto_eval_err_count)
   );
 
   top_display u_top_display (
