@@ -8,6 +8,7 @@
 sv work ../../rtl/evaluation/display/draw/string_pkg.sv \
         ../../rtl/evaluation/ui_pkg.sv \
         ../../rtl/protocol/protocol_pkg.sv \
+        ../../rtl/helpers/pixel_prng.sv \
         ../../rtl/evaluation/evaluation_controller.sv \
         ../../rtl/evaluation/keyboard/keyboard_controller.sv \
         evaluation_controller_tb.sv

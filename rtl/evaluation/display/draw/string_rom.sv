@@ -12,8 +12,9 @@
 import string_pkg::*;
 
 module string_rom (
-    input logic clk,
-    input logic link_connected, // Switch signal (e.g. 1 = connected)
+    input logic       clk,
+    input logic       link_connected, // Switch signal (e.g. 1 = connected)
+    input logic [3:0] baud_rate,      // Active baudrate mode (0=100k, 1=1M, 2=2M, 4=10M)
 
     interface link_bram,
     interface baud_bram,
@@ -35,8 +36,14 @@ module string_rom (
   `INIT_UNPACKED_STR(link_str_b, STATUS_LINK_VAL_B, STATUS_LINK_LEN_B, STATUS_LINK_MAX_LEN + 1)
 
   // STATUS: Baudrate
-  logic [7:0] baud_str[0:STATUS_BAUD_LEN];
-  `INIT_UNPACKED_STR(baud_str, STATUS_BAUD_VAL, STATUS_BAUD_LEN, STATUS_BAUD_LEN + 1)
+  logic [7:0] baud_str_100k[0:STATUS_BAUD_LEN];
+  logic [7:0] baud_str_1m[0:STATUS_BAUD_LEN];
+  logic [7:0] baud_str_2m[0:STATUS_BAUD_LEN];
+  logic [7:0] baud_str_10m[0:STATUS_BAUD_LEN];
+  `INIT_UNPACKED_STR(baud_str_100k, STATUS_BAUD_VAL_100K, STATUS_BAUD_LEN, STATUS_BAUD_LEN + 1)
+  `INIT_UNPACKED_STR(baud_str_1m, STATUS_BAUD_VAL_1M, STATUS_BAUD_LEN, STATUS_BAUD_LEN + 1)
+  `INIT_UNPACKED_STR(baud_str_2m, STATUS_BAUD_VAL_2M, STATUS_BAUD_LEN, STATUS_BAUD_LEN + 1)
+  `INIT_UNPACKED_STR(baud_str_10m, STATUS_BAUD_VAL_10M, STATUS_BAUD_LEN, STATUS_BAUD_LEN + 1)
 
   // STATUS: Power
   logic [7:0] pwr_str[0:STATUS_PWR_LEN];
@@ -61,7 +68,15 @@ module string_rom (
   always_ff @(posedge clk) begin
     if (link_bram.en)
       link_bram.dout <= link_connected ? link_str_a[link_bram.addr] : link_str_b[link_bram.addr];
-    if (baud_bram.en) baud_bram.dout <= baud_str[baud_bram.addr];
+    if (baud_bram.en) begin
+      case (baud_rate)
+        4'd0:    baud_bram.dout <= baud_str_100k[baud_bram.addr];
+        4'd1:    baud_bram.dout <= baud_str_1m[baud_bram.addr];
+        4'd2:    baud_bram.dout <= baud_str_2m[baud_bram.addr];
+        4'd4:    baud_bram.dout <= baud_str_10m[baud_bram.addr];
+        default: baud_bram.dout <= baud_str_1m[baud_bram.addr];
+      endcase
+    end
     if (pwr_bram.en) pwr_bram.dout <= pwr_str[pwr_bram.addr];
     if (about_btn_bram.en) about_btn_bram.dout <= btn_about_str[about_btn_bram.addr];
     if (popup_title_bram.en) popup_title_bram.dout <= popup_title_str[popup_title_bram.addr];

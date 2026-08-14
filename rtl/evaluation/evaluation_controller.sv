@@ -5,7 +5,7 @@
  *
  * Description: Master FSM managing tests, console text processing, CLI commands, and UI Popups.
  * This module acts as the controller for the evaluation platform, writing data
- * directly to the shared display BRAM memory for top_display to render.
+ * directly to shared display BRAMs (console, input, dynamic bitmap) and streaming protocol test packets.
  */
 
 module evaluation_controller (
@@ -74,13 +74,17 @@ module evaluation_controller (
   import ui_pkg::*;
   import protocol_pkg::*;
 
+  localparam logic [2:0] MSG_BITMAP = 3'b101; // Map bitmap packet to MSG_TEST1 (3'b101)
+
   typedef enum logic [2:0] {
     S_INIT,
     S_IDLE,
     S_PROCESS_CMD,
     S_PRINT_MSG,
     S_CLEAR_CONSOLE,
-    S_UPDATE_INPUT_RAM
+    S_UPDATE_INPUT_RAM,
+    S_BITMAP_SEND,
+    S_CLEAR_BITMAP
   } state_t;
   state_t state;
 
@@ -93,7 +97,9 @@ module evaluation_controller (
     SRC_BAUD_1M,
     SRC_BAUD_2M,
     SRC_BAUD_10M,
-    SRC_TEST
+    SRC_TEST,
+    SRC_BITMAP_SEND,
+    SRC_BITMAP_CLEAR
   } msg_src_t;
 
   msg_src_t msg_src;
@@ -105,23 +111,42 @@ module evaluation_controller (
   logic [10:0] input_len;
   logic [10:0] input_cursor;
 
-  // Console BRAM Write Pointer (Direct BRAM Output)
+  // BRAM Write Pointers
   logic [9:0] console_write_ptr;
   logic [9:0] clear_idx;
   logic [6:0] input_update_idx;
   logic [5:0] init_idx;
+  logic [11:0] clear_bmp_idx;
 
-  // Commands and other strings
+  // Bitmap streaming & reception counters
+  logic [11:0] tx_pixel_cnt;
+  logic [11:0] rx_pixel_ptr;
+
+  // PRNG Instantiation
+  logic        prng_next_pixel;
+  logic [11:0] prng_pixel_rgb;
+  logic [ 7:0] prng_pixel_byte;
+
+  pixel_prng u_pixel_prng (
+      .clk(clk),
+      .rst_n(rst_n),
+      .next_pixel(prng_next_pixel),
+      .pixel_rgb(prng_pixel_rgb),
+      .pixel_byte(prng_pixel_byte)
+  );
+
+  // String Constant Definitions
   localparam logic [7:0] BANNER_BYTES [0:56] = '{
     "O", "p", "t", "i", "B", "o", "l", "t", " ", "O", "S", " ", "v", "1", ".", "0", "\n",
     "S", "y", "s", "t", "e", "m", " ", "R", "e", "a", "d", "y", ".", "\n",
     "T", "y", "p", "e", " ", "'", "h", "e", "l", "p", "'", " ", "f", "o", "r", " ", "c", "o", "m", "m", "a", "n", "d", "s", ".", "\n"
   };
 
-  localparam logic [7:0] HELP_BYTES [0:74] = '{
+  localparam logic [7:0] HELP_BYTES [0:95] = '{
     "C", "o", "m", "m", "a", "n", "d", "s", ":", "\n",
     " ", "b", "a", "u", "d", " ", "<", "1", "0", "0", "k", "|", "1", "m", "|", "2", "m", "|", "1", "0", "m", ">", "\n",
     " ", "t", "e", "s", "t", " ", "<", "1", "|", "2", "|", "b", "e", "r", "|", "p", "i", "n", "g", ">", "\n",
+    " ", "b", "i", "t", "m", "a", "p", " ", "<", "s", "e", "n", "d", "|", "c", "l", "e", "a", "r", ">", "\n",
     " ", "c", "l", "e", "a", "r", "\n",
     " ", "s", "t", "a", "t", "u", "s", "\n",
     " ", "h", "e", "l", "p", "\n"
@@ -164,18 +189,28 @@ module evaluation_controller (
     "T", "e", "s", "t", " ", "s", "t", "a", "r", "t", "e", "d", ".", "\n"
   };
 
+  localparam logic [7:0] BITMAP_SEND_BYTES [0:17] = '{
+    "S", "e", "n", "d", "i", "n", "g", " ", "b", "i", "t", "m", "a", "p", ".", ".", ".", "\n"
+  };
+
+  localparam logic [7:0] BITMAP_CLEAR_BYTES [0:15] = '{
+    "B", "i", "t", "m", "a", "p", " ", "c", "l", "e", "a", "r", "e", "d", ".", "\n"
+  };
+
   logic [7:0] current_msg_char;
   always_comb begin
     case (msg_src)
-      SRC_INPUT_ECHO:  current_msg_char = input_buf[msg_idx];
-      SRC_HELP:        current_msg_char = HELP_BYTES[msg_idx];
-      SRC_STATUS:      current_msg_char = STATUS_BYTES[msg_idx];
-      SRC_BAUD_100K:   current_msg_char = BAUD_100K_BYTES[msg_idx];
-      SRC_BAUD_1M:     current_msg_char = BAUD_1M_BYTES[msg_idx];
-      SRC_BAUD_2M:     current_msg_char = BAUD_2M_BYTES[msg_idx];
-      SRC_BAUD_10M:    current_msg_char = BAUD_10M_BYTES[msg_idx];
-      SRC_TEST:        current_msg_char = TEST_START_BYTES[msg_idx];
-      default:         current_msg_char = 8'h00;
+      SRC_INPUT_ECHO:   current_msg_char = input_buf[msg_idx];
+      SRC_HELP:         current_msg_char = HELP_BYTES[msg_idx];
+      SRC_STATUS:       current_msg_char = STATUS_BYTES[msg_idx];
+      SRC_BAUD_100K:    current_msg_char = BAUD_100K_BYTES[msg_idx];
+      SRC_BAUD_1M:      current_msg_char = BAUD_1M_BYTES[msg_idx];
+      SRC_BAUD_2M:      current_msg_char = BAUD_2M_BYTES[msg_idx];
+      SRC_BAUD_10M:     current_msg_char = BAUD_10M_BYTES[msg_idx];
+      SRC_TEST:         current_msg_char = TEST_START_BYTES[msg_idx];
+      SRC_BITMAP_SEND:  current_msg_char = BITMAP_SEND_BYTES[msg_idx];
+      SRC_BITMAP_CLEAR: current_msg_char = BITMAP_CLEAR_BYTES[msg_idx];
+      default:          current_msg_char = 8'h00;
     endcase
   end
 
@@ -196,10 +231,14 @@ module evaluation_controller (
       init_idx <= '0;
       clear_idx <= '0;
       input_update_idx <= '0;
+      clear_bmp_idx <= '0;
+      tx_pixel_cnt <= '0;
+      rx_pixel_ptr <= '0;
+      prng_next_pixel <= 1'b0;
 
       eval_proto_baud_rate <= 4'd1;        // 1 Mbps default
       eval_proto_oversampling <= 4'd8;     // 8x oversampling default
-      eval_proto_loopback_en <= 1'b1;      // Enable loopback by default for testing
+      eval_proto_loopback_en <= 1'b1;      // Enable loopback default
       eval_proto_tx_valid <= 1'b0;
       eval_proto_tx_type <= MSG_TEXT;
       eval_proto_tx_data <= 8'h00;
@@ -219,7 +258,23 @@ module evaluation_controller (
       input_we   <= 1'b0;
       console_we <= 1'b0;
       bmp_we     <= 1'b0;
-      eval_proto_tx_valid <= 1'b0; // Default pulse high for 1 cycle
+      eval_proto_tx_valid <= 1'b0;
+      prng_next_pixel     <= 1'b0;
+
+      // Handle incoming RX packets from OptiBolt protocol
+      if (proto_eval_rx_valid) begin
+        if (proto_eval_rx_type == MSG_BITMAP) begin
+          bmp_addr <= rx_pixel_ptr;
+          bmp_din  <= {proto_eval_rx_data[7:4], proto_eval_rx_data[3:0], proto_eval_rx_data[7:4]};
+          bmp_we   <= 1'b1;
+          rx_pixel_ptr <= (rx_pixel_ptr == 12'd4095) ? 12'd0 : rx_pixel_ptr + 12'd1;
+        end else if (proto_eval_rx_type == MSG_TEXT) begin
+          console_addr <= console_write_ptr;
+          console_din  <= proto_eval_rx_data;
+          console_we   <= 1'b1;
+          console_write_ptr <= (console_write_ptr == CONSOLE_MAX_LEN - 1) ? 10'd0 : console_write_ptr + 10'd1;
+        end
+      end
 
       case (state)
         S_INIT: begin
@@ -240,13 +295,7 @@ module evaluation_controller (
         end
 
         S_IDLE: begin
-          if (proto_eval_rx_valid) begin
-            console_addr <= console_write_ptr;
-            console_din  <= proto_eval_rx_data;
-            console_we   <= 1'b1;
-            console_write_ptr <= (console_write_ptr == CONSOLE_MAX_LEN - 1) ? 10'd0 : console_write_ptr + 10'd1;
-          end
-          else if (mode_text) begin
+          if (mode_text) begin
             if (cmd_esc) begin
               mode_text <= 1'b0;
               input_update_idx <= 7'd0;
@@ -326,7 +375,7 @@ module evaluation_controller (
               msg_idx <= '0;
               if (input_len >= 6 && input_buf[2]=="h" && input_buf[3]=="e" && input_buf[4]=="l" && input_buf[5]=="p") begin
                 msg_src <= SRC_HELP;
-                msg_len <= 11'd75;
+                msg_len <= 11'd96;
               end else if (input_len >= 8 && input_buf[2]=="s" && input_buf[3]=="t" && input_buf[4]=="a" && input_buf[5]=="t" && input_buf[6]=="u" && input_buf[7]=="s") begin
                 msg_src <= SRC_STATUS;
                 msg_len <= 11'd30;
@@ -356,6 +405,19 @@ module evaluation_controller (
                   input_update_idx <= 7'd0;
                   state <= S_UPDATE_INPUT_RAM;
                 end
+              end else if (input_len >= 13 && input_buf[2]=="b" && input_buf[3]=="i" && input_buf[4]=="t" && input_buf[5]=="m" && input_buf[6]=="a" && input_buf[7]=="p" && input_buf[8]==" ") begin
+                if (input_buf[9]=="s" && input_buf[10]=="e" && input_buf[11]=="n" && input_buf[12]=="d") begin
+                  msg_src <= SRC_BITMAP_SEND;
+                  msg_len <= 11'd18;
+                end else if (input_buf[9]=="c" && input_buf[10]=="l" && input_buf[11]=="e" && input_buf[12]=="a" && input_buf[13]=="r") begin
+                  msg_src <= SRC_BITMAP_CLEAR;
+                  msg_len <= 11'd16;
+                end else begin
+                  input_len <= 11'd2;
+                  input_cursor <= 11'd2;
+                  input_update_idx <= 7'd0;
+                  state <= S_UPDATE_INPUT_RAM;
+                end
               end else if (input_len >= 6 && input_buf[2]=="t" && input_buf[3]=="e" && input_buf[4]=="s" && input_buf[5]=="t") begin
                 msg_src <= SRC_TEST;
                 msg_len <= 11'd14;
@@ -370,12 +432,50 @@ module evaluation_controller (
                 input_update_idx <= 7'd0;
                 state <= S_UPDATE_INPUT_RAM;
               end
+            end else if (msg_src == SRC_BITMAP_SEND) begin
+              tx_pixel_cnt <= 12'd0;
+              state <= S_BITMAP_SEND;
+            end else if (msg_src == SRC_BITMAP_CLEAR) begin
+              clear_bmp_idx <= 12'd0;
+              state <= S_CLEAR_BITMAP;
             end else begin
               input_len <= 11'd2;
               input_cursor <= 11'd2;
               input_update_idx <= 7'd0;
               state <= S_UPDATE_INPUT_RAM;
             end
+          end
+        end
+
+        S_BITMAP_SEND: begin
+          if (!proto_eval_tx_full) begin
+            eval_proto_tx_valid <= 1'b1;
+            eval_proto_tx_type  <= MSG_BITMAP;
+            eval_proto_tx_data  <= prng_pixel_byte;
+            prng_next_pixel     <= 1'b1;
+            tx_pixel_cnt        <= tx_pixel_cnt + 12'd1;
+
+            if (tx_pixel_cnt == 12'd4095) begin
+              input_len <= 11'd2;
+              input_cursor <= 11'd2;
+              input_update_idx <= 7'd0;
+              state <= S_UPDATE_INPUT_RAM;
+            end
+          end
+        end
+
+        S_CLEAR_BITMAP: begin
+          bmp_addr <= clear_bmp_idx;
+          bmp_din  <= 12'h000;
+          bmp_we   <= 1'b1;
+          if (clear_bmp_idx == 12'd4095) begin
+            rx_pixel_ptr <= 12'd0;
+            input_len <= 11'd2;
+            input_cursor <= 11'd2;
+            input_update_idx <= 7'd0;
+            state <= S_UPDATE_INPUT_RAM;
+          end else begin
+            clear_bmp_idx <= clear_bmp_idx + 12'd1;
           end
         end
 

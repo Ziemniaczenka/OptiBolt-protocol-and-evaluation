@@ -58,6 +58,7 @@ set sv_files {
     ../rtl/helpers/edge_detector.sv
     ../rtl/helpers/cdc_sync.sv
     ../rtl/helpers/bram_tdp.sv
+    ../rtl/helpers/pixel_prng.sv
     ../rtl/evaluation/display/draw/draw_bg.sv
     ../rtl/evaluation/display/draw/draw_string.sv
     ../rtl/evaluation/display/draw/draw_mux.sv

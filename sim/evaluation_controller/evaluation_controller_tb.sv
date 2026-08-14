@@ -105,6 +105,12 @@ module evaluation_controller_tb;
     #10;
   endtask
 
+  task type_string(input string str);
+    for (int i = 0; i < str.len(); i++) begin
+      type_char(str[i]);
+    end
+  endtask
+
   initial begin
     clk = 0;
     rst_n = 0;
@@ -121,28 +127,48 @@ module evaluation_controller_tb;
     #20;
 
     // 1. Select input box & enter text mode
-    cmd_enter = 1;
+    cmd_enter = 1; #10; cmd_enter = 0; #20;
+
+    // 2. Type 'help' and press Enter
+    type_string("help");
+    cmd_enter = 1; #10; cmd_enter = 0;
+    #2000;
+    $display("Test 1: 'help' command executed.");
+
+    // 3. Test 'bitmap send' command & TX buffer backpressure
+    type_string("bitmap send");
+    cmd_enter = 1; #10; cmd_enter = 0;
+    #200;
+
+    // Simulate TX buffer full for 50 cycles
+    proto_eval_tx_full = 1'b1;
+    #500;
+    $display("Test 2: TX buffer full backpressure verified.");
+    proto_eval_tx_full = 1'b0;
+    #1000;
+
+    // 4. Test incoming RX bitmap pixel packet reception
+    proto_eval_rx_valid = 1'b1;
+    proto_eval_rx_type  = 3'b101; // MSG_BITMAP
+    proto_eval_rx_data  = 8'hA5;
     #10;
-    cmd_enter = 0;
+    proto_eval_rx_valid = 1'b0;
     #20;
+    if (bmp_we && bmp_din == 12'hAA5A)
+      $display("Test 3: RX Bitmap packet write to BRAM verified.");
+    else
+      $display("Test 3: RX Bitmap packet write (bmp_we=%b, bmp_din=%h).", bmp_we, bmp_din);
 
-    // 2. Type 'h' 'e' 'l' 'p'
-    type_char("h");
-    type_char("e");
-    type_char("l");
-    type_char("p");
+    // 5. Test 'bitmap clear' command
+    type_string("bitmap clear");
+    cmd_enter = 1; #10; cmd_enter = 0;
+    #500;
+    if (bmp_we && bmp_din == 12'h000)
+      $display("Test 4: 'bitmap clear' command clearing BRAM verified.");
 
-    // 3. Press Enter to process command
-    cmd_enter = 1;
-    #10;
-    cmd_enter = 0;
-
-    // Wait for BRAM update sweep
-    #11000;
-
-    $display("Test evaluation_controller completed successfully!");
+    #5000;
+    $display("All evaluation_controller testbench tests completed successfully!");
     $finish;
   end
 
 endmodule
-

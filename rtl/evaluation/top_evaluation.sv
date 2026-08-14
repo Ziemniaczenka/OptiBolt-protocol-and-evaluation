@@ -79,19 +79,22 @@ module top_evaluation (
   logic [11:0] bmp_addr_w, bmp_addr_r;
   logic [11:0] bmp_din, bmp_dout;
 
-  // CDC UI Navigation
+  // CDC UI Navigation & Telemetry
   logic [3:0] ui_selected_item_clk74;
   logic       mode_text_clk74;
   logic       show_popup_clk74;
   logic       show_progress_clk74;
   logic [7:0] progress_val_clk74;
+  logic       link_connected_clk74;
+  logic [3:0] baud_rate_clk74;
+
   cdc_sync #(
-      .WIDTH(15)
+      .WIDTH(20)
   ) u_cdc_ui_sync (
       .clk_dst(clk74p25),
       .rst_n(rst_n),
-      .d_in({mode_text, ui_selected_item, show_popup, show_progress, progress_val}),
-      .d_out({mode_text_clk74, ui_selected_item_clk74, show_popup_clk74, show_progress_clk74, progress_val_clk74})
+      .d_in({mode_text, ui_selected_item, show_popup, show_progress, progress_val, proto_eval_link_status, eval_proto_baud_rate}),
+      .d_out({mode_text_clk74, ui_selected_item_clk74, show_popup_clk74, show_progress_clk74, progress_val_clk74, link_connected_clk74, baud_rate_clk74})
   );
 
   /**
@@ -260,6 +263,8 @@ module top_evaluation (
   top_display u_top_display (
       .clk(clk74p25),
       .rst_n(rst_n),
+      .link_connected(link_connected_clk74),
+      .baud_rate(baud_rate_clk74),
       .ui_selected_item(ui_selected_item_clk74),
       .mode_text(mode_text_clk74),
       .show_popup(show_popup_clk74),

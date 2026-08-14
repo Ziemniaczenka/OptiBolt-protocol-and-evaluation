@@ -15,12 +15,14 @@
  */
 
 module top_display (
-    input logic clk,
-    input logic rst_n,
+    input logic       clk,
+    input logic       rst_n,
+    input logic       link_connected,
+    input logic [3:0] baud_rate,
     input logic [3:0] ui_selected_item,
-    input logic mode_text,
-    input logic show_popup,
-    input logic show_progress,
+    input logic       mode_text,
+    input logic       show_popup,
+    input logic       show_progress,
     input logic [7:0] progress_val,
     output logic vs,
     output logic hs,
@@ -79,6 +81,8 @@ module top_display (
   top_draw u_top_draw (
       .clk(clk),
       .rst_n(rst_n),
+      .link_connected(link_connected),
+      .baud_rate(baud_rate),
       .ui_selected_item(ui_selected_item),
       .mode_text(mode_text),
       .show_popup(show_popup),

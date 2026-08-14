@@ -12,8 +12,12 @@
 */
 
 module top_draw (
-    input logic clk,
-    input logic rst_n,
+    input logic       clk,
+    input logic       rst_n,
+
+    // Telemetry & Status inputs
+    input logic       link_connected,
+    input logic [3:0] baud_rate,
 
     // UI Control inputs from evaluation controller
     input logic [3:0] ui_selected_item,
@@ -87,29 +91,11 @@ module top_draw (
       .READ_ONLY (1)
   ) popup_btn_bram ();
 
-
-  // Demo (switch every few frames)
-  logic       select_sig;
-  logic [5:0] frame_cnt;
-
-  always_ff @(posedge clk or negedge rst_n) begin
-    if (!rst_n) begin
-      select_sig <= 0;
-      frame_cnt  <= 0;
-    end else if (vga_in.vcount == 0 && vga_in.hcount == 0) begin
-      if (frame_cnt == 2) begin
-        frame_cnt  <= 0;
-        select_sig <= ~select_sig;
-      end else begin
-        frame_cnt <= frame_cnt + 1;
-      end
-    end
-  end
-
   // String ROM Instantiation
   string_rom u_string_rom (
       .clk(clk),
-      .link_connected(select_sig),
+      .link_connected(link_connected),
+      .baud_rate(baud_rate),
       .link_bram(link_bram),
       .baud_bram(baud_bram),
       .pwr_bram(pwr_bram),

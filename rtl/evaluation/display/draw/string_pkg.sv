@@ -35,8 +35,11 @@ package string_pkg;
 
     // STATUS: BAUDRATE
     localparam logic [11:0] COLOR_STATUS_BAUD = 12'h8_F_8;
-    localparam STATUS_BAUD_VAL = "Baudrate    : 115200 bps";
-    localparam int STATUS_BAUD_LEN = $bits(STATUS_BAUD_VAL) / 8;
+    localparam STATUS_BAUD_VAL_100K = "Baudrate    : 100 kbps";
+    localparam STATUS_BAUD_VAL_1M   = "Baudrate    : 1.0 Mbps";
+    localparam STATUS_BAUD_VAL_2M   = "Baudrate    : 2.0 Mbps";
+    localparam STATUS_BAUD_VAL_10M  = "Baudrate    : 10.0 Mbps";
+    localparam int STATUS_BAUD_LEN  = $bits(STATUS_BAUD_VAL_100K) / 8;
 
     // STATUS: POWER
     localparam logic [11:0] COLOR_STATUS_PWR = 12'hF_8_8;
