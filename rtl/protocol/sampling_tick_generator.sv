@@ -30,8 +30,9 @@ always_ff @(posedge clk400 or negedge rst_n) begin
             8'b0000_0010: current_M <= M_8X_2dot5M;
             8'b0000_0011: current_M <= M_8X_3dot125M;
             8'b0000_0100: current_M <= M_8X_5M;
-            8'b0000_0101: current_M <= M_8X_6dot25M;
+            8'b0000_0101: current_M <= M_8X_8dot33M;
             8'b0000_0110: current_M <= M_8X_12dot5M;
+            8'b0000_0110: current_M <= M_8X_25M;
             8'b0001_0001: current_M <= M_16X_1dot25M;
             8'b0001_0011: current_M <= M_16X_3dot125M;
             8'b0001_0101: current_M <= M_16X_6dot25M; 

@@ -38,6 +38,7 @@
 
     logic [3:0] oversampling = 4'b0000; // Na sztywno 8x, bo mamy tylko 6 switchy
     logic [3:0] bit_rate;
+    logic rx_sync_1, rx_sync_2;
 
     //rx
     logic rx_enable, rx_empty, rx_full;
@@ -62,15 +63,14 @@
 
 
     always_comb begin
-        // Priorytetowy koder prędkości: od najszybszej do najwolniejszej
-        if      (sw[5]) begin bit_rate = 4'b0110; led[5:0] = 6'b100000; end // 12.5M (Crash Test)
-        else if (sw[4]) begin bit_rate = 4'b0101; led[5:0] = 6'b010000; end // 6.25M
-        else if (sw[3]) begin bit_rate = 4'b0100; led[5:0] = 6'b001000; end // 5M
-        else if (sw[2]) begin bit_rate = 4'b0011; led[5:0] = 6'b000100; end // 3.125M
-        else if (sw[1]) begin bit_rate = 4'b0010; led[5:0] = 6'b000010; end // 2.5M
-        else if (sw[0]) begin bit_rate = 4'b0001; led[5:0] = 6'b000001; end // 1M (lub 1.25M dla 16x)
-        else            begin bit_rate = 4'b0000; led[5:0] = 6'b000000; end // 100k (Domyślna, zero diod)
-      end
+        if      (sw[5]) begin bit_rate = 4'b0111; led[5:0] = 6'b100000; end
+        else if (sw[4]) begin bit_rate = 4'b0110; led[5:0] = 6'b010000; end
+        else if (sw[3]) begin bit_rate = 4'b0101; led[5:0] = 6'b001000; end
+        else if (sw[2]) begin bit_rate = 4'b0100; led[5:0] = 6'b000100; end
+        else if (sw[1]) begin bit_rate = 4'b0011; led[5:0] = 6'b000010; end
+        else if (sw[0]) begin bit_rate = 4'b0010; led[5:0] = 6'b000001; end
+        else            begin bit_rate = 4'b0000; led[5:0] = 6'b000000; end
+    end
 
     always_ff @(posedge clk400 or negedge rst_n) begin
         if (!rst_n) begin
@@ -143,6 +143,16 @@
     end
 end
 
+always_ff @(posedge clk400 or negedge rst_n) begin
+    if (!rst_n) begin
+        rx_sync_1 <= 1'b0;
+        rx_sync_2 <= 1'b0;
+    end else begin
+        rx_sync_1 <= OptiBolt_rx;
+        rx_sync_2 <= rx_sync_1;
+    end
+end
+
 assign led[15] = (err_stretch_man != 0);
 assign led[14] = (err_stretch_pre != 0);
 assign led[13] = (err_stretch_par != 0);
@@ -153,7 +163,7 @@ optibolt_controller u_optibolt_controller (
   .rst_n,
   .oversampling,
   .bit_rate,
-  .rx_manchester(OptiBolt_rx),
+  .rx_manchester(rx_sync_2),
   .tx_manchester(OptiBolt_tx),
   .rx_enable,
   .rx_empty,
