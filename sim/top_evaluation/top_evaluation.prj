@@ -33,6 +33,7 @@ sv work ../../rtl/evaluation/display/vga/vga_pkg.sv \
         ../../rtl/evaluation/display/draw/draw_popup.sv \
         ../../rtl/evaluation/display/draw/top_draw.sv \
         ../../rtl/evaluation/display/top_display.sv \
+        ../../rtl/evaluation/link_handshake.sv \
         ../../rtl/evaluation/evaluation_controller.sv \
         ../../rtl/evaluation/ui_navigation.sv \
         ../../rtl/evaluation/keyboard/keyboard_controller.sv \

@@ -5,8 +5,8 @@
  *
  * Description:
  * Testbench for top_evaluation.
- * Tests integrated UI Navigation, Keyboard PS/2 and Action handling logic.
- * Produces consecutive visual frames.
+ * Tests integrated UI Navigation, Keyboard PS/2, Link Handshake (Loopback),
+ * and dynamic bitmap streaming & rendering.
  */
 
 module top_evaluation_tb;
@@ -27,9 +27,35 @@ module top_evaluation_tb;
   wire [6:0] seg;
   wire dp;
 
+  // Protocol Interface Signals
+  logic [3:0] eval_proto_baud_rate;
+  logic [3:0] eval_proto_oversampling;
+  logic       eval_proto_loopback_en;
+  logic       eval_proto_tx_valid;
+  logic [2:0] eval_proto_tx_type;
+  logic [7:0] eval_proto_tx_data;
+  logic       proto_eval_tx_full;
+  logic       proto_eval_tx_empty;
+  logic       proto_eval_rx_valid;
+  logic [2:0] proto_eval_rx_type;
+  logic [7:0] proto_eval_rx_data;
+
   // Clock gen
   initial begin clk74p25 = 1'b0; forever #6.734 clk74p25 = ~clk74p25; end // ~74.25 MHz
   initial begin clk100 = 1'b0;   forever #5.000 clk100 = ~clk100;     end // 100 MHz
+
+  // Simulation Loopback: Wire TX to RX
+  always_ff @(posedge clk100 or negedge rst_n) begin
+    if (!rst_n) begin
+      proto_eval_rx_valid <= 1'b0;
+      proto_eval_rx_type  <= 3'b000;
+      proto_eval_rx_data  <= 8'h00;
+    end else begin
+      proto_eval_rx_valid <= eval_proto_tx_valid;
+      proto_eval_rx_type  <= eval_proto_tx_type;
+      proto_eval_rx_data  <= eval_proto_tx_data;
+    end
+  end
 
   top_evaluation dut (
       .clk74p25(clk74p25),
@@ -39,17 +65,17 @@ module top_evaluation_tb;
       .ps2_clk(ps2_clk), .ps2_data(ps2_data),
       .an(an), .seg(seg), .dp(dp),
 
-      .eval_proto_baud_rate(),
-      .eval_proto_oversampling(),
-      .eval_proto_loopback_en(),
-      .eval_proto_tx_valid(),
-      .eval_proto_tx_type(),
-      .eval_proto_tx_data(),
+      .eval_proto_baud_rate(eval_proto_baud_rate),
+      .eval_proto_oversampling(eval_proto_oversampling),
+      .eval_proto_loopback_en(eval_proto_loopback_en),
+      .eval_proto_tx_valid(eval_proto_tx_valid),
+      .eval_proto_tx_type(eval_proto_tx_type),
+      .eval_proto_tx_data(eval_proto_tx_data),
       .proto_eval_tx_full(1'b0),
       .proto_eval_tx_empty(1'b1),
-      .proto_eval_rx_valid(1'b0),
-      .proto_eval_rx_type(3'b100),
-      .proto_eval_rx_data(8'h00),
+      .proto_eval_rx_valid(proto_eval_rx_valid),
+      .proto_eval_rx_type(proto_eval_rx_type),
+      .proto_eval_rx_data(proto_eval_rx_data),
       .proto_eval_parity_error(1'b0),
       .proto_eval_manchester_code_error(1'b0),
       .proto_eval_preamble_error(1'b0),
@@ -134,25 +160,31 @@ module top_evaluation_tb;
     wait_frames(1);
     $display("Frame 5: Text Mode Entered (Green Outline).");
 
-    // Type 'H' (Shift + H -> 12/59 + 33)
-    send_ps2_byte(8'h12); send_ps2_byte(8'h33);
-    send_ps2_byte(8'hF0); send_ps2_byte(8'h33); send_ps2_byte(8'hF0); send_ps2_byte(8'h12);
-    
-    // Type 'i' (43)
-    send_ps2_byte(8'h43); send_ps2_byte(8'hF0); send_ps2_byte(8'h43);
-    wait_frames(1);
-    $display("Frame 6: Typed 'Hi' in the Input box.");
+    // Type 'b' (32), 'a' (1C), 'u' (3C), 'd' (23), ' ' (29), '2' (1E), '.' (49), '5' (2E), 'm' (3A)
+    send_ps2_byte(8'h32); send_ps2_byte(8'hF0); send_ps2_byte(8'h32); // 'b'
+    send_ps2_byte(8'h1C); send_ps2_byte(8'hF0); send_ps2_byte(8'h1C); // 'a'
+    send_ps2_byte(8'h3C); send_ps2_byte(8'hF0); send_ps2_byte(8'h3C); // 'u'
+    send_ps2_byte(8'h23); send_ps2_byte(8'hF0); send_ps2_byte(8'h23); // 'd'
+    send_ps2_byte(8'h29); send_ps2_byte(8'hF0); send_ps2_byte(8'h29); // ' '
+    send_ps2_byte(8'h1E); send_ps2_byte(8'hF0); send_ps2_byte(8'h1E); // '2'
+    send_ps2_byte(8'h49); send_ps2_byte(8'hF0); send_ps2_byte(8'h49); // '.'
+    send_ps2_byte(8'h2E); send_ps2_byte(8'hF0); send_ps2_byte(8'h2E); // '5'
+    send_ps2_byte(8'h3A); send_ps2_byte(8'hF0); send_ps2_byte(8'h3A); // 'm'
 
-    // Press Enter (Should stay in text mode but clear the text)
+    wait_frames(1);
+    $display("Frame 6: Typed 'baud 2.5m' in the Input box.");
+
+    // Press Enter to execute
     send_ps2_byte(8'h5A); send_ps2_byte(8'hF0); send_ps2_byte(8'h5A);
     wait_frames(1);
-    $display("Frame 7: Enter pressed. Text cleared, still in Text Mode.");
+    $display("Frame 7: Executed 'baud 2.5m'. Baudrate updated in header.");
 
     // Press Esc to exit text mode
     send_ps2_byte(8'h76); send_ps2_byte(8'hF0); send_ps2_byte(8'h76);
     wait_frames(1);
     $display("Frame 8: Esc pressed. Exited Text Mode.");
 
+    $display("top_evaluation testbench completed successfully.");
     $finish;
   end
 endmodule

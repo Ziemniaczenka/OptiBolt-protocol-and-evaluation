@@ -1,0 +1,10 @@
+# Copyright (C) 2026  AGH University of Science and Technology
+# MTM UEC2
+# Author: Tomasz Więcławski & Sebastian Zoń
+#
+# Description:
+# Project file for link_handshake testbench.
+
+sv work ../../../rtl/protocol/protocol_pkg.sv \
+        ../../../rtl/evaluation/link_handshake.sv \
+        link_handshake_tb.sv

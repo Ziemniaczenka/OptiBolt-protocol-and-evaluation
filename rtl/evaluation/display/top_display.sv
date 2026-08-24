@@ -1,24 +1,18 @@
 /**
- * San Jose State University
- * EE178 Lab #4
- * Author: prof. Eric Crabilla
- *
- * Modified by:
- * 2025  AGH University of Science and Technology
+ * Copyright (C) 2026  AGH University of Science and Technology
  * MTM UEC2
- * Piotr Kaczmarczyk
- * Tomasz Więcławski & Sebastian Zoń
+ * Author: Tomasz Więcławski & Sebastian Zoń
  *
  * Description:
- * VGA top module.
- *
+ * VGA top display module.
  */
 
 module top_display (
     input logic       clk,
     input logic       rst_n,
-    input logic       link_connected,
+    input logic [1:0] link_status,
     input logic [3:0] baud_rate,
+    input logic [3:0] oversampling,
     input logic [3:0] ui_selected_item,
     input logic       mode_text,
     input logic       show_popup,
@@ -50,8 +44,6 @@ module top_display (
   // VGA signals from draw
   vga_if if_draw ();
 
-
-
   /**
      * Signals assignments
      */
@@ -59,7 +51,6 @@ module top_display (
   assign vs = if_draw.vsync;
   assign hs = if_draw.hsync;
   assign {r, g, b} = if_draw.rgb;
-
 
   /**
      * Submodules instances
@@ -81,8 +72,9 @@ module top_display (
   top_draw u_top_draw (
       .clk(clk),
       .rst_n(rst_n),
-      .link_connected(link_connected),
+      .link_status(link_status),
       .baud_rate(baud_rate),
+      .oversampling(oversampling),
       .ui_selected_item(ui_selected_item),
       .mode_text(mode_text),
       .show_popup(show_popup),

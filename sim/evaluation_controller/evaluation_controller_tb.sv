@@ -31,6 +31,13 @@ module evaluation_controller_tb;
   logic mode_text, show_popup, show_progress;
   logic [7:0] progress_val;
 
+  // Handshake signals
+  logic       hs_tx_req;
+  logic [2:0] hs_tx_type;
+  logic [7:0] hs_tx_data;
+  logic       hs_tx_ack;
+  logic [1:0] link_status;
+
   // Protocol Interface Signals
   logic [3:0] eval_proto_baud_rate;
   logic [3:0] eval_proto_oversampling;
@@ -78,6 +85,12 @@ module evaluation_controller_tb;
       .show_progress(show_progress),
       .progress_val(progress_val),
 
+      .hs_tx_req(hs_tx_req),
+      .hs_tx_type(hs_tx_type),
+      .hs_tx_data(hs_tx_data),
+      .hs_tx_ack(hs_tx_ack),
+      .link_status(link_status),
+
       .eval_proto_baud_rate(eval_proto_baud_rate),
       .eval_proto_oversampling(eval_proto_oversampling),
       .eval_proto_loopback_en(eval_proto_loopback_en),
@@ -98,17 +111,30 @@ module evaluation_controller_tb;
   );
 
   task type_char(input [7:0] ch);
+    @(posedge clk);
     char_ascii = ch;
     char_valid = 1'b1;
-    #10;
+    @(posedge clk);
     char_valid = 1'b0;
-    #10;
+    @(posedge clk);
+    wait (u_eval.state == u_eval.S_IDLE);
+    @(posedge clk);
   endtask
 
   task type_string(input string str);
     for (int i = 0; i < str.len(); i++) begin
       type_char(str[i]);
     end
+  endtask
+
+  task execute_cmd();
+    @(posedge clk);
+    cmd_enter = 1'b1;
+    @(posedge clk);
+    cmd_enter = 1'b0;
+    @(posedge clk);
+    wait (u_eval.state == u_eval.S_IDLE);
+    @(posedge clk);
   endtask
 
   initial begin
@@ -118,55 +144,84 @@ module evaluation_controller_tb;
     cmd_enter = 0; cmd_esc = 0;
     char_valid = 0; char_ascii = 0; cmd_backspace = 0;
     ui_selected_item = ITEM_INPUT;
+    hs_tx_req = 0; hs_tx_type = 3'b000; hs_tx_data = 8'h00;
+    link_status = 2'b10; // LOOPBACK
     proto_eval_tx_full = 0; proto_eval_tx_empty = 1;
     proto_eval_rx_valid = 0; proto_eval_rx_type = MSG_TEXT; proto_eval_rx_data = 0;
     proto_eval_parity_error = 0; proto_eval_manchester_code_error = 0; proto_eval_preamble_error = 0;
     proto_eval_link_status = 1; proto_eval_ber_count = 0; proto_eval_err_count = 0;
 
     #20 rst_n = 1;
-    #20;
+    wait (u_eval.state == u_eval.S_IDLE);
+    @(posedge clk);
 
     // 1. Select input box & enter text mode
-    cmd_enter = 1; #10; cmd_enter = 0; #20;
+    execute_cmd();
 
-    // 2. Type 'help' and press Enter
+    // 2. Test 'help' command
     type_string("help");
-    cmd_enter = 1; #10; cmd_enter = 0;
-    #2000;
-    $display("Test 1: 'help' command executed.");
+    execute_cmd();
+    $display("[PASS] Test 1: 'help' command executed.");
 
-    // 3. Test 'bitmap send' command & TX buffer backpressure
+    // 3. Test 'baud 2.5m' command
+    type_string("baud 2.5m");
+    execute_cmd();
+    assert (eval_proto_baud_rate == 4'd2) else $error("Baudrate setting failed (expected 2, got %0d)", eval_proto_baud_rate);
+    $display("[PASS] Test 2: 'baud 2.5m' command executed (baud_rate=%0d).", eval_proto_baud_rate);
+
+    // 4. Test 'os 16x' command
+    type_string("os 16x");
+    execute_cmd();
+    assert (eval_proto_oversampling == 4'd1) else $error("Oversampling setting failed (expected 1, got %0d)", eval_proto_oversampling);
+    $display("[PASS] Test 3: 'os 16x' command executed (os=%0d).", eval_proto_oversampling);
+
+    // 5. Test 'status' command
+    type_string("status");
+    execute_cmd();
+    $display("[PASS] Test 4: 'status' command executed.");
+
+    // 6. Test 'bitmap send' command & TX buffer backpressure
     type_string("bitmap send");
-    cmd_enter = 1; #10; cmd_enter = 0;
-    #200;
+    @(posedge clk);
+    cmd_enter = 1'b1;
+    @(posedge clk);
+    cmd_enter = 1'b0;
+    wait (u_eval.state == u_eval.S_BITMAP_SEND);
+    @(posedge clk);
 
     // Simulate TX buffer full for 50 cycles
     proto_eval_tx_full = 1'b1;
     #500;
-    $display("Test 2: TX buffer full backpressure verified.");
+    $display("[PASS] Test 5: TX buffer full backpressure verified.");
     proto_eval_tx_full = 1'b0;
-    #1000;
+    wait (u_eval.state == u_eval.S_IDLE);
+    @(posedge clk);
 
-    // 4. Test incoming RX bitmap pixel packet reception
-    proto_eval_rx_valid = 1'b1;
-    proto_eval_rx_type  = 3'b101; // MSG_BITMAP
-    proto_eval_rx_data  = 8'hA5;
-    #10;
-    proto_eval_rx_valid = 1'b0;
-    #20;
-    if (bmp_we && bmp_din == 12'hAA5A)
-      $display("Test 3: RX Bitmap packet write to BRAM verified.");
-    else
-      $display("Test 3: RX Bitmap packet write (bmp_we=%b, bmp_din=%h).", bmp_we, bmp_din);
+    // 7. Test incoming RX bitmap pixel packet reception
+    @(posedge clk);
+    proto_eval_rx_valid <= 1'b1;
+    proto_eval_rx_type  <= 3'b101; // MSG_BITMAP
+    proto_eval_rx_data  <= 8'hA5;
+    @(posedge clk);
+    proto_eval_rx_valid <= 1'b0;
+    #1; // Sample output after clock edge
+    assert (bmp_we && bmp_din == 12'hA5A) else $error("RX Bitmap write failed (bmp_we=%b, bmp_din=%h)", bmp_we, bmp_din);
+    $display("[PASS] Test 6: RX Bitmap packet write to BRAM verified (bmp_we=%b, bmp_din=%h).", bmp_we, bmp_din);
 
-    // 5. Test 'bitmap clear' command
+    // 8. Test 'bitmap clear' command
     type_string("bitmap clear");
-    cmd_enter = 1; #10; cmd_enter = 0;
-    #500;
-    if (bmp_we && bmp_din == 12'h000)
-      $display("Test 4: 'bitmap clear' command clearing BRAM verified.");
+    @(posedge clk);
+    cmd_enter = 1'b1;
+    @(posedge clk);
+    cmd_enter = 1'b0;
+    wait (u_eval.state == u_eval.S_CLEAR_BITMAP);
+    @(posedge clk);
+    #1;
+    assert (bmp_we && bmp_din == 12'h000) else $error("Bitmap clear failed (bmp_we=%b, bmp_din=%h)", bmp_we, bmp_din);
+    $display("[PASS] Test 7: 'bitmap clear' command clearing BRAM verified.");
 
-    #5000;
+    wait (u_eval.state == u_eval.S_IDLE);
+    @(posedge clk);
     $display("All evaluation_controller testbench tests completed successfully!");
     $finish;
   end

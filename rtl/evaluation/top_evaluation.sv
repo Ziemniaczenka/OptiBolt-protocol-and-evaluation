@@ -4,7 +4,7 @@
  * Author: Tomasz Więcławski & Sebastian Zoń
  *
  * Description:
- * Evaluation platform top module. Merges display, keyboard and test logic.
+ * Evaluation platform top module. Merges display, keyboard, link handshake, and controller logic.
  */
 
 import string_pkg::*;
@@ -70,14 +70,21 @@ module top_evaluation (
 
   // Memory Interfaces
   logic console_we, input_we, bmp_we;
-  logic [$clog2(CONSOLE_MAX_LEN)-1:0] console_addr_w, console_addr_r;
-  logic [7:0] console_din, console_dout;
+  logic [$clog2(CONSOLE_MAX_LEN)-1:0] console_addr_w;
+  logic [7:0] console_din;
 
-  logic [$clog2(INPUT_MAX_LEN)-1:0] input_addr_w, input_addr_r;
-  logic [7:0] input_din, input_dout;
+  logic [$clog2(INPUT_MAX_LEN)-1:0] input_addr_w;
+  logic [7:0] input_din;
 
-  logic [11:0] bmp_addr_w, bmp_addr_r;
-  logic [11:0] bmp_din, bmp_dout;
+  logic [11:0] bmp_addr_w;
+  logic [11:0] bmp_din;
+
+  // Handshake signals
+  logic       hs_tx_req;
+  logic [2:0] hs_tx_type;
+  logic [7:0] hs_tx_data;
+  logic       hs_tx_ack;
+  logic [1:0] link_status;
 
   // CDC UI Navigation & Telemetry
   logic [3:0] ui_selected_item_clk74;
@@ -85,22 +92,18 @@ module top_evaluation (
   logic       show_popup_clk74;
   logic       show_progress_clk74;
   logic [7:0] progress_val_clk74;
-  logic       link_connected_clk74;
+  logic [1:0] link_status_clk74;
   logic [3:0] baud_rate_clk74;
+  logic [3:0] oversampling_clk74;
 
   cdc_sync #(
-      .WIDTH(20)
+      .WIDTH(25)
   ) u_cdc_ui_sync (
       .clk_dst(clk74p25),
       .rst_n(rst_n),
-      .d_in({mode_text, ui_selected_item, show_popup, show_progress, progress_val, proto_eval_link_status, eval_proto_baud_rate}),
-      .d_out({mode_text_clk74, ui_selected_item_clk74, show_popup_clk74, show_progress_clk74, progress_val_clk74, link_connected_clk74, baud_rate_clk74})
+      .d_in({mode_text, ui_selected_item, show_popup, show_progress, progress_val, link_status, eval_proto_baud_rate, eval_proto_oversampling}),
+      .d_out({mode_text_clk74, ui_selected_item_clk74, show_popup_clk74, show_progress_clk74, progress_val_clk74, link_status_clk74, baud_rate_clk74, oversampling_clk74})
   );
-
-  /**
-    * Signals assignments
-    */
-
 
   /**
     * FPGA submodules placement
@@ -185,6 +188,20 @@ module top_evaluation (
       .port_b(bmp_if_b)
   );
 
+  link_handshake u_link_hs (
+      .clk(clk100),
+      .rst_n(rst_n),
+      .proto_eval_rx_valid(proto_eval_rx_valid),
+      .proto_eval_rx_type(proto_eval_rx_type),
+      .proto_eval_rx_data(proto_eval_rx_data),
+      .proto_eval_preamble_error(proto_eval_preamble_error),
+      .hs_tx_req(hs_tx_req),
+      .hs_tx_type(hs_tx_type),
+      .hs_tx_data(hs_tx_data),
+      .hs_tx_ack(hs_tx_ack),
+      .link_status(link_status)
+  );
+
   ui_navigation u_ui_nav (
       .clk(clk100),
       .rst_n(rst_n),
@@ -240,6 +257,13 @@ module top_evaluation (
       .show_progress(show_progress),
       .progress_val(progress_val),
 
+      // Handshake Interface
+      .hs_tx_req(hs_tx_req),
+      .hs_tx_type(hs_tx_type),
+      .hs_tx_data(hs_tx_data),
+      .hs_tx_ack(hs_tx_ack),
+      .link_status(link_status),
+
       // OptiBolt Protocol Interface
       .eval_proto_baud_rate(eval_proto_baud_rate),
       .eval_proto_oversampling(eval_proto_oversampling),
@@ -263,8 +287,9 @@ module top_evaluation (
   top_display u_top_display (
       .clk(clk74p25),
       .rst_n(rst_n),
-      .link_connected(link_connected_clk74),
+      .link_status(link_status_clk74),
       .baud_rate(baud_rate_clk74),
+      .oversampling(oversampling_clk74),
       .ui_selected_item(ui_selected_item_clk74),
       .mode_text(mode_text_clk74),
       .show_popup(show_popup_clk74),
@@ -278,7 +303,6 @@ module top_evaluation (
       .r(r),
       .g(g),
       .b(b)
-
   );
 
   // --- 7-Segment Debug ---
@@ -289,7 +313,7 @@ module top_evaluation (
     if (!rst_n) display_data <= 16'h0000;
     else begin
       if (cmd_up || cmd_down || cmd_left || cmd_right || cmd_enter || cmd_esc || cmd_backspace || char_valid) begin
-        display_data[15:8] <= key_code[7:0]; // Lewa połówka pokazuje kody wciskanych klawiszy PS/2
+        display_data[15:8] <= key_code[7:0]; // Left half shows PS/2 scancodes
       end
       if (char_valid) begin
         display_data[7:0] <= char_ascii;
@@ -310,7 +334,7 @@ module top_evaluation (
       .hex2 (display_data[11:8]),
       .hex1 (display_data[7:4]),
       .hex0 (display_data[3:0]),
-      .dp_in(4'b1111), // Wszystkie kropki dziesiętne zgaszone
+      .dp_in(4'b1111),
       .an   (an),
       .sseg (sseg_out)
   );

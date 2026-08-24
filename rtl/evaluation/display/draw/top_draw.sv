@@ -5,10 +5,6 @@
 *
 * Description:
 * Module with multiple draw functions.
-* TODO: Work on ui_selected_item logic
-* TODO: Finish layout
-* TODO: Adjust colors
-* TODO: Add final bitmaps
 */
 
 module top_draw (
@@ -16,8 +12,9 @@ module top_draw (
     input logic       rst_n,
 
     // Telemetry & Status inputs
-    input logic       link_connected,
+    input logic [1:0] link_status,
     input logic [3:0] baud_rate,
+    input logic [3:0] oversampling,
 
     // UI Control inputs from evaluation controller
     input logic [3:0] ui_selected_item,
@@ -94,8 +91,9 @@ module top_draw (
   // String ROM Instantiation
   string_rom u_string_rom (
       .clk(clk),
-      .link_connected(link_connected),
+      .link_status(link_status),
       .baud_rate(baud_rate),
+      .oversampling(oversampling),
       .link_bram(link_bram),
       .baud_bram(baud_bram),
       .pwr_bram(pwr_bram),
@@ -171,7 +169,7 @@ module top_draw (
       .FONT(FONT_11x7),
       .FONT_PATH(FONT_11x7_PATH),
       .MAX_STRING_LEN(STATUS_LINK_MAX_LEN + 1),
-      .COLOR(COLOR_STATUS_LINK)
+      .COLOR(COLOR_STATUS_LINK_DISCONN)
   ) u_draw_status_link (
       .clk(clk),
       .rst_n(rst_n),
@@ -184,9 +182,13 @@ module top_draw (
       .char_bram(link_bram),
       .letter_spacing(8'd1),
       .row_spacing(8'd1),
-      .pixel_color(draw_rgb[3]),
+      .pixel_color(),
       .draw_en(draw_en[3])
   );
+  // Dynamic color for Link Status based on state
+  assign draw_rgb[3] = (link_status == 2'b01) ? COLOR_STATUS_LINK_CONN :
+                       (link_status == 2'b10) ? COLOR_STATUS_LINK_LOOP :
+                                                COLOR_STATUS_LINK_DISCONN;
 
   // [4] Status: Baudrate
   draw_string #(
@@ -279,8 +281,8 @@ module top_draw (
       .xend(11'd850),
       .yend(11'd700),
       .filled(1'b0),
-      .thickness((ui_selected_item == ITEM_INPUT) ? 11'd4 : 11'd2),  // Thicker outline if selected
-      .color((ui_selected_item == ITEM_INPUT) ? 12'hF_F_0 : 12'h5_A_5), // Yellow highlight if selected
+      .thickness((ui_selected_item == ITEM_INPUT) ? 11'd4 : 11'd2),
+      .color((ui_selected_item == ITEM_INPUT) ? 12'hF_F_0 : 12'h5_A_5),
       .vga_in(vga_in),
       .rgb_out(draw_rgb[8]),
       .draw_en_out(draw_en[8])
@@ -312,7 +314,7 @@ module top_draw (
 
   assign draw_rgb[9] = draw_en[9] ? (mode_text ? 12'h0_F_0 : COLOR_INPUT) : 12'h000;
 
-  // [10] Dynamic Bitmap (np. 64x64)
+  // [10] Dynamic Bitmap (64x64)
   draw_bitmap #(
       .BITMAP (BITMAP_DYN_64x64),
       .USE_RAM(1'b1)
@@ -327,7 +329,7 @@ module top_draw (
       .draw_en_out(draw_en[10])
   );
 
-  // [11] Popup Window (Informacje)
+  // [11] Popup Window
   logic popup_raw_en;
   draw_popup #(
       .TITLE_LEN(ABOUT_TITLE_LEN),
@@ -345,7 +347,7 @@ module top_draw (
       .title_bram(popup_title_bram),
       .desc_bram(popup_desc_bram),
       .btn1_bram(popup_btn_bram),
-      .btn2_bram(popup_btn_bram),  // Unused in 1-button mode
+      .btn2_bram(popup_btn_bram),
       .show_progress(show_progress),
       .progress_val(progress_val),
       .btn1_selected(ui_selected_item == ITEM_POPUP_BTN),
@@ -354,7 +356,7 @@ module top_draw (
       .rgb_out(draw_rgb[11]),
       .draw_en_out(popup_raw_en)
   );
-  assign draw_en[11] = popup_raw_en & show_popup;  // Renders on top only when shown
+  assign draw_en[11] = popup_raw_en & show_popup;
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin

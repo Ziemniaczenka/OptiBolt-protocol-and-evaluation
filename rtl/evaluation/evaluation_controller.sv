@@ -4,8 +4,8 @@
  * Author: Tomasz Więcławski & Sebastian Zoń
  *
  * Description: Master FSM managing tests, console text processing, CLI commands, and UI Popups.
- * This module acts as the controller for the evaluation platform, writing data
- * directly to shared display BRAMs (console, input, dynamic bitmap) and streaming protocol test packets.
+ * Directly writes to display BRAMs (console, input, dynamic bitmap), handles bitrate/oversampling selection,
+ * arbitrates handshake packets, and streams protocol test packets.
  */
 
 module evaluation_controller (
@@ -43,6 +43,13 @@ module evaluation_controller (
     output logic       show_popup,
     output logic       show_progress,
     output logic [7:0] progress_val,
+
+    // --- Handshake Interface ---
+    input  logic       hs_tx_req,
+    input  logic [2:0] hs_tx_type,
+    input  logic [7:0] hs_tx_data,
+    output logic       hs_tx_ack,
+    input  logic [1:0] link_status,
 
     // --- OptiBolt Protocol Control & Telemetry Interface ---
     output logic [3:0] eval_proto_baud_rate,
@@ -92,11 +99,11 @@ module evaluation_controller (
     SRC_NONE,
     SRC_INPUT_ECHO,
     SRC_HELP,
-    SRC_STATUS,
-    SRC_BAUD_100K,
-    SRC_BAUD_1M,
-    SRC_BAUD_2M,
-    SRC_BAUD_10M,
+    SRC_STATUS_DISCONN,
+    SRC_STATUS_CONN,
+    SRC_STATUS_LOOP,
+    SRC_BAUD_SET,
+    SRC_OS_SET,
     SRC_TEST,
     SRC_BITMAP_SEND,
     SRC_BITMAP_CLEAR
@@ -122,7 +129,7 @@ module evaluation_controller (
   logic [11:0] tx_pixel_cnt;
   logic [11:0] rx_pixel_ptr;
 
-  // PRNG Instantiation
+  // PRNG Instantiation for pixel colors
   logic        prng_next_pixel;
   logic [11:0] prng_pixel_rgb;
   logic [ 7:0] prng_pixel_byte;
@@ -142,47 +149,35 @@ module evaluation_controller (
     "T", "y", "p", "e", " ", "'", "h", "e", "l", "p", "'", " ", "f", "o", "r", " ", "c", "o", "m", "m", "a", "n", "d", "s", ".", "\n"
   };
 
-  localparam logic [7:0] HELP_BYTES [0:95] = '{
+  localparam logic [7:0] HELP_BYTES [0:180] = '{
     "C", "o", "m", "m", "a", "n", "d", "s", ":", "\n",
-    " ", "b", "a", "u", "d", " ", "<", "1", "0", "0", "k", "|", "1", "m", "|", "2", "m", "|", "1", "0", "m", ">", "\n",
-    " ", "t", "e", "s", "t", " ", "<", "1", "|", "2", "|", "b", "e", "r", "|", "p", "i", "n", "g", ">", "\n",
-    " ", "b", "i", "t", "m", "a", "p", " ", "<", "s", "e", "n", "d", "|", "c", "l", "e", "a", "r", ">", "\n",
+    " ", "b", "a", "u", "d", " ", "<", " ", "1", "0", "0", "k", " ", "|", " ", "1", "m", " ", "|", " ", "1", ".", "2", "5", "m", " ", "|", " ", "2", ".", "5", "m", " ", "|", " ", "3", ".", "1", "2", "5", "m", " ", "|", " ", "5", "m", " ", "|", " ", "6", ".", "2", "5", "m", " ", "|", " ", "8", ".", "3", "3", "m", " ", "|", " ", "1", "2", ".", "5", "m", " ", "|", " ", "2", "5", "m", " ", ">", "\n",
+    " ", "o", "s", " ", "<", " ", "8", "x", " ", "|", " ", "1", "6", "x", " ", ">", "\n",
+    " ", "t", "e", "s", "t", " ", "<", " ", "1", " ", "|", " ", "2", " ", "|", " ", "b", "e", "r", " ", "|", " ", "p", "i", "n", "g", " ", ">", "\n",
+    " ", "b", "i", "t", "m", "a", "p", " ", "<", " ", "s", "e", "n", "d", " ", "|", " ", "c", "l", "e", "a", "r", " ", ">", "\n",
     " ", "c", "l", "e", "a", "r", "\n",
     " ", "s", "t", "a", "t", "u", "s", "\n",
     " ", "h", "e", "l", "p", "\n"
   };
 
-  localparam logic [7:0] STATUS_BYTES [0:29] = '{
-    "S", "t", "a", "t", "u", "s", ":", " ", "B", "a", "u", "d", "=", "1", "M", " ",
-    "L", "i", "n", "k", "=", "O", "K", " ", "B", "E", "R", "=", "0", "\n"
+  localparam logic [7:0] STATUS_DISCONN_BYTES [0:28] = '{
+    "S", "t", "a", "t", "u", "s", ":", " ", "D", "I", "S", "C", "O", "N", "N", "E", "C", "T", "E", "D", " ", " ", " ", " ", " ", " ", " ", " ", "\n"
   };
 
-  localparam logic [7:0] ERR_PARITY_BYTES [0:12] = '{
-    "[", "E", "R", "R", ":", "P", "a", "r", "i", "t", "y", "]", "\n"
+  localparam logic [7:0] STATUS_CONN_BYTES [0:28] = '{
+    "S", "t", "a", "t", "u", "s", ":", " ", "C", "O", "N", "N", "E", "C", "T", "E", "D", " ", "(", "R", "e", "m", "o", "t", "e", ")", " ", " ", "\n"
   };
 
-  localparam logic [7:0] ERR_MANCH_BYTES [0:16] = '{
-    "[", "E", "R", "R", ":", "M", "a", "n", "c", "h", "e", "s", "t", "e", "r", "]", "\n"
+  localparam logic [7:0] STATUS_LOOP_BYTES [0:28] = '{
+    "S", "t", "a", "t", "u", "s", ":", " ", "L", "O", "O", "P", "B", "A", "C", "K", " ", "(", "L", "o", "c", "a", "l", ")", " ", " ", " ", " ", "\n"
   };
 
-  localparam logic [7:0] ERR_PREAMBLE_BYTES [0:14] = '{
-    "[", "E", "R", "R", ":", "P", "r", "e", "a", "m", "b", "l", "e", "]", "\n"
+  localparam logic [7:0] BAUD_SET_BYTES [0:17] = '{
+    "B", "a", "u", "d", "r", "a", "t", "e", " ", "u", "p", "d", "a", "t", "e", "d", ".", "\n"
   };
 
-  localparam logic [7:0] BAUD_100K_BYTES [0:14] = '{
-    "B", "a", "u", "d", " ", "s", "e", "t", ":", " ", "1", "0", "0", "k", "\n"
-  };
-
-  localparam logic [7:0] BAUD_1M_BYTES [0:12] = '{
-    "B", "a", "u", "d", " ", "s", "e", "t", ":", " ", "1", "M", "\n"
-  };
-
-  localparam logic [7:0] BAUD_2M_BYTES [0:12] = '{
-    "B", "a", "u", "d", " ", "s", "e", "t", ":", " ", "2", "M", "\n"
-  };
-
-  localparam logic [7:0] BAUD_10M_BYTES [0:13] = '{
-    "B", "a", "u", "d", " ", "s", "e", "t", ":", " ", "1", "0", "M", "\n"
+  localparam logic [7:0] OS_SET_BYTES [0:20] = '{
+    "O", "v", "e", "r", "s", "a", "m", "p", "l", "i", "n", "g", " ", "u", "p", "d", "a", "t", "e", "d", "\n"
   };
 
   localparam logic [7:0] TEST_START_BYTES [0:13] = '{
@@ -200,17 +195,17 @@ module evaluation_controller (
   logic [7:0] current_msg_char;
   always_comb begin
     case (msg_src)
-      SRC_INPUT_ECHO:   current_msg_char = input_buf[msg_idx];
-      SRC_HELP:         current_msg_char = HELP_BYTES[msg_idx];
-      SRC_STATUS:       current_msg_char = STATUS_BYTES[msg_idx];
-      SRC_BAUD_100K:    current_msg_char = BAUD_100K_BYTES[msg_idx];
-      SRC_BAUD_1M:      current_msg_char = BAUD_1M_BYTES[msg_idx];
-      SRC_BAUD_2M:      current_msg_char = BAUD_2M_BYTES[msg_idx];
-      SRC_BAUD_10M:     current_msg_char = BAUD_10M_BYTES[msg_idx];
-      SRC_TEST:         current_msg_char = TEST_START_BYTES[msg_idx];
-      SRC_BITMAP_SEND:  current_msg_char = BITMAP_SEND_BYTES[msg_idx];
-      SRC_BITMAP_CLEAR: current_msg_char = BITMAP_CLEAR_BYTES[msg_idx];
-      default:          current_msg_char = 8'h00;
+      SRC_INPUT_ECHO:     current_msg_char = input_buf[msg_idx];
+      SRC_HELP:           current_msg_char = HELP_BYTES[msg_idx];
+      SRC_STATUS_DISCONN: current_msg_char = STATUS_DISCONN_BYTES[msg_idx];
+      SRC_STATUS_CONN:    current_msg_char = STATUS_CONN_BYTES[msg_idx];
+      SRC_STATUS_LOOP:    current_msg_char = STATUS_LOOP_BYTES[msg_idx];
+      SRC_BAUD_SET:       current_msg_char = BAUD_SET_BYTES[msg_idx];
+      SRC_OS_SET:         current_msg_char = OS_SET_BYTES[msg_idx];
+      SRC_TEST:           current_msg_char = TEST_START_BYTES[msg_idx];
+      SRC_BITMAP_SEND:    current_msg_char = BITMAP_SEND_BYTES[msg_idx];
+      SRC_BITMAP_CLEAR:   current_msg_char = BITMAP_CLEAR_BYTES[msg_idx];
+      default:            current_msg_char = 8'h00;
     endcase
   end
 
@@ -235,31 +230,33 @@ module evaluation_controller (
       tx_pixel_cnt <= '0;
       rx_pixel_ptr <= '0;
       prng_next_pixel <= 1'b0;
+      hs_tx_ack <= 1'b0;
 
-      eval_proto_baud_rate <= 4'd1;        // 1 Mbps default
-      eval_proto_oversampling <= 4'd8;     // 8x oversampling default
-      eval_proto_loopback_en <= 1'b1;      // Enable loopback default
-      eval_proto_tx_valid <= 1'b0;
-      eval_proto_tx_type <= MSG_TEXT;
-      eval_proto_tx_data <= 8'h00;
+      eval_proto_baud_rate    <= 4'd1;     // 1 Mbps default
+      eval_proto_oversampling <= 4'd0;     // 8x oversampling default
+      eval_proto_loopback_en  <= 1'b1;     // Enable loopback default
+      eval_proto_tx_valid     <= 1'b0;
+      eval_proto_tx_type      <= MSG_TEXT;
+      eval_proto_tx_data      <= 8'h00;
 
       for (int i = 0; i < INPUT_MAX_LEN; i++) input_buf[i] <= 8'h00;
 
-      console_we <= 1'b0;
-      input_we <= 1'b0;
-      bmp_we <= 1'b0;
-      input_addr <= '0;
-      input_din <= '0;
+      console_we   <= 1'b0;
+      input_we     <= 1'b0;
+      bmp_we       <= 1'b0;
+      input_addr   <= '0;
+      input_din    <= '0;
       console_addr <= '0;
-      console_din <= '0;
-      bmp_addr <= '0;
-      bmp_din <= '0;
+      console_din  <= '0;
+      bmp_addr     <= '0;
+      bmp_din      <= '0;
     end else begin
-      input_we   <= 1'b0;
-      console_we <= 1'b0;
-      bmp_we     <= 1'b0;
+      input_we            <= 1'b0;
+      console_we          <= 1'b0;
+      bmp_we              <= 1'b0;
       eval_proto_tx_valid <= 1'b0;
       prng_next_pixel     <= 1'b0;
+      hs_tx_ack           <= 1'b0;
 
       // Handle incoming RX packets from OptiBolt protocol
       if (proto_eval_rx_valid) begin
@@ -274,6 +271,14 @@ module evaluation_controller (
           console_we   <= 1'b1;
           console_write_ptr <= (console_write_ptr == CONSOLE_MAX_LEN - 1) ? 10'd0 : console_write_ptr + 10'd1;
         end
+      end
+
+      // Handshake packet arbitration when controller is idle
+      if (state == S_IDLE && hs_tx_req && !proto_eval_tx_full) begin
+        eval_proto_tx_valid <= 1'b1;
+        eval_proto_tx_type  <= hs_tx_type;
+        eval_proto_tx_data  <= hs_tx_data;
+        hs_tx_ack           <= 1'b1;
       end
 
       case (state)
@@ -373,38 +378,61 @@ module evaluation_controller (
           end else begin
             if (msg_src == SRC_INPUT_ECHO) begin
               msg_idx <= '0;
+              // Command parser
               if (input_len >= 6 && input_buf[2]=="h" && input_buf[3]=="e" && input_buf[4]=="l" && input_buf[5]=="p") begin
                 msg_src <= SRC_HELP;
-                msg_len <= 11'd96;
+                msg_len <= 11'd181;
               end else if (input_len >= 8 && input_buf[2]=="s" && input_buf[3]=="t" && input_buf[4]=="a" && input_buf[5]=="t" && input_buf[6]=="u" && input_buf[7]=="s") begin
-                msg_src <= SRC_STATUS;
-                msg_len <= 11'd30;
+                if (link_status == 2'b01) msg_src <= SRC_STATUS_CONN;
+                else if (link_status == 2'b10) msg_src <= SRC_STATUS_LOOP;
+                else msg_src <= SRC_STATUS_DISCONN;
+                msg_len <= 11'd29;
               end else if (input_len >= 7 && input_buf[2]=="c" && input_buf[3]=="l" && input_buf[4]=="e" && input_buf[5]=="a" && input_buf[6]=="r") begin
                 clear_idx <= 10'd0;
                 state <= S_CLEAR_CONSOLE;
-              end else if (input_len >= 9 && input_buf[2]=="b" && input_buf[3]=="a" && input_buf[4]=="u" && input_buf[5]=="d" && input_buf[6]==" ") begin
+              end else if (input_len >= 5 && input_buf[2]=="o" && input_buf[3]=="s" && input_buf[4]==" ") begin
+                if (input_buf[5]=="1" && input_buf[6]=="6") eval_proto_oversampling <= 4'd1;
+                else eval_proto_oversampling <= 4'd0;
+                msg_src <= SRC_OS_SET;
+                msg_len <= 11'd21;
+              end else if (input_len >= 7 && input_buf[2]=="b" && input_buf[3]=="a" && input_buf[4]=="u" && input_buf[5]=="d" && input_buf[6]==" ") begin
                 if (input_buf[7]=="1" && input_buf[8]=="0" && input_buf[9]=="0") begin
                   eval_proto_baud_rate <= 4'd0;
-                  msg_src <= SRC_BAUD_100K;
-                  msg_len <= 11'd15;
-                end else if (input_buf[7]=="1" && input_buf[8]=="m") begin
+                  eval_proto_oversampling <= 4'd0;
+                end else if (input_buf[7]=="1" && input_buf[8]=="." && input_buf[9]=="2" && input_buf[10]=="5") begin
                   eval_proto_baud_rate <= 4'd1;
-                  msg_src <= SRC_BAUD_1M;
-                  msg_len <= 11'd13;
-                end else if (input_buf[7]=="2" && input_buf[8]=="m") begin
+                  eval_proto_oversampling <= 4'd1;
+                end else if (input_buf[7]=="1" && (input_buf[8]=="m" || input_buf[8]=="M" || input_len==8)) begin
+                  eval_proto_baud_rate <= 4'd1;
+                  eval_proto_oversampling <= 4'd0;
+                end else if (input_buf[7]=="2" && input_buf[8]=="." && input_buf[9]=="5") begin
                   eval_proto_baud_rate <= 4'd2;
-                  msg_src <= SRC_BAUD_2M;
-                  msg_len <= 11'd13;
-                end else if (input_buf[7]=="1" && input_buf[8]=="0" && input_buf[9]=="m") begin
+                  eval_proto_oversampling <= 4'd0;
+                end else if (input_buf[7]=="2" && (input_buf[8]=="m" || input_buf[8]=="M" || input_len==8)) begin
+                  eval_proto_baud_rate <= 4'd2;
+                  eval_proto_oversampling <= 4'd0;
+                end else if (input_buf[7]=="3" && input_buf[8]=="." && input_buf[9]=="1") begin
+                  eval_proto_baud_rate <= 4'd3;
+                end else if (input_buf[7]=="5") begin
                   eval_proto_baud_rate <= 4'd4;
-                  msg_src <= SRC_BAUD_10M;
-                  msg_len <= 11'd14;
+                  eval_proto_oversampling <= 4'd0;
+                end else if (input_buf[7]=="6" && input_buf[8]=="." && input_buf[9]=="2") begin
+                  eval_proto_baud_rate <= 4'd5;
+                  eval_proto_oversampling <= 4'd1;
+                end else if (input_buf[7]=="8" && input_buf[8]=="." && input_buf[9]=="3") begin
+                  eval_proto_baud_rate <= 4'd5;
+                  eval_proto_oversampling <= 4'd0;
+                end else if (input_buf[7]=="1" && input_buf[8]=="2") begin
+                  eval_proto_baud_rate <= 4'd6;
+                  eval_proto_oversampling <= 4'd0;
+                end else if (input_buf[7]=="2" && input_buf[8]=="5") begin
+                  eval_proto_baud_rate <= 4'd7;
+                  eval_proto_oversampling <= 4'd0;
                 end else begin
-                  input_len <= 11'd2;
-                  input_cursor <= 11'd2;
-                  input_update_idx <= 7'd0;
-                  state <= S_UPDATE_INPUT_RAM;
+                  eval_proto_baud_rate <= 4'd1;
                 end
+                msg_src <= SRC_BAUD_SET;
+                msg_len <= 11'd18;
               end else if (input_len >= 13 && input_buf[2]=="b" && input_buf[3]=="i" && input_buf[4]=="t" && input_buf[5]=="m" && input_buf[6]=="a" && input_buf[7]=="p" && input_buf[8]==" ") begin
                 if (input_buf[9]=="s" && input_buf[10]=="e" && input_buf[11]=="n" && input_buf[12]=="d") begin
                   msg_src <= SRC_BITMAP_SEND;
