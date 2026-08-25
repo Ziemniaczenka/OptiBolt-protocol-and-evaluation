@@ -8,7 +8,7 @@
  */
 
 module optibolt_controller (
-    input logic clk400,
+    input logic clk200,
     input logic rst_n,
     input logic [3:0] oversampling,
     input logic [3:0] bit_rate,
@@ -53,7 +53,7 @@ logic [10:0] tx_fifo_in, tx_fifo_out;
 
 
 sampling_tick_generator u_sampling_tick_generator (
-    .clk400,
+    .clk200,
     .rst_n,
     .oversampling,
     .bit_rate,
@@ -63,7 +63,7 @@ sampling_tick_generator u_sampling_tick_generator (
 //rx logic
 
 manchester_decoder u_manchester_decoder (
-    .clk400,
+    .clk200,
     .rst_n,
     .tick,
     .rx_manchester,
@@ -74,7 +74,7 @@ manchester_decoder u_manchester_decoder (
 );
 
 optibolt_receiver u_optibolt_receiver ( 
-    .clk400,
+    .clk200,
     .rst_n,
     .rx_binary,
     .bit_valid,
@@ -93,7 +93,7 @@ fifo #(
     .B(12),
     .W(4)
 ) u_rx_fifo (
-    .clk(clk400),
+    .clk(clk200),
     .reset(!rst_n),
     .wr(data_ready),
     .w_data(rx_fifo_in),
@@ -105,7 +105,7 @@ fifo #(
 
 //tx logic
 manchester_coder u_manchester_coder (
-    .clk400,
+    .clk200,
     .rst_n,
     .tick,
     .oversampling,
@@ -120,7 +120,7 @@ fifo #(
     .B(11),
     .W(4)
 ) u_tx_fifo (
-    .clk(clk400),
+    .clk(clk200),
     .reset(!rst_n),
     .wr(tx_enable),
     .w_data(tx_fifo_in),
@@ -133,7 +133,7 @@ fifo #(
 assign transmit_start = ~tx_empty & ~tx_busy;
 
 optibolt_transmitter u_optibolt_transmitter (
-    .clk400,
+    .clk200,
     .rst_n,
     .header(tx_fifo_out[10:8]),
     .data(tx_fifo_out[7:0]),
@@ -155,19 +155,8 @@ assign fifo_parity   = rx_fifo_out[0];
 
 assign calc_parity = ^{fifo_msg_type, fifo_data};
 
-always_ff @(posedge clk400 or negedge rst_n) begin
-    if (!rst_n) begin
-        data_out <= '0;
-        msg_type_out <= '0;
-        parity_error <= '0;
-    end else begin
-        parity_error <= '0;
-        if (rx_enable) begin
-            data_out <= fifo_data;
-            msg_type_out <= fifo_msg_type;
-            parity_error <= (fifo_parity != calc_parity);
-        end
-    end
-end
+assign data_out     = fifo_data;
+assign msg_type_out = fifo_msg_type;
+assign parity_error = (fifo_parity != calc_parity);
 
 endmodule

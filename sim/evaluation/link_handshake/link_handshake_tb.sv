@@ -5,7 +5,7 @@
  *
  * Description:
  * Testbench for link_handshake module.
- * Tests Disconnected, Loopback, and Connected (remote board) handshake flows.
+ * Tests Disconnected, Loopback, and Connected (remote board) handshake flows with optical carrier detection.
  */
 
 `timescale 1ns / 1ps
@@ -22,6 +22,7 @@ module link_handshake_tb;
   logic [2:0] proto_eval_rx_type;
   logic [7:0] proto_eval_rx_data;
   logic       proto_eval_preamble_error;
+  logic       proto_eval_rx_carrier;
 
   // Handshake TX signals
   logic       hs_tx_req;
@@ -45,6 +46,7 @@ module link_handshake_tb;
       .proto_eval_rx_type(proto_eval_rx_type),
       .proto_eval_rx_data(proto_eval_rx_data),
       .proto_eval_preamble_error(proto_eval_preamble_error),
+      .proto_eval_rx_carrier(proto_eval_rx_carrier),
       .hs_tx_req(hs_tx_req),
       .hs_tx_type(hs_tx_type),
       .hs_tx_data(hs_tx_data),
@@ -61,6 +63,7 @@ module link_handshake_tb;
     proto_eval_rx_type = 3'b000;
     proto_eval_rx_data = 8'h00;
     proto_eval_preamble_error = 0;
+    proto_eval_rx_carrier = 0;
     hs_tx_ack = 0;
 
     #20 rst_n = 1;
@@ -70,10 +73,15 @@ module link_handshake_tb;
     assert (link_status == 2'b00) else $error("Test 1 Failed: Expected DISCONNECTED");
     $display("[PASS] Test 1: Initial state is DISCONNECTED (link_status=%b)", link_status);
 
-    // Wait for heartbeat to request transmission
+    // Simulate optical cable plugged in -> light carrier detected on receiver
+    #30;
+    @(posedge clk);
+    proto_eval_rx_carrier = 1'b1;
+
+    // Wait for challenge packet request triggered by carrier detection
     wait (hs_tx_req == 1'b1);
     captured_challenge = hs_tx_data;
-    $display("Heartbeat challenge requested with token: 0x%02X", captured_challenge);
+    $display("Optical carrier detected -> challenge token latched: 0x%02X", captured_challenge);
     @(posedge clk);
     hs_tx_ack = 1'b1;
     @(posedge clk);
@@ -112,11 +120,13 @@ module link_handshake_tb;
     @(posedge clk);
     hs_tx_ack = 1'b0;
 
-    // Test 4: Simulate DISCONNECT (Timeout when no packets arrive)
-    $display("Waiting for disconnect timeout (600ns)...");
-    #800;
+    // Test 4: Simulate DISCONNECT (Unplug optical cable -> carrier drops)
+    $display("Unplugging optical cable (carrier drops to 0)...");
+    @(posedge clk);
+    proto_eval_rx_carrier = 1'b0;
+    #10;
     assert (link_status == 2'b00) else $error("Test 4 Failed: Expected DISCONNECTED (2'b00)");
-    $display("[PASS] Test 4: Inactivity timeout -> DISCONNECTED detected (link_status=%b)", link_status);
+    $display("[PASS] Test 4: Optical carrier loss -> DISCONNECTED detected (link_status=%b)", link_status);
 
     $display("All link_handshake tests completed successfully!");
     $finish;

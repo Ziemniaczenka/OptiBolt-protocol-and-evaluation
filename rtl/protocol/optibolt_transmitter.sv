@@ -9,7 +9,7 @@
 
 
 module optibolt_transmitter (
-    input logic clk400,
+    input logic clk200,
     input logic rst_n,
     input logic [2:0] header,
     input logic [7:0] data,
@@ -42,7 +42,7 @@ logic tx_busy_reg, tx_busy_next;
 assign tx_binary = tx_bin_reg;
 assign tx_busy = tx_busy_reg;
 
-always_ff @(posedge clk400 or negedge rst_n) begin
+always_ff @(posedge clk200 or negedge rst_n) begin
     if (!rst_n) begin
         state_reg <= IDLE;
         shift_reg <= '0;

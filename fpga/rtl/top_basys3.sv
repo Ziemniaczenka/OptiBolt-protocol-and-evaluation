@@ -35,7 +35,7 @@ module top_basys3 (
      * Local variables and signals
      */
 
-  wire clk_400MHz;  // for OptiBolt protocol
+  wire clk_200MHz;  // for OptiBolt protocol
   wire clk_100MHz;  // for PS/2
   wire clk_74p25MHz;  // for VGA
 
@@ -63,10 +63,10 @@ module top_basys3 (
   );
 
   clk_wiz_0 u_clk_wiz_0 (
-      .clk_400MHz(clk_400MHz),  // output 400.000MHz
+      .clk_200MHz(clk_200MHz),  // output 200.000MHz
       .clk_100MHz(clk_100MHz),
       .locked    (locked_0),    // output locked
-      .clk_in1   (clk_ibuf)     // input clk_in1
+      .clk   (clk_ibuf)     // input clk
   );
 
   clk_wiz_1 u_clk_wiz_1 (
@@ -96,7 +96,7 @@ module top_basys3 (
   top u_top (
       .clk74p25(clk_74p25MHz),
       .clk100(clk_100MHz),
-      .clk400(clk_400MHz),
+      .clk200(clk_200MHz),
       .rst_n(!btnC & all_clocks_locked),
 
       .vs(Vsync),

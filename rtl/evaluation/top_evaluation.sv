@@ -43,6 +43,7 @@ module top_evaluation (
     input  logic       proto_eval_parity_error,
     input  logic       proto_eval_manchester_code_error,
     input  logic       proto_eval_preamble_error,
+    input  logic       proto_eval_rx_carrier,
 
     // Telemetry / Status
     input  logic        proto_eval_link_status,
@@ -195,6 +196,7 @@ module top_evaluation (
       .proto_eval_rx_type(proto_eval_rx_type),
       .proto_eval_rx_data(proto_eval_rx_data),
       .proto_eval_preamble_error(proto_eval_preamble_error),
+      .proto_eval_rx_carrier(proto_eval_rx_carrier),
       .hs_tx_req(hs_tx_req),
       .hs_tx_type(hs_tx_type),
       .hs_tx_data(hs_tx_data),

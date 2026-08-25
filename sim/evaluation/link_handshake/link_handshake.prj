@@ -6,5 +6,6 @@
 # Project file for link_handshake testbench.
 
 sv work ../../../rtl/protocol/protocol_pkg.sv \
+        ../../../rtl/helpers/pixel_prng.sv \
         ../../../rtl/evaluation/link_handshake.sv \
         link_handshake_tb.sv

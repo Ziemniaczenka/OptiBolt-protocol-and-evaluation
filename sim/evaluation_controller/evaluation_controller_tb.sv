@@ -158,30 +158,36 @@ module evaluation_controller_tb;
     // 1. Select input box & enter text mode
     execute_cmd();
 
-    // 2. Test 'help' command
-    type_string("help");
+    // 2. Test '/help' command
+    type_string("/help");
     execute_cmd();
-    $display("[PASS] Test 1: 'help' command executed.");
+    $display("[PASS] Test 1: '/help' command executed.");
 
-    // 3. Test 'baud 2.5m' command
-    type_string("baud 2.5m");
+    // 3. Test '/baud 2.5m' command (loopback mode)
+    type_string("/baud 2.5m");
     execute_cmd();
     assert (eval_proto_baud_rate == 4'd2) else $error("Baudrate setting failed (expected 2, got %0d)", eval_proto_baud_rate);
-    $display("[PASS] Test 2: 'baud 2.5m' command executed (baud_rate=%0d).", eval_proto_baud_rate);
+    $display("[PASS] Test 2: '/baud 2.5m' command executed (baud_rate=%0d).", eval_proto_baud_rate);
 
-    // 4. Test 'os 16x' command
-    type_string("os 16x");
+    // Test invalid '/baud 33' command -> rejected
+    type_string("/baud 33");
+    execute_cmd();
+    assert (eval_proto_baud_rate == 4'd2) else $error("Invalid baud command should not alter baudrate");
+    $display("[PASS] Test 2b: '/baud 33' invalid command correctly rejected.");
+
+    // 4. Test '/os 16x' command
+    type_string("/os 16x");
     execute_cmd();
     assert (eval_proto_oversampling == 4'd1) else $error("Oversampling setting failed (expected 1, got %0d)", eval_proto_oversampling);
-    $display("[PASS] Test 3: 'os 16x' command executed (os=%0d).", eval_proto_oversampling);
+    $display("[PASS] Test 3: '/os 16x' command executed (os=%0d).", eval_proto_oversampling);
 
-    // 5. Test 'status' command
-    type_string("status");
+    // 5. Test '/status' command
+    type_string("/status");
     execute_cmd();
-    $display("[PASS] Test 4: 'status' command executed.");
+    $display("[PASS] Test 4: '/status' command executed.");
 
-    // 6. Test 'bitmap send' command & TX buffer backpressure
-    type_string("bitmap send");
+    // 6. Test '/bitmap send' command & TX buffer backpressure
+    type_string("/bitmap send");
     @(posedge clk);
     cmd_enter = 1'b1;
     @(posedge clk);
@@ -208,8 +214,8 @@ module evaluation_controller_tb;
     assert (bmp_we && bmp_din == 12'hA5A) else $error("RX Bitmap write failed (bmp_we=%b, bmp_din=%h)", bmp_we, bmp_din);
     $display("[PASS] Test 6: RX Bitmap packet write to BRAM verified (bmp_we=%b, bmp_din=%h).", bmp_we, bmp_din);
 
-    // 8. Test 'bitmap clear' command
-    type_string("bitmap clear");
+    // 8. Test '/bitmap clear' command
+    type_string("/bitmap clear");
     @(posedge clk);
     cmd_enter = 1'b1;
     @(posedge clk);
@@ -218,7 +224,25 @@ module evaluation_controller_tb;
     @(posedge clk);
     #1;
     assert (bmp_we && bmp_din == 12'h000) else $error("Bitmap clear failed (bmp_we=%b, bmp_din=%h)", bmp_we, bmp_din);
-    $display("[PASS] Test 7: 'bitmap clear' command clearing BRAM verified.");
+    $display("[PASS] Test 7: '/bitmap clear' command clearing BRAM verified.");
+    wait (u_eval.state == u_eval.S_IDLE);
+    @(posedge clk);
+
+    // 9. Test non-command text transmission
+    type_string("hello");
+    @(posedge clk);
+    cmd_enter = 1'b1;
+    @(posedge clk);
+    cmd_enter = 1'b0;
+    wait (u_eval.state == u_eval.S_TEXT_SEND);
+    wait (u_eval.state == u_eval.S_IDLE);
+    $display("[PASS] Test 8: Non-command text transmission verified.");
+
+    // 10. Test disconnected block on /bitmap send
+    link_status = 2'b00; // DISCONNECTED
+    type_string("/bitmap send");
+    execute_cmd();
+    $display("[PASS] Test 9: Disconnected command blocked verified.");
 
     wait (u_eval.state == u_eval.S_IDLE);
     @(posedge clk);

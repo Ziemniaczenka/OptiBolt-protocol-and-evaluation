@@ -9,7 +9,7 @@
 
 
 module optibolt_receiver (
-    input logic clk400,
+    input logic clk200,
     input logic rst_n,
     input logic rx_binary,
     input logic bit_valid,
@@ -37,7 +37,7 @@ logic [3:0] bit_counter, bit_counter_next;
 logic [2:0] msg_type_reg, msg_type_next;
 logic preamble_fail;
 
-always_ff @(posedge clk400 or negedge rst_n) begin
+always_ff @(posedge clk200 or negedge rst_n) begin
     if (!rst_n) begin
         state_reg <= IDLE;
         shift_reg <= '0;

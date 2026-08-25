@@ -13,7 +13,7 @@ module mod_m_counter
     parameter N=4 // number of bits in counter
    )
    (
-    input wire clk400, reset,
+    input wire clk200, reset,
     input wire [N-1:0] M,
     output wire max_tick,
     output wire [N-1:0] q
@@ -25,7 +25,7 @@ module mod_m_counter
 
    // body
    // register
-   always @(posedge clk400, posedge reset)
+   always @(posedge clk200, posedge reset)
       if (reset)
          r_reg <= 0;
       else

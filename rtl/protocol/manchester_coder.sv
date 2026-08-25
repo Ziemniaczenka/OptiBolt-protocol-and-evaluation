@@ -8,7 +8,7 @@
  */
 
  module manchester_coder (
-    input logic clk400,
+    input logic clk200,
     input logic rst_n,
     input logic tick, 
     input logic [3:0] oversampling,
@@ -33,7 +33,7 @@ always_comb begin
     end
 end
 
-always_ff @(posedge clk400 or negedge rst_n) begin
+always_ff @(posedge clk200 or negedge rst_n) begin
     if (!rst_n) begin
         counter <= '0;
         tx_manchester <= 1'b1; 
