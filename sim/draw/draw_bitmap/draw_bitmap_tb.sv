@@ -36,11 +36,12 @@ module draw_bitmap_tb;
 
   logic clk, rst_n;
   wire vs, hs;
-  wire [11:0] rgb_rom, rgb_ram;
-  logic en_rom, en_ram;
+  wire [11:0] rgb_rom, rgb_ram, rgb_pal;
+  logic en_rom, en_ram, en_pal;
 
   logic [11:0] xstart_rom, ystart_rom;
   logic [11:0] xstart_ram, ystart_ram;
+  logic [11:0] xstart_pal, ystart_pal;
 
   vga_if tim_if ();
 
@@ -67,6 +68,7 @@ module draw_bitmap_tb;
   );
 
   bram_if #(.ADDR_WIDTH(1), .DATA_WIDTH(12), .READ_ONLY(1)) rom_if(); // Defaultowy rom w tb nie uzywa BRAM do adresacji
+  bram_if #(.ADDR_WIDTH(1), .DATA_WIDTH(12), .READ_ONLY(1)) pal_if();
 
   // --- ROM DUT ---
   draw_bitmap #(
@@ -113,9 +115,30 @@ module draw_bitmap_tb;
       .draw_en_out(en_ram)
   );
 
-  wire [11:0] rgb_out = en_rom ? rgb_rom : (en_ram ? rgb_ram : 12'h222);
+  // --- PALETTE ROM DUT ---
+  draw_bitmap #(
+      .BITMAP(BITMAP_OPTIBOLT_400x102),
+      .BITMAP_PATH(BITMAP_OPTIBOLT_400x102_PALETTE_PATH),
+      .TRANSPARENT_COLOR(12'hFFF),
+      .USE_TRANSPARENCY(1'b1),
+      .USE_RAM(1'b0),
+      .USE_PALETTE(1'b1),
+      .PALETTE_BITS(2),
+      .PALETTE(PALETTE_OPTIBOLT_400x102)
+  ) dut_pal (
+      .clk(clk),
+      .rst_n(rst_n),
+      .xstart(xstart_pal),
+      .ystart(ystart_pal),
+      .vga_in(tim_if.in),
+      .bmp_bram(pal_if),
+      .rgb_out(rgb_pal),
+      .draw_en_out(en_pal)
+  );
+
+  wire [11:0] rgb_out = en_pal ? rgb_pal : (en_rom ? rgb_rom : (en_ram ? rgb_ram : 12'h222));
   logic draw_en_out;
-  assign draw_en_out = en_rom | en_ram;
+  assign draw_en_out = en_pal | en_rom | en_ram;
 
   wire [3:0] r = draw_en_out ? rgb_out[11:8] : 4'h2;
   wire [3:0] g = draw_en_out ? rgb_out[7:4] : 4'h2;
@@ -146,6 +169,8 @@ module draw_bitmap_tb;
     ystart_rom = 12'd0;
     xstart_ram = 12'd0;
     ystart_ram = 12'd0;
+    xstart_pal = 12'd0;
+    ystart_pal = 12'd0;
     ram_if_a.we = 0;
     ram_if_a.en = 0;
     ram_if_a.addr = 0;
@@ -175,6 +200,8 @@ module draw_bitmap_tb;
     ystart_rom = 12'd50;
     xstart_ram = 12'd250;
     ystart_ram = 12'd50;
+    xstart_pal = 12'd400;
+    ystart_pal = 12'd50;
     @(posedge vs) $display("Info: Frame 0 done at %t", $time);
 
     // Frame 1
@@ -182,6 +209,8 @@ module draw_bitmap_tb;
     ystart_rom = 12'd150;
     xstart_ram = 12'd400;
     ystart_ram = 12'd150;
+    xstart_pal = 12'd600;
+    ystart_pal = 12'd150;
     @(posedge vs) $display("Info: Frame 1 done at %t", $time);
 
     $display("Simulation is over, check the frames.");

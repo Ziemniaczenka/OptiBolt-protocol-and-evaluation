@@ -4,25 +4,34 @@
  * Author: Tomasz Więcławski & Sebastian Zoń
  *
  * Description:
- * Testbench for top_evaluation.
- * Tests integrated UI Navigation, Keyboard PS/2, Link Handshake (Loopback),
- * and dynamic bitmap streaming & rendering.
+ * Comprehensive Integration Testbench for top_evaluation.
+ * Tests end-to-end user workflows via PS/2 keyboard:
+ * 1. Boot sequence & UI layout initialization.
+ * 2. Typing '/help' and viewing printed command references in Console BRAM.
+ * 3. Configuring baud rate via '/baud 2.5m' and verifying header update.
+ * 4. Shell Command History navigation using Up/Down arrow keys.
+ * 5. Querying link telemetry via '/status'.
+ * 6. Streaming 128x128 dynamic bitmap via '/bitmap send' with progress popup.
+ * 7. Menu Navigation and Modal About popup interaction.
+ * Exports rendered video frames to TIFF files for visual inspection.
  */
 
 module top_evaluation_tb;
 
   timeunit 1ns; timeprecision 1ps;
 
-  // Clocks
+  // Clocks & Reset
   logic clk74p25, clk100, rst_n;
   wire vs, hs;
   wire [3:0] r, g, b;
 
+  // PS/2 Keyboard Lines
   wire ps2_clk, ps2_data;
   logic ps2_clk_drive, ps2_data_drive;
   assign ps2_clk = ps2_clk_drive;
   assign ps2_data = ps2_data_drive;
 
+  // 7-segment display outputs
   wire [3:0] an;
   wire [6:0] seg;
   wire dp;
@@ -40,11 +49,11 @@ module top_evaluation_tb;
   logic [2:0] proto_eval_rx_type;
   logic [7:0] proto_eval_rx_data;
 
-  // Clock gen
-  initial begin clk74p25 = 1'b0; forever #6.734 clk74p25 = ~clk74p25; end // ~74.25 MHz
-  initial begin clk100 = 1'b0;   forever #5.000 clk100 = ~clk100;     end // 100 MHz
+  // Clock generation: 74.25 MHz (VGA 720p) & 100 MHz (System logic)
+  initial begin clk74p25 = 1'b0; forever #6.734 clk74p25 = ~clk74p25; end
+  initial begin clk100   = 1'b0; forever #5.000 clk100   = ~clk100;   end
 
-  // Simulation Loopback: Wire TX to RX
+  // Simulation Optical Loopback: Transmit data fed back into RX with 1 cycle delay
   always_ff @(posedge clk100 or negedge rst_n) begin
     if (!rst_n) begin
       proto_eval_rx_valid <= 1'b0;
@@ -79,6 +88,7 @@ module top_evaluation_tb;
       .proto_eval_parity_error(1'b0),
       .proto_eval_manchester_code_error(1'b0),
       .proto_eval_preamble_error(1'b0),
+      .proto_eval_rx_carrier(1'b1),
       .proto_eval_link_status(1'b1),
       .proto_eval_ber_count(32'd0),
       .proto_eval_err_count(16'd0)
@@ -94,28 +104,93 @@ module top_evaluation_tb;
       .go(vs)
   );
 
-  task send_ps2_byte(input logic [7:0] data);
+  // Send single raw PS/2 byte over physical serial clock/data lines
+  task automatic send_ps2_byte(input logic [7:0] data);
     logic parity;
     integer i;
     begin
       parity = ~^data; // Odd parity
       ps2_data_drive = 1'b0; // Start bit
-      #20000; ps2_clk_drive = 1'b0; #20000; ps2_clk_drive = 1'b1;
+      #15000; ps2_clk_drive = 1'b0; #15000; ps2_clk_drive = 1'b1;
       for (i = 0; i < 8; i++) begin
-        ps2_data_drive = data[i]; // Data bits
-        #20000; ps2_clk_drive = 1'b0; #20000; ps2_clk_drive = 1'b1;
+        ps2_data_drive = data[i]; // Data bits (LSB first)
+        #15000; ps2_clk_drive = 1'b0; #15000; ps2_clk_drive = 1'b1;
       end
-      ps2_data_drive = parity; // Parity
-      #20000; ps2_clk_drive = 1'b0; #20000; ps2_clk_drive = 1'b1;
+      ps2_data_drive = parity; // Parity bit
+      #15000; ps2_clk_drive = 1'b0; #15000; ps2_clk_drive = 1'b1;
       ps2_data_drive = 1'b1; // Stop bit
-      #20000; ps2_clk_drive = 1'b0; #20000; ps2_clk_drive = 1'b1;
-      #40000; // Idle wait
+      #15000; ps2_clk_drive = 1'b0; #15000; ps2_clk_drive = 1'b1;
+      #30000; // Inter-byte idle gap
     end
   endtask
 
-  task wait_frames(input int frames);
-    for (int i=0; i<frames; i++) begin
-      wait(vs == 1'b0);
+  // Type a single keyboard key (Make + Break code sequence)
+  task automatic type_ps2_key(input logic [7:0] scancode);
+    send_ps2_byte(scancode);
+    send_ps2_byte(8'hF0);
+    send_ps2_byte(scancode);
+  endtask
+
+  // Send extended keys (e.g. arrow keys: E0 xx, E0 F0 xx)
+  task automatic send_ps2_extended(input logic [7:0] ext_code);
+    send_ps2_byte(8'hE0); send_ps2_byte(ext_code);
+    send_ps2_byte(8'hE0); send_ps2_byte(8'hF0); send_ps2_byte(ext_code);
+  endtask
+
+  // High-level task to type entire CLI string and press Enter
+  task automatic type_ps2_command(input string cmd);
+    for (int i = 0; i < cmd.len(); i++) begin
+      case (cmd[i])
+        "/": type_ps2_key(8'h4A);
+        "a": type_ps2_key(8'h1C);
+        "b": type_ps2_key(8'h32);
+        "c": type_ps2_key(8'h21);
+        "d": type_ps2_key(8'h23);
+        "e": type_ps2_key(8'h24);
+        "f": type_ps2_key(8'h2B);
+        "g": type_ps2_key(8'h34);
+        "h": type_ps2_key(8'h33);
+        "i": type_ps2_key(8'h43);
+        "j": type_ps2_key(8'h3B);
+        "k": type_ps2_key(8'h42);
+        "l": type_ps2_key(8'h4B);
+        "m": type_ps2_key(8'h3A);
+        "n": type_ps2_key(8'h31);
+        "o": type_ps2_key(8'h44);
+        "p": type_ps2_key(8'h4D);
+        "q": type_ps2_key(8'h15);
+        "r": type_ps2_key(8'h2D);
+        "s": type_ps2_key(8'h1B);
+        "t": type_ps2_key(8'h2C);
+        "u": type_ps2_key(8'h3C);
+        "v": type_ps2_key(8'h2A);
+        "w": type_ps2_key(8'h1D);
+        "x": type_ps2_key(8'h22);
+        "y": type_ps2_key(8'h35);
+        "z": type_ps2_key(8'h1A);
+        "0": type_ps2_key(8'h45);
+        "1": type_ps2_key(8'h16);
+        "2": type_ps2_key(8'h1E);
+        "3": type_ps2_key(8'h26);
+        "4": type_ps2_key(8'h25);
+        "5": type_ps2_key(8'h2E);
+        "6": type_ps2_key(8'h36);
+        "7": type_ps2_key(8'h3D);
+        "8": type_ps2_key(8'h3E);
+        "9": type_ps2_key(8'h46);
+        " ": type_ps2_key(8'h29);
+        ".": type_ps2_key(8'h49);
+        "-": type_ps2_key(8'h4E);
+        default: ;
+      endcase
+    end
+    // Press Enter to execute command
+    type_ps2_key(8'h5A);
+  endtask
+
+  task automatic wait_frames(input int frames);
+    for (int i = 0; i < frames; i++) begin
+      wait (vs == 1'b0);
       @(negedge vs);
     end
   endtask
@@ -125,66 +200,67 @@ module top_evaluation_tb;
     rst_n = 1'b0;
     #100 rst_n = 1'b1;
 
-    wait_frames(1); // Frame 0: Boot - Default state points to Input field
-    $display("Frame 0: Booted. Focus on Input Field.");
-
-    // Press Right to go to About button
-    send_ps2_byte(8'hE0); send_ps2_byte(8'h74); // Right make
-    send_ps2_byte(8'hE0); send_ps2_byte(8'hF0); send_ps2_byte(8'h74); // Right break
+    // Frame 0: Booted system in default Navigation mode with Focus on Input field
     wait_frames(1);
-    $display("Frame 1: About Button Selected.");
+    $display("[TB] Frame 0: Booted. Focus on Input Field.");
 
-    // Press Enter to trigger popup
-    send_ps2_byte(8'h5A); send_ps2_byte(8'hF0); send_ps2_byte(8'h5A);
+    // Enter Text Input Mode (Press Enter)
+    type_ps2_key(8'h5A);
     wait_frames(1);
-    $display("Frame 2: Popup Window Opened.");
+    $display("[TB] Frame 1: Text Mode Entered (Glowing Input Frame).");
 
-    // Press Down to select popup OK button
-    send_ps2_byte(8'hE0); send_ps2_byte(8'h72); 
-    send_ps2_byte(8'hE0); send_ps2_byte(8'hF0); send_ps2_byte(8'h72);
+    // 1. Execute '/help' command
+    type_ps2_command("/help");
     wait_frames(1);
-    $display("Frame 3: Popup OK Button Highlighted.");
+    $display("[TB] Frame 2: Executed '/help' command. Help menu rendered.");
 
-    // Press Enter to close popup
-    send_ps2_byte(8'h5A); send_ps2_byte(8'hF0); send_ps2_byte(8'h5A);
+    // 2. Execute '/baud 2.5m' command
+    type_ps2_command("/baud 2.5m");
     wait_frames(1);
-    $display("Frame 4: Popup Window Closed.");
+    assert (eval_proto_baud_rate == 4'd2) else $error("Baudrate setting mismatch");
+    $display("[TB] Frame 3: Executed '/baud 2.5m'. Baudrate updated in header.");
 
-    // Press Left to go back to Input field
-    send_ps2_byte(8'hE0); send_ps2_byte(8'h6B); 
-    send_ps2_byte(8'hE0); send_ps2_byte(8'hF0); send_ps2_byte(8'h6B);
+    // 3. Test Shell Command History: Up Arrow recalls '/baud 2.5m'
+    send_ps2_extended(8'h75); // Up Arrow
+    wait_frames(1);
+    $display("[TB] Frame 4: Up Arrow pressed. Previous command recalled from History buffer.");
+
+    // Clear line with backspaces or enter new command
+    type_ps2_command("/status");
+    wait_frames(1);
+    $display("[TB] Frame 5: Executed '/status'. Link health telemetry rendered.");
+
+    // 4. Test '/bitmap send' command
+    type_ps2_command("/bitmap send");
+    wait_frames(1);
+    $display("[TB] Frame 6: Streaming 128x128 dynamic bitmap with progress popup.");
+
+    // 5. Exit Text Mode (Press Esc)
+    type_ps2_key(8'h76); // Esc
+    wait_frames(1);
+    $display("[TB] Frame 7: Esc pressed. Returned to Navigation Mode.");
+
+    // 6. Navigate to Top About Button (Press Right Arrow)
+    send_ps2_extended(8'h74); // Right Arrow
+    wait_frames(1);
+    $display("[TB] Frame 8: About button highlighted.");
+
+    // Open About Modal Popup (Press Enter)
+    type_ps2_key(8'h5A);
+    wait_frames(1);
+    $display("[TB] Frame 9: About popup window opened.");
+
+    // Select OK button in Popup (Press Down Arrow)
+    send_ps2_extended(8'h72); // Down Arrow
     wait_frames(1);
 
-    // Press Enter to enter text mode
-    send_ps2_byte(8'h5A); send_ps2_byte(8'hF0); send_ps2_byte(8'h5A);
+    // Close Popup (Press Enter)
+    type_ps2_key(8'h5A);
     wait_frames(1);
-    $display("Frame 5: Text Mode Entered (Green Outline).");
+    $display("[TB] Frame 10: About popup closed.");
 
-    // Type 'b' (32), 'a' (1C), 'u' (3C), 'd' (23), ' ' (29), '2' (1E), '.' (49), '5' (2E), 'm' (3A)
-    send_ps2_byte(8'h32); send_ps2_byte(8'hF0); send_ps2_byte(8'h32); // 'b'
-    send_ps2_byte(8'h1C); send_ps2_byte(8'hF0); send_ps2_byte(8'h1C); // 'a'
-    send_ps2_byte(8'h3C); send_ps2_byte(8'hF0); send_ps2_byte(8'h3C); // 'u'
-    send_ps2_byte(8'h23); send_ps2_byte(8'hF0); send_ps2_byte(8'h23); // 'd'
-    send_ps2_byte(8'h29); send_ps2_byte(8'hF0); send_ps2_byte(8'h29); // ' '
-    send_ps2_byte(8'h1E); send_ps2_byte(8'hF0); send_ps2_byte(8'h1E); // '2'
-    send_ps2_byte(8'h49); send_ps2_byte(8'hF0); send_ps2_byte(8'h49); // '.'
-    send_ps2_byte(8'h2E); send_ps2_byte(8'hF0); send_ps2_byte(8'h2E); // '5'
-    send_ps2_byte(8'h3A); send_ps2_byte(8'hF0); send_ps2_byte(8'h3A); // 'm'
-
-    wait_frames(1);
-    $display("Frame 6: Typed 'baud 2.5m' in the Input box.");
-
-    // Press Enter to execute
-    send_ps2_byte(8'h5A); send_ps2_byte(8'hF0); send_ps2_byte(8'h5A);
-    wait_frames(1);
-    $display("Frame 7: Executed 'baud 2.5m'. Baudrate updated in header.");
-
-    // Press Esc to exit text mode
-    send_ps2_byte(8'h76); send_ps2_byte(8'hF0); send_ps2_byte(8'h76);
-    wait_frames(1);
-    $display("Frame 8: Esc pressed. Exited Text Mode.");
-
-    $display("top_evaluation testbench completed successfully.");
+    $display("=== top_evaluation testbench completed successfully! ===");
     $finish;
   end
+
 endmodule

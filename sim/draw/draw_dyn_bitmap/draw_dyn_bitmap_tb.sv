@@ -5,7 +5,7 @@
  *
  * Description:
  * Testbench for dynamic bitmap streaming and rendering with draw_bitmap.
- * Connects pixel_prng to bram_tdp Port A and draw_bitmap to Port B.
+ * Connects pixel_prng to bram_tdp Port A and draw_bitmap to Port B (128x128 = 16384 pixels).
  * Uses tiff_writer to export dynamic bitmap frame rendering to TIF format.
  */
 
@@ -43,13 +43,13 @@ module draw_dyn_bitmap_tb;
       .vga_out(tim_if.out)
   );
 
-  // BRAM Interfaces (64x64 dynamic bitmap = 4096 entries)
-  bram_if #(.ADDR_WIDTH(12), .DATA_WIDTH(12)) ram_if_a();
-  bram_if #(.ADDR_WIDTH(12), .DATA_WIDTH(12), .READ_ONLY(1)) ram_if_b();
+  // BRAM Interfaces (128x128 dynamic bitmap = 16384 entries -> ADDR_WIDTH = 14)
+  bram_if #(.ADDR_WIDTH(14), .DATA_WIDTH(12)) ram_if_a();
+  bram_if #(.ADDR_WIDTH(14), .DATA_WIDTH(12), .READ_ONLY(1)) ram_if_b();
 
   bram_tdp #(
       .DATA_WIDTH(12),
-      .ADDR_WIDTH(12)
+      .ADDR_WIDTH(14)
   ) u_dyn_ram (
       .clk_a (clk),
       .clk_b (clk),
@@ -58,7 +58,7 @@ module draw_dyn_bitmap_tb;
   );
 
   draw_bitmap #(
-      .BITMAP(BITMAP_DYN_64x64),
+      .BITMAP(BITMAP_DYN_128x128),
       .USE_RAM(1'b1),
       .USE_TRANSPARENCY(1'b0)
   ) dut_dyn_ram (
@@ -103,8 +103,8 @@ module draw_dyn_bitmap_tb;
 
   initial begin
     rst_n = 1'b1;
-    xstart_ram = 12'd900;
-    ystart_ram = 12'd180;
+    xstart_ram = 12'd950;
+    ystart_ram = 12'd80;
     ram_if_a.we = 0;
     ram_if_a.en = 0;
     ram_if_a.addr = 0;
@@ -114,15 +114,15 @@ module draw_dyn_bitmap_tb;
     #(RST_START_TIME) rst_n = 1'b0;
     #(RST_ACTIVE_TIME) rst_n = 1'b1;
 
-    $display("Starting PRNG dynamic bitmap fill test...");
+    $display("Starting PRNG 128x128 dynamic bitmap fill test...");
 
-    // Stream 4,096 PRNG generated pixels into BRAM via Port A
-    for (int i = 0; i < 4096; i++) begin
+    // Stream 16,384 PRNG generated pixels into BRAM via Port A
+    for (int i = 0; i < 16384; i++) begin
       @(posedge clk);
       next_pixel = 1'b1;
       ram_if_a.we = 1'b1;
       ram_if_a.en = 1'b1;
-      ram_if_a.addr = i[11:0];
+      ram_if_a.addr = 14'(i);
       ram_if_a.din = prng_pixel_rgb;
     end
     @(posedge clk);
@@ -132,12 +132,12 @@ module draw_dyn_bitmap_tb;
 
     wait (vs == 1'b0);
     @(negedge vs);
-    $display("Frame 0 rendered with dynamic PRNG bitmap at %t", $time);
+    $display("Frame 0 rendered with 128x128 dynamic PRNG bitmap at %t", $time);
 
     @(posedge vs);
     $display("Frame 1 rendered at %t", $time);
 
-    $display("Dynamic bitmap test finished successfully.");
+    $display("128x128 Dynamic bitmap test finished successfully.");
     $finish;
   end
 

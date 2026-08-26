@@ -132,6 +132,7 @@ module draw_popup #(
       .width(width - 11'd40),
       .height(11'd15),
       .progress(progress_val),
+      .dynamic_color(12'h0_F_8),
       .vga_in(vga_in),
       .rgb_out(rgb_prog),
       .draw_en_out(en_prog)

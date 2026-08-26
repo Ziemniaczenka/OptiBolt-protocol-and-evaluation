@@ -9,77 +9,67 @@
 import ui_pkg::*;
 
 module ui_navigation (
-    input logic clk,
-    input logic rst_n,
-    input logic cmd_up,
-    input logic cmd_down,
-    input logic cmd_left,
-    input logic cmd_right,
+    input  logic       clk,
+    input  logic       rst_n,
+    input  logic       show_popup,
+    input  logic       cmd_up,
+    input  logic       cmd_down,
+    input  logic       cmd_left,
+    input  logic       cmd_right,
     output logic [3:0] ui_selected_item
 );
 
-  /**
-    * Local variables and signals
-    */
-
-  localparam GRID_X = 2;
-  localparam GRID_Y = 2;
-
-  // UI 2x2 Grid. Maps physical screen position of elements:
-  // [Y=0][X=0] Empty / None  <---> [Y=0][X=1] About Button
-  // [Y=1][X=0] Main Input      <---> [Y=1][X=1] Popup OK Button
-  localparam ui_item_t UI_GRID[0:GRID_Y-1][0:GRID_X-1] = '{
-      '{ITEM_NONE, ITEM_ABOUT_BTN},
-      '{ITEM_INPUT, ITEM_POPUP_BTN}
+  // 7 Toolbar buttons (0 to 6)
+  localparam int NUM_TOOLBAR_BTNS = 7;
+  localparam ui_item_t TOOLBAR[0:NUM_TOOLBAR_BTNS-1] = '{
+      ITEM_HELP_BTN,
+      ITEM_PING_BTN,
+      ITEM_SWEEP_BTN,
+      ITEM_SNDBMP_BTN,
+      ITEM_CLRBMP_BTN,
+      ITEM_CLRCON_BTN,
+      ITEM_ABOUT_BTN
   };
 
-  logic [1:0] cursor_x, cursor_x_nxt;
-  logic [1:0] cursor_y, cursor_y_nxt;
-
-  /**
-    * Internal logic
-    */
+  logic [2:0] toolbar_idx, toolbar_idx_nxt;
+  logic       on_toolbar, on_toolbar_nxt;
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-      {cursor_x, cursor_y} <= {2'd0, 2'd1};  // Default selection: Input [1][0]
+      toolbar_idx      <= 3'd0;
+      on_toolbar       <= 1'b0; // Default selection: Input Field
       ui_selected_item <= ITEM_INPUT;
     end else begin
-      {cursor_x, cursor_y} <= {cursor_x_nxt, cursor_y_nxt};
-      ui_selected_item <= UI_GRID[cursor_y_nxt][cursor_x_nxt];
+      toolbar_idx <= toolbar_idx_nxt;
+      on_toolbar  <= on_toolbar_nxt;
+
+      if (show_popup) begin
+        ui_selected_item <= ITEM_POPUP_BTN;
+      end else if (on_toolbar_nxt) begin
+        ui_selected_item <= TOOLBAR[toolbar_idx_nxt];
+      end else begin
+        ui_selected_item <= ITEM_INPUT;
+      end
     end
   end
 
   always_comb begin
-    cursor_x_nxt = cursor_x;
-    cursor_y_nxt = cursor_y;
+    toolbar_idx_nxt = toolbar_idx;
+    on_toolbar_nxt  = on_toolbar;
 
-    if (cmd_up) begin
-      for (int i = GRID_Y - 1; i >= 0; i--) begin
-        if (i < cursor_y && UI_GRID[i][cursor_x] != UI_GRID[cursor_y][cursor_x] && UI_GRID[i][cursor_x] != ITEM_NONE) begin
-          cursor_y_nxt = 2'(i);
-          break;
+    if (!show_popup) begin
+      if (on_toolbar) begin
+        if (cmd_down) begin
+          on_toolbar_nxt = 1'b0; // Move down to input field
+        end else if (cmd_right) begin
+          toolbar_idx_nxt = (toolbar_idx == NUM_TOOLBAR_BTNS - 1) ? 3'd0 : toolbar_idx + 3'd1;
+        end else if (cmd_left) begin
+          toolbar_idx_nxt = (toolbar_idx == 3'd0) ? 3'(NUM_TOOLBAR_BTNS - 1) : toolbar_idx - 3'd1;
         end
-      end
-    end else if (cmd_down) begin
-      for (int i = 0; i < GRID_Y; i++) begin
-        if (i > cursor_y && UI_GRID[i][cursor_x] != UI_GRID[cursor_y][cursor_x] && UI_GRID[i][cursor_x] != ITEM_NONE) begin
-          cursor_y_nxt = 2'(i);
-          break;
-        end
-      end
-    end else if (cmd_left) begin
-      for (int i = GRID_X - 1; i >= 0; i--) begin
-        if (i < cursor_x && UI_GRID[cursor_y][i] != UI_GRID[cursor_y][cursor_x] && UI_GRID[cursor_y][i] != ITEM_NONE) begin
-          cursor_x_nxt = 2'(i);
-          break;
-        end
-      end
-    end else if (cmd_right) begin
-      for (int i = 0; i < GRID_X; i++) begin
-        if (i > cursor_x && UI_GRID[cursor_y][i] != UI_GRID[cursor_y][cursor_x] && UI_GRID[cursor_y][i] != ITEM_NONE) begin
-          cursor_x_nxt = 2'(i);
-          break;
+      end else begin
+        // On Input Field
+        if (cmd_up) begin
+          on_toolbar_nxt = 1'b1; // Return to toolbar
         end
       end
     end

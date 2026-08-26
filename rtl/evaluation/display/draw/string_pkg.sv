@@ -65,15 +65,60 @@ package string_pkg;
     localparam int INPUT_INIT_LEN = $bits(INPUT_INIT_VAL) / 8;
     localparam int INPUT_MAX_LEN  = 128;
 
-    // ABOUT BTN & POPUP
-    localparam BTN_ABOUT_VAL = "About";
-    localparam int BTN_ABOUT_LEN = $bits(BTN_ABOUT_VAL) / 8;
+    // TOOLBAR BUTTONS
+    localparam BTN_HELP_VAL   = "Help";
+    localparam int BTN_HELP_LEN   = $bits(BTN_HELP_VAL) / 8;
 
+    localparam BTN_PING_VAL   = "Ping";
+    localparam int BTN_PING_LEN   = $bits(BTN_PING_VAL) / 8;
+
+    localparam BTN_SWEEP_VAL  = "Sweep";
+    localparam int BTN_SWEEP_LEN  = $bits(BTN_SWEEP_VAL) / 8;
+
+    localparam BTN_SNDBMP_VAL = "Send BMP";
+    localparam int BTN_SNDBMP_LEN = $bits(BTN_SNDBMP_VAL) / 8;
+
+    localparam BTN_CLRBMP_VAL = "Clr BMP";
+    localparam int BTN_CLRBMP_LEN = $bits(BTN_CLRBMP_VAL) / 8;
+
+    localparam BTN_CLRCON_VAL = "Clr Con";
+    localparam int BTN_CLRCON_LEN = $bits(BTN_CLRCON_VAL) / 8;
+
+    localparam BTN_ABOUT_VAL  = "About";
+    localparam int BTN_ABOUT_LEN  = $bits(BTN_ABOUT_VAL) / 8;
+
+    // ABOUT POPUP
     localparam ABOUT_TITLE_VAL = "About OptiBolt";
     localparam int ABOUT_TITLE_LEN = $bits(ABOUT_TITLE_VAL) / 8;
-    localparam ABOUT_DESC_VAL = "Authors: T. Wieclawski, S. Zon";
+    localparam ABOUT_DESC_VAL = "OptiBolt Evaluation Platform\nBy T. Wieclawski & S. Zon";
     localparam int ABOUT_DESC_LEN = $bits(ABOUT_DESC_VAL) / 8;
     localparam BTN_OK_VAL = "OK";
     localparam int BTN_OK_LEN = $bits(BTN_OK_VAL) / 8;
+
+    // PROGRESS POPUP
+    localparam PROG_TITLE_VAL = "Task Progress";
+    localparam int PROG_TITLE_LEN = $bits(PROG_TITLE_VAL) / 8;
+    localparam PROG_DESC_VAL = "Active test / data stream in progress...";
+    localparam int PROG_DESC_LEN = $bits(PROG_DESC_VAL) / 8;
+
+    // DIAGNOSTICS & ERROR METRICS LABELS
+    localparam DIAG_TITLE_VAL = "DIAGNOSTICS & ERROR METRICS";
+    localparam int DIAG_TITLE_LEN = $bits(DIAG_TITLE_VAL) / 8;
+
+    localparam DIAG_MAN_VAL = "Manchester Errors";
+    localparam int DIAG_MAN_LEN = $bits(DIAG_MAN_VAL) / 8;
+
+    localparam DIAG_PRE_VAL = "Preamble / Sync Err";
+    localparam int DIAG_PRE_LEN = $bits(DIAG_PRE_VAL) / 8;
+
+    localparam DIAG_PAR_VAL = "Parity Check Errors";
+    localparam int DIAG_PAR_LEN = $bits(DIAG_PAR_VAL) / 8;
+
+    localparam DIAG_HLT_VAL = "Link Integrity / Health";
+    localparam int DIAG_HLT_LEN = $bits(DIAG_HLT_VAL) / 8;
+
+    // DYNAMIC BITMAP LABEL
+    localparam BITMAP_DYN_LBL_VAL = "DYNAMIC BITMAP (128x128)";
+    localparam int BITMAP_DYN_LBL_LEN = $bits(BITMAP_DYN_LBL_VAL) / 8;
 
 endpackage

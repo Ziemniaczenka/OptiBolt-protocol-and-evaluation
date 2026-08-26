@@ -77,6 +77,7 @@ module top (
   logic tx_empty_200;
   logic tx_full_200;
 
+  logic rx_enable_200;
   logic rx_empty_200;
   logic rx_full_200;
   logic [7:0] rx_data_200;
@@ -132,94 +133,71 @@ module top (
       .d_out({baud_rate_200, oversampling_200})
   );
 
-  // 2. TX: Toggle synchronizer (clk100 -> clk200)
-  logic tx_toggle_100;
-  logic [2:0] tx_type_latched_100;
-  logic [7:0] tx_data_latched_100;
+  // 2. TX Asynchronous FIFO (clk100 -> clk200)
+  logic [10:0] tx_async_dout_200;
+  logic        tx_async_empty_200;
+  logic        tx_async_rd_200;
+  logic        tx_enable_200;
 
-  always_ff @(posedge clk100 or negedge rst_n) begin
-    if (!rst_n) begin
-      tx_toggle_100       <= 1'b0;
-      tx_type_latched_100 <= 3'b000;
-      tx_data_latched_100 <= 8'h00;
-    end else if (eval_proto_tx_valid) begin
-      tx_toggle_100       <= ~tx_toggle_100;
-      tx_type_latched_100 <= eval_proto_tx_type;
-      tx_data_latched_100 <= eval_proto_tx_data;
-    end
-  end
+  async_fifo #(
+      .DATA_WIDTH(11), // 3-bit msg_type + 8-bit data
+      .ADDR_WIDTH(5)   // Depth = 32 words
+  ) u_tx_async_fifo (
+      .clk_wr(clk100),
+      .rst_wr_n(rst_n),
+      .wr_en(eval_proto_tx_valid),
+      .din({eval_proto_tx_type, eval_proto_tx_data}),
+      .full(proto_eval_tx_full),
 
-  logic tx_toggle_sync_0, tx_toggle_sync_1, tx_toggle_d1;
-  logic tx_enable_200;
-
-  always_ff @(posedge clk200 or negedge rst_n) begin
-    if (!rst_n) begin
-      tx_toggle_sync_0 <= 1'b0;
-      tx_toggle_sync_1 <= 1'b0;
-      tx_toggle_d1     <= 1'b0;
-      tx_enable_200    <= 1'b0;
-    end else begin
-      tx_toggle_sync_0 <= tx_toggle_100;
-      tx_toggle_sync_1 <= tx_toggle_sync_0;
-      tx_toggle_d1     <= tx_toggle_sync_1;
-
-      if (tx_toggle_sync_1 != tx_toggle_d1) begin
-        tx_enable_200 <= 1'b1;
-      end else begin
-        tx_enable_200 <= 1'b0;
-      end
-    end
-  end
-
-  // TX FIFO Status (clk200 -> clk100)
-  cdc_sync #(
-      .WIDTH(2)
-  ) u_cdc_tx_status (
-      .clk_dst(clk100),
-      .rst_n(rst_n),
-      .d_in({tx_full_200, tx_empty_200}),
-      .d_out({proto_eval_tx_full, proto_eval_tx_empty})
+      .clk_rd(clk200),
+      .rst_rd_n(rst_n),
+      .rd_en(tx_async_rd_200),
+      .dout(tx_async_dout_200),
+      .empty(tx_async_empty_200)
   );
 
-  // 3. RX: Read control & Toggle synchronizer (clk200 -> clk100)
-  wire rx_enable_200 = !rx_empty_200;
+  assign proto_eval_tx_empty = 1'b0;
 
-  logic rx_toggle_200;
-  logic [7:0] rx_data_latched_200;
-  logic [2:0] rx_type_latched_200;
+  // Transfer from TX async_fifo into optibolt_controller tx_fifo
+  assign tx_enable_200   = !tx_async_empty_200 && !tx_full_200;
+  assign tx_async_rd_200 = tx_enable_200;
 
-  always_ff @(posedge clk200 or negedge rst_n) begin
-    if (!rst_n) begin
-      rx_toggle_200       <= 1'b0;
-      rx_data_latched_200 <= 8'h00;
-      rx_type_latched_200 <= 3'b000;
-    end else if (rx_enable_200) begin
-      rx_toggle_200       <= ~rx_toggle_200;
-      rx_data_latched_200 <= rx_data_200;
-      rx_type_latched_200 <= rx_type_200;
-    end
-  end
+  // 3. RX Asynchronous FIFO (clk200 -> clk100)
+  logic [10:0] rx_async_dout_100;
+  logic        rx_async_empty_100;
+  logic        rx_async_full_200;
+  logic        rx_async_wr_200;
 
-  // Synchronize rx_toggle from clk200 to clk100
-  logic rx_toggle_sync_0, rx_toggle_sync_1, rx_toggle_d1;
+  assign rx_enable_200   = !rx_empty_200 && !rx_async_full_200;
+  assign rx_async_wr_200 = rx_enable_200;
+
+  async_fifo #(
+      .DATA_WIDTH(11), // 3-bit msg_type + 8-bit data
+      .ADDR_WIDTH(5)   // Depth = 32 words
+  ) u_rx_async_fifo (
+      .clk_wr(clk200),
+      .rst_wr_n(rst_n),
+      .wr_en(rx_async_wr_200),
+      .din({rx_type_200, rx_data_200}),
+      .full(rx_async_full_200),
+
+      .clk_rd(clk100),
+      .rst_rd_n(rst_n),
+      .rd_en(!rx_async_empty_100),
+      .dout(rx_async_dout_100),
+      .empty(rx_async_empty_100)
+  );
 
   always_ff @(posedge clk100 or negedge rst_n) begin
     if (!rst_n) begin
-      rx_toggle_sync_0    <= 1'b0;
-      rx_toggle_sync_1    <= 1'b0;
-      rx_toggle_d1        <= 1'b0;
       proto_eval_rx_valid <= 1'b0;
-      proto_eval_rx_data  <= 8'h00;
       proto_eval_rx_type  <= 3'b000;
+      proto_eval_rx_data  <= 8'h00;
     end else begin
-      rx_toggle_sync_0 <= rx_toggle_200;
-      rx_toggle_sync_1 <= rx_toggle_sync_0;
-      rx_toggle_d1     <= rx_toggle_sync_1;
-
-      if (rx_toggle_sync_1 != rx_toggle_d1) begin
+      if (!rx_async_empty_100) begin
         proto_eval_rx_valid <= 1'b1;
-        proto_eval_rx_data  <= rx_data_latched_200;
-        proto_eval_rx_type  <= rx_type_latched_200;
+        proto_eval_rx_type  <= rx_async_dout_100[10:8];
+        proto_eval_rx_data  <= rx_async_dout_100[7:0];
       end else begin
         proto_eval_rx_valid <= 1'b0;
       end
@@ -295,8 +273,8 @@ module top (
       .preamble_error(preamble_error_200),
 
       .tx_enable(tx_enable_200),
-      .tx_msg_type(tx_type_latched_100),
-      .tx_data(tx_data_latched_100),
+      .tx_msg_type(tx_async_dout_200[10:8]),
+      .tx_data(tx_async_dout_200[7:0]),
       .tx_empty(tx_empty_200),
       .tx_full(tx_full_200)
   );

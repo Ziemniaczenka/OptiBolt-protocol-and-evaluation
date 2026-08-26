@@ -15,7 +15,10 @@ module draw_bitmap #(
     parameter string          BITMAP_PATH       = "",
     parameter logic    [11:0] TRANSPARENT_COLOR = 12'h0_0_0,
     parameter bit             USE_TRANSPARENCY  = 1'b0,
-    parameter bit             USE_RAM           = 1'b0        // 0 - static, 1 - dynamic
+    parameter bit             USE_RAM           = 1'b0,       // 0 - static, 1 - dynamic
+    parameter bit             USE_PALETTE       = 1'b0,
+    parameter int             PALETTE_BITS      = 2,
+    parameter logic    [11:0] PALETTE[0:(1<<PALETTE_BITS)-1] = '{default: 12'h000}
 ) (
     input logic        clk,
     input logic        rst_n,
@@ -34,9 +37,12 @@ module draw_bitmap #(
     * Local variables and signals
     */
 
+  localparam int ROM_ADDR_WIDTH = (BITMAP.WIDTH * BITMAP.HEIGHT > 1) ? $clog2(BITMAP.WIDTH * BITMAP.HEIGHT) : 1;
+  localparam int ROM_DEPTH      = (1 << ROM_ADDR_WIDTH);
+
   logic in_region;
   logic in_region_d1;
-  logic [$clog2(BITMAP.WIDTH*BITMAP.HEIGHT)-1:0] addr;
+  logic [ROM_ADDR_WIDTH-1:0] addr;
   logic [11:0] active_data;
 
 
@@ -46,9 +52,13 @@ module draw_bitmap #(
 
   always_comb begin : bitmap_bounds_blk
     in_region = (12'(vga_in.hcount) >= xstart) && (12'(vga_in.hcount) < xstart + BITMAP.WIDTH) &&
-                    (12'(vga_in.vcount) >= ystart) && (12'(vga_in.vcount) < ystart + BITMAP.HEIGHT);
+                (12'(vga_in.vcount) >= ystart) && (12'(vga_in.vcount) < ystart + BITMAP.HEIGHT);
 
-    addr = (12'(vga_in.vcount) - ystart) * BITMAP.WIDTH + (12'(vga_in.hcount) - xstart);
+    if (in_region) begin
+      addr = ROM_ADDR_WIDTH'((12'(vga_in.vcount) - ystart) * BITMAP.WIDTH + (12'(vga_in.hcount) - xstart));
+    end else begin
+      addr = '0;
+    end
   end
 
   generate
@@ -56,23 +66,40 @@ module draw_bitmap #(
       assign bmp_bram.addr = addr;
       assign bmp_bram.en   = 1'b1;
       assign active_data   = bmp_bram.dout;
-    end else begin : gen_rom
-      logic [11:0] rom[0:BITMAP.WIDTH*BITMAP.HEIGHT-1];
-      logic [11:0] rom_data;
+    end else if (USE_PALETTE) begin : gen_palette_rom
+      (* rom_style = "block" *) logic [PALETTE_BITS-1:0] rom[0:ROM_DEPTH-1];
+      logic [PALETTE_BITS-1:0] rom_idx;
 
       initial begin
+        for (int i = 0; i < ROM_DEPTH; i++) rom[i] = '0;
         if (BITMAP_PATH != "") $readmemh(BITMAP_PATH, rom);
       end
 
       always_ff @(posedge clk) begin
-        if (in_region) begin
-          rom_data <= rom[addr];
-        end
+        rom_idx <= rom[addr];
+      end
+
+      assign active_data   = PALETTE[rom_idx];
+
+      // Safe default state for unused interface
+      assign bmp_bram.addr = '0;
+      assign bmp_bram.en   = 1'b0;
+    end else begin : gen_rom
+      (* rom_style = "block" *) logic [11:0] rom[0:ROM_DEPTH-1];
+      logic [11:0] rom_data;
+
+      initial begin
+        for (int i = 0; i < ROM_DEPTH; i++) rom[i] = 12'h0;
+        if (BITMAP_PATH != "") $readmemh(BITMAP_PATH, rom);
+      end
+
+      always_ff @(posedge clk) begin
+        rom_data <= rom[addr];
       end
 
       assign active_data   = rom_data;
 
-      // Bezpieczne stany domyślne dla nieużywanego interfejsu (żeby zapobiec High-Z)
+      // Safe default state for unused interface
       assign bmp_bram.addr = '0;
       assign bmp_bram.en   = 1'b0;
     end

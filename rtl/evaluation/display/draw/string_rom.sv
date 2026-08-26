@@ -15,14 +15,36 @@ module string_rom (
     input logic [1:0] link_status,  // 0=Disconnected, 1=Connected, 2=Loopback
     input logic [3:0] baud_rate,    // Bitrate index
     input logic [3:0] oversampling, // 0=8x, 1=16x
+    input logic [1:0] popup_mode,   // 0=None, 1=About, 2=Progress
 
+    // Status strings
     interface link_bram,
     interface baud_bram,
     interface pwr_bram,
+
+    // Toolbar buttons
+    interface help_btn_bram,
+    interface ping_btn_bram,
+    interface sweep_btn_bram,
+    interface sndbmp_btn_bram,
+    interface clrbmp_btn_bram,
+    interface clrcon_btn_bram,
     interface about_btn_bram,
+
+    // Popup strings
     interface popup_title_bram,
     interface popup_desc_bram,
-    interface popup_btn_bram
+    interface popup_btn_bram,
+
+    // Diagnostics strings
+    interface diag_title_bram,
+    interface diag_man_bram,
+    interface diag_pre_bram,
+    interface diag_par_bram,
+    interface diag_hlt_bram,
+
+    // Dynamic Bitmap label
+    interface bmp_lbl_bram
 );
 
   /**
@@ -64,17 +86,50 @@ module string_rom (
   logic [7:0] pwr_str[0:STATUS_PWR_LEN];
   `INIT_UNPACKED_STR(pwr_str, STATUS_PWR_VAL, STATUS_PWR_LEN, STATUS_PWR_LEN + 1)
 
-  // About Button
+  // TOOLBAR BUTTONS
+  logic [7:0] btn_help_str[0:BTN_HELP_LEN];
+  logic [7:0] btn_ping_str[0:BTN_PING_LEN];
+  logic [7:0] btn_sweep_str[0:BTN_SWEEP_LEN];
+  logic [7:0] btn_sndbmp_str[0:BTN_SNDBMP_LEN];
+  logic [7:0] btn_clrbmp_str[0:BTN_CLRBMP_LEN];
+  logic [7:0] btn_clrcon_str[0:BTN_CLRCON_LEN];
   logic [7:0] btn_about_str[0:BTN_ABOUT_LEN];
-  `INIT_UNPACKED_STR(btn_about_str, BTN_ABOUT_VAL, BTN_ABOUT_LEN, BTN_ABOUT_LEN + 1)
 
-  // Popup Text (About)
+  `INIT_UNPACKED_STR(btn_help_str,   BTN_HELP_VAL,   BTN_HELP_LEN,   BTN_HELP_LEN + 1)
+  `INIT_UNPACKED_STR(btn_ping_str,   BTN_PING_VAL,   BTN_PING_LEN,   BTN_PING_LEN + 1)
+  `INIT_UNPACKED_STR(btn_sweep_str,  BTN_SWEEP_VAL,  BTN_SWEEP_LEN,  BTN_SWEEP_LEN + 1)
+  `INIT_UNPACKED_STR(btn_sndbmp_str, BTN_SNDBMP_VAL, BTN_SNDBMP_LEN, BTN_SNDBMP_LEN + 1)
+  `INIT_UNPACKED_STR(btn_clrbmp_str, BTN_CLRBMP_VAL, BTN_CLRBMP_LEN, BTN_CLRBMP_LEN + 1)
+  `INIT_UNPACKED_STR(btn_clrcon_str, BTN_CLRCON_VAL, BTN_CLRCON_LEN, BTN_CLRCON_LEN + 1)
+  `INIT_UNPACKED_STR(btn_about_str,  BTN_ABOUT_VAL,  BTN_ABOUT_LEN,  BTN_ABOUT_LEN + 1)
+
+  // POPUP STRINGS
   logic [7:0] popup_title_str[0:ABOUT_TITLE_LEN];
-  `INIT_UNPACKED_STR(popup_title_str, ABOUT_TITLE_VAL, ABOUT_TITLE_LEN, ABOUT_TITLE_LEN + 1)
   logic [7:0] popup_desc_str[0:ABOUT_DESC_LEN];
-  `INIT_UNPACKED_STR(popup_desc_str, ABOUT_DESC_VAL, ABOUT_DESC_LEN, ABOUT_DESC_LEN + 1)
+  logic [7:0] prog_title_str[0:PROG_TITLE_LEN];
+  logic [7:0] prog_desc_str[0:PROG_DESC_LEN];
   logic [7:0] popup_btn_str[0:BTN_OK_LEN];
-  `INIT_UNPACKED_STR(popup_btn_str, BTN_OK_VAL, BTN_OK_LEN, BTN_OK_LEN + 1)
+
+  `INIT_UNPACKED_STR(popup_title_str, ABOUT_TITLE_VAL, ABOUT_TITLE_LEN, ABOUT_TITLE_LEN + 1)
+  `INIT_UNPACKED_STR(popup_desc_str,  ABOUT_DESC_VAL,  ABOUT_DESC_LEN,  ABOUT_DESC_LEN + 1)
+  `INIT_UNPACKED_STR(prog_title_str,  PROG_TITLE_VAL,  PROG_TITLE_LEN,  PROG_TITLE_LEN + 1)
+  `INIT_UNPACKED_STR(prog_desc_str,   PROG_DESC_VAL,   PROG_DESC_LEN,   PROG_DESC_LEN + 1)
+  `INIT_UNPACKED_STR(popup_btn_str,   BTN_OK_VAL,      BTN_OK_LEN,      BTN_OK_LEN + 1)
+
+  // DIAGNOSTICS & ERROR LABELS
+  logic [7:0] diag_title_str[0:DIAG_TITLE_LEN];
+  logic [7:0] diag_man_str[0:DIAG_MAN_LEN];
+  logic [7:0] diag_pre_str[0:DIAG_PRE_LEN];
+  logic [7:0] diag_par_str[0:DIAG_PAR_LEN];
+  logic [7:0] diag_hlt_str[0:DIAG_HLT_LEN];
+  logic [7:0] bmp_lbl_str[0:BITMAP_DYN_LBL_LEN];
+
+  `INIT_UNPACKED_STR(diag_title_str, DIAG_TITLE_VAL, DIAG_TITLE_LEN, DIAG_TITLE_LEN + 1)
+  `INIT_UNPACKED_STR(diag_man_str,   DIAG_MAN_VAL,   DIAG_MAN_LEN,   DIAG_MAN_LEN + 1)
+  `INIT_UNPACKED_STR(diag_pre_str,   DIAG_PRE_VAL,   DIAG_PRE_LEN,   DIAG_PRE_LEN + 1)
+  `INIT_UNPACKED_STR(diag_par_str,   DIAG_PAR_VAL,   DIAG_PAR_LEN,   DIAG_PAR_LEN + 1)
+  `INIT_UNPACKED_STR(diag_hlt_str,   DIAG_HLT_VAL,   DIAG_HLT_LEN,   DIAG_HLT_LEN + 1)
+  `INIT_UNPACKED_STR(bmp_lbl_str,    BITMAP_DYN_LBL_VAL, BITMAP_DYN_LBL_LEN, BITMAP_DYN_LBL_LEN + 1)
 
   /**
     * Internal logic
@@ -116,10 +171,36 @@ module string_rom (
     end
 
     if (pwr_bram.en) pwr_bram.dout <= pwr_str[pwr_bram.addr];
-    if (about_btn_bram.en) about_btn_bram.dout <= btn_about_str[about_btn_bram.addr];
-    if (popup_title_bram.en) popup_title_bram.dout <= popup_title_str[popup_title_bram.addr];
-    if (popup_desc_bram.en) popup_desc_bram.dout <= popup_desc_str[popup_desc_bram.addr];
-    if (popup_btn_bram.en) popup_btn_bram.dout <= popup_btn_str[popup_btn_bram.addr];
+
+    // Toolbar Buttons
+    if (help_btn_bram.en)   help_btn_bram.dout   <= btn_help_str[help_btn_bram.addr];
+    if (ping_btn_bram.en)   ping_btn_bram.dout   <= btn_ping_str[ping_btn_bram.addr];
+    if (sweep_btn_bram.en)  sweep_btn_bram.dout  <= btn_sweep_str[sweep_btn_bram.addr];
+    if (sndbmp_btn_bram.en) sndbmp_btn_bram.dout <= btn_sndbmp_str[sndbmp_btn_bram.addr];
+    if (clrbmp_btn_bram.en) clrbmp_btn_bram.dout <= btn_clrbmp_str[clrbmp_btn_bram.addr];
+    if (clrcon_btn_bram.en) clrcon_btn_bram.dout <= btn_clrcon_str[clrcon_btn_bram.addr];
+    if (about_btn_bram.en)  about_btn_bram.dout  <= btn_about_str[about_btn_bram.addr];
+
+    // Popups
+    if (popup_title_bram.en) begin
+      if (popup_mode == 2'd2) popup_title_bram.dout <= prog_title_str[popup_title_bram.addr];
+      else popup_title_bram.dout <= popup_title_str[popup_title_bram.addr];
+    end
+    if (popup_desc_bram.en) begin
+      if (popup_mode == 2'd2) popup_desc_bram.dout <= prog_desc_str[popup_desc_bram.addr];
+      else popup_desc_bram.dout <= popup_desc_str[popup_desc_bram.addr];
+    end
+    if (popup_btn_bram.en)  popup_btn_bram.dout  <= popup_btn_str[popup_btn_bram.addr];
+
+    // Diagnostics Labels
+    if (diag_title_bram.en) diag_title_bram.dout <= diag_title_str[diag_title_bram.addr];
+    if (diag_man_bram.en)   diag_man_bram.dout   <= diag_man_str[diag_man_bram.addr];
+    if (diag_pre_bram.en)   diag_pre_bram.dout   <= diag_pre_str[diag_pre_bram.addr];
+    if (diag_par_bram.en)   diag_par_bram.dout   <= diag_par_str[diag_par_bram.addr];
+    if (diag_hlt_bram.en)   diag_hlt_bram.dout   <= diag_hlt_str[diag_hlt_bram.addr];
+
+    // Bitmap Label
+    if (bmp_lbl_bram.en)    bmp_lbl_bram.dout    <= bmp_lbl_str[bmp_lbl_bram.addr];
   end
 
 endmodule

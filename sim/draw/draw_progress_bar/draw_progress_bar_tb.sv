@@ -71,6 +71,7 @@ module draw_progress_bar_tb;
       .width(11'd400),
       .height(11'd30),
       .progress(progress),
+      .dynamic_color(12'h000),
       .vga_in(tim_if.in),
       .rgb_out(rgb_out),
       .draw_en_out(draw_en_out)

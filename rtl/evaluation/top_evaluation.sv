@@ -3,28 +3,24 @@
  * MTM UEC2
  * Author: Tomasz Więcławski & Sebastian Zoń
  *
- * Description:
- * Evaluation platform top module. Merges display, keyboard, link handshake, and controller logic.
+ * Description: Top Evaluation Module integrating Display, Keyboard, UI Navigation,
+ * Handshake, and Evaluation Controller.
  */
 
 import string_pkg::*;
+import ui_pkg::*;
+import protocol_pkg::*;
 
 module top_evaluation (
-    input  logic       clk74p25,  // VGA clock
-    input  logic       clk100,    // Tests and PS/2 clock
-    input  logic       rst_n,
-    output logic       vs,
-    output logic       hs,
-    output logic [3:0] r,
-    output logic [3:0] g,
-    output logic [3:0] b,
-    inout  wire        ps2_clk,
-    inout  wire        ps2_data,
-    output logic [ 3:0] an,
-    output logic [ 6:0] seg,
-    output logic        dp,
+    input logic clk100,
+    input logic clk74p25,
+    input logic rst_n,
 
-    // OptiBolt Protocol Control & Telemetry Interface
+    // Keyboard PS/2
+    input logic ps2_clk,
+    input logic ps2_data,
+
+    // OptiBolt Protocol Interface
     output logic [3:0] eval_proto_baud_rate,
     output logic [3:0] eval_proto_oversampling,
     output logic       eval_proto_loopback_en,
@@ -48,36 +44,61 @@ module top_evaluation (
     // Telemetry / Status
     input  logic        proto_eval_link_status,
     input  logic [31:0] proto_eval_ber_count,
-    input  logic [15:0] proto_eval_err_count
+    input  logic [15:0] proto_eval_err_count,
+
+    // VGA Output
+    output logic       vs,
+    output logic       hs,
+    output logic [3:0] r,
+    output logic [3:0] g,
+    output logic [3:0] b,
+
+    // 7-segment Display Output
+    output logic [6:0] seg,
+    output logic       dp,
+    output logic [3:0] an
 );
 
   /**
     * Local variables and signals
     */
 
-  // Keyboard signals
-  logic cmd_up, cmd_down, cmd_left, cmd_right, cmd_enter, cmd_esc;
-  logic char_valid, cmd_backspace;
-  logic [7:0] char_ascii;
-
-  // UI state signals
-  logic [3:0] ui_selected_item;
+  // Keyboard decoded signals
   logic       mode_text;
+  logic       cmd_up;
+  logic       cmd_down;
+  logic       cmd_left;
+  logic       cmd_right;
+  logic       cmd_enter;
+  logic       cmd_esc;
+  logic       char_valid;
+  logic [7:0] char_ascii;
+  logic       cmd_backspace;
+  logic [7:0] key_code;
+
+  // UI Navigation
+  logic [3:0] ui_selected_item;
   logic       show_popup;
   logic       show_progress;
   logic [7:0] progress_val;
-  
-  logic [8:0] key_code; // Need it for 7-segment display
+  logic [1:0] popup_mode;
 
-  // Memory Interfaces
-  logic console_we, input_we, bmp_we;
-  logic [$clog2(CONSOLE_MAX_LEN)-1:0] console_addr_w;
-  logic [7:0] console_din;
+  // Error and Diagnostics Metrics
+  logic [15:0] err_man_cnt, err_pre_cnt, err_par_cnt;
+  logic [ 7:0] prog_man, prog_pre, prog_par, prog_hlt;
+  logic [11:0] color_man, color_pre, color_par, color_hlt;
 
-  logic [$clog2(INPUT_MAX_LEN)-1:0] input_addr_w;
-  logic [7:0] input_din;
+  // RAM Write Signals from Evaluation Controller
+  logic                                           console_we;
+  logic [$clog2(string_pkg::CONSOLE_MAX_LEN)-1:0] console_addr_w;
+  logic [                                    7:0] console_din;
 
-  logic [11:0] bmp_addr_w;
+  logic                                         input_we;
+  logic [$clog2(string_pkg::INPUT_MAX_LEN)-1:0] input_addr_w;
+  logic [                                  7:0] input_din;
+
+  logic        bmp_we;
+  logic [13:0] bmp_addr_w;
   logic [11:0] bmp_din;
 
   // Handshake signals
@@ -88,22 +109,35 @@ module top_evaluation (
   logic [1:0] link_status;
 
   // CDC UI Navigation & Telemetry
-  logic [3:0] ui_selected_item_clk74;
-  logic       mode_text_clk74;
-  logic       show_popup_clk74;
-  logic       show_progress_clk74;
-  logic [7:0] progress_val_clk74;
-  logic [1:0] link_status_clk74;
-  logic [3:0] baud_rate_clk74;
-  logic [3:0] oversampling_clk74;
+  logic [3:0]  ui_selected_item_clk74;
+  logic        mode_text_clk74;
+  logic        show_popup_clk74;
+  logic        show_progress_clk74;
+  logic [7:0]  progress_val_clk74;
+  logic [1:0]  popup_mode_clk74;
+  logic [1:0]  link_status_clk74;
+  logic [3:0]  baud_rate_clk74;
+  logic [3:0]  oversampling_clk74;
+  logic [7:0]  prog_man_clk74, prog_pre_clk74, prog_par_clk74, prog_hlt_clk74;
+  logic [11:0] color_man_clk74, color_pre_clk74, color_par_clk74, color_hlt_clk74;
 
   cdc_sync #(
-      .WIDTH(25)
+      .WIDTH(107)
   ) u_cdc_ui_sync (
       .clk_dst(clk74p25),
       .rst_n(rst_n),
-      .d_in({mode_text, ui_selected_item, show_popup, show_progress, progress_val, link_status, eval_proto_baud_rate, eval_proto_oversampling}),
-      .d_out({mode_text_clk74, ui_selected_item_clk74, show_popup_clk74, show_progress_clk74, progress_val_clk74, link_status_clk74, baud_rate_clk74, oversampling_clk74})
+      .d_in({
+        mode_text, ui_selected_item, show_popup, show_progress, progress_val, popup_mode,
+        link_status, eval_proto_baud_rate, eval_proto_oversampling,
+        prog_man, prog_pre, prog_par, prog_hlt,
+        color_man, color_pre, color_par, color_hlt
+      }),
+      .d_out({
+        mode_text_clk74, ui_selected_item_clk74, show_popup_clk74, show_progress_clk74, progress_val_clk74, popup_mode_clk74,
+        link_status_clk74, baud_rate_clk74, oversampling_clk74,
+        prog_man_clk74, prog_pre_clk74, prog_par_clk74, prog_hlt_clk74,
+        color_man_clk74, color_pre_clk74, color_par_clk74, color_hlt_clk74
+      })
   );
 
   /**
@@ -163,13 +197,13 @@ module top_evaluation (
       .port_b(input_if_b)
   );
 
-  // BMP BRAM Interfaces
+  // BMP BRAM Interfaces (128x128 = 16384 pixels -> ADDR_WIDTH = 14)
   bram_if #(
-      .ADDR_WIDTH(12),
+      .ADDR_WIDTH(14),
       .DATA_WIDTH(12)
   ) bmp_if_a ();
   bram_if #(
-      .ADDR_WIDTH(12),
+      .ADDR_WIDTH(14),
       .DATA_WIDTH(12),
       .READ_ONLY (1)
   ) bmp_if_b ();
@@ -181,7 +215,7 @@ module top_evaluation (
 
   bram_tdp #(
       .DATA_WIDTH(12),
-      .ADDR_WIDTH(12)
+      .ADDR_WIDTH(14)
   ) u_dyn_bmp_ram (
       .clk_a (clk100),
       .clk_b (clk74p25),
@@ -207,6 +241,7 @@ module top_evaluation (
   ui_navigation u_ui_nav (
       .clk(clk100),
       .rst_n(rst_n),
+      .show_popup(show_popup),
       .cmd_up(mode_text ? 1'b0 : cmd_up),
       .cmd_down(mode_text ? 1'b0 : cmd_down),
       .cmd_left(mode_text ? 1'b0 : cmd_left),
@@ -232,7 +267,7 @@ module top_evaluation (
       .key_code(key_code)
   );
 
-  evaluation_controller u_eval_ctl (
+  evaluation_controller u_eval_ctrl (
       .clk(clk100),
       .rst_n(rst_n),
       .cmd_up(cmd_up),
@@ -247,6 +282,7 @@ module top_evaluation (
       .console_we(console_we),
       .console_addr(console_addr_w),
       .console_din(console_din),
+      .console_dout(console_if_a.dout),
       .input_we(input_we),
       .input_addr(input_addr_w),
       .input_din(input_din),
@@ -258,6 +294,20 @@ module top_evaluation (
       .show_popup(show_popup),
       .show_progress(show_progress),
       .progress_val(progress_val),
+      .popup_mode(popup_mode),
+
+      // Diagnostics & Error Metrics
+      .err_man_cnt(err_man_cnt),
+      .err_pre_cnt(err_pre_cnt),
+      .err_par_cnt(err_par_cnt),
+      .prog_man(prog_man),
+      .prog_pre(prog_pre),
+      .prog_par(prog_par),
+      .prog_hlt(prog_hlt),
+      .color_man(color_man),
+      .color_pre(color_pre),
+      .color_par(color_par),
+      .color_hlt(color_hlt),
 
       // Handshake Interface
       .hs_tx_req(hs_tx_req),
@@ -297,6 +347,17 @@ module top_evaluation (
       .show_popup(show_popup_clk74),
       .show_progress(show_progress_clk74),
       .progress_val(progress_val_clk74),
+      .popup_mode(popup_mode_clk74),
+
+      .prog_man(prog_man_clk74),
+      .prog_pre(prog_pre_clk74),
+      .prog_par(prog_par_clk74),
+      .prog_hlt(prog_hlt_clk74),
+      .color_man(color_man_clk74),
+      .color_pre(color_pre_clk74),
+      .color_par(color_par_clk74),
+      .color_hlt(color_hlt_clk74),
+
       .console_bram(console_if_b),
       .input_bram(input_if_b),
       .dyn_bmp_bram(bmp_if_b),

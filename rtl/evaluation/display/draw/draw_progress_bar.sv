@@ -7,28 +7,31 @@
 * Progress bar UI Component.
 */
 
-
-module draw_progress_bar (
-    input logic        clk,
-    input logic        rst_n,
-    input logic [10:0] xstart,
-    input logic [10:0] ystart,
-    input logic [10:0] width,
-    input logic [10:0] height,
-    input logic [ 7:0] progress, // 0-255
-
-           vga_if.in        vga_in,
-    output logic     [11:0] rgb_out,
-    output logic            draw_en_out
+module draw_progress_bar #(
+    parameter [11:0] BAR_COLOR = 12'h0_F_8
+) (
+    input  logic        clk,
+    input  logic        rst_n,
+    input  logic [10:0] xstart,
+    input  logic [10:0] ystart,
+    input  logic [10:0] width,
+    input  logic [10:0] height,
+    input  logic [ 7:0] progress, // 0-255
+    input  logic [11:0] dynamic_color,
+           vga_if.in    vga_in,
+    output logic [11:0] rgb_out,
+    output logic        draw_en_out
 );
 
   /**
     * Local variables and signals
     */
 
-  logic [11:0] rgb_bg, rgb_fill;
+  logic [11:0] rgb_bg;
   logic en_bg, en_fill;
   logic [10:0] fill_width;
+  logic [11:0] active_fill_color;
+  assign active_fill_color = (dynamic_color != 12'h000) ? dynamic_color : BAR_COLOR;
 
   /**
     * Internal logic
@@ -64,9 +67,8 @@ module draw_progress_bar (
       .yend(ystart + height - 11'd2),
       .filled(1'b1),
       .thickness(11'd0),
-      .color(12'h0_F_0),  // Green fill
+      .color(active_fill_color),
       .vga_in(vga_in),
-      .rgb_out(rgb_fill),
       .draw_en_out(en_fill)
   );
 
@@ -75,7 +77,7 @@ module draw_progress_bar (
       rgb_out = rgb_bg;
       draw_en_out = 1'b1;
     end else if (en_fill) begin
-      rgb_out = rgb_fill;
+      rgb_out = active_fill_color;
       draw_en_out = 1'b1;
     end else begin
       rgb_out = 12'h0;

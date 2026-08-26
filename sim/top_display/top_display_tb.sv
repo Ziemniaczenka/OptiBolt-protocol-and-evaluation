@@ -132,7 +132,7 @@ module top_display_tb;
   ) dyn_bmp_if_b ();
   bram_tdp #(
       .DATA_WIDTH(12),
-      .ADDR_WIDTH($clog2(BITMAP_DYN_64x64.WIDTH * BITMAP_DYN_64x64.HEIGHT))
+      .ADDR_WIDTH(14)
   ) u_bram_dyn_bmp (
       .clk_a (clk),
       .clk_b (clk),
@@ -148,15 +148,28 @@ module top_display_tb;
   top_display dut (
       .clk(clk),
       .rst_n(rst_n),
+      .link_status(2'b01),
+      .baud_rate(4'd1),
+      .oversampling(4'd0),
+      .ui_selected_item(ui_selected_item),
+      .mode_text(1'b0),
+      .show_popup(show_popup),
+      .show_progress(show_progress),
+      .progress_val(progress_val),
+      .popup_mode(2'd0),
+      .prog_man(8'd0),
+      .prog_pre(8'd0),
+      .prog_par(8'd0),
+      .prog_hlt(8'd255),
+      .color_man(12'h0_F_0),
+      .color_pre(12'h0_F_0),
+      .color_par(12'h0_F_0),
+      .color_hlt(12'h0_F_0),
       .vs(vs),
       .hs(hs),
       .r(r),
       .g(g),
       .b(b),
-      .ui_selected_item(ui_selected_item),
-      .show_popup(show_popup),
-      .show_progress(show_progress),
-      .progress_val(progress_val),
       .console_bram(console_if_b),
       .input_bram(input_if_b),
       .dyn_bmp_bram(dyn_bmp_if_b)
@@ -226,7 +239,7 @@ module top_display_tb;
     @(negedge vs) $display("Info: Frame 0 done at %t", $time);
     // Frame 0: ITEM_INPUT selected by default (thicker yellow outline)
 
-    u_writer_console.write_string("Multiline string test\nSecond line\Third line\nLast line.");
+    u_writer_console.write_string("Multiline string test\nSecond line\nThird line\nLast line.");
     u_writer_input.write_string("> ping_");
 
     ui_selected_item = ITEM_ABOUT_BTN;

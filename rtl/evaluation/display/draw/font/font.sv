@@ -29,6 +29,7 @@ module font #(
     * ROM initialisation
     */
 
+  (* rom_style = "block" *)
   logic [((FONT.BYTES_PER_ROW*8)-1):0] font_mem[0:((FONT.ROWS_PER_LETTER*256)-1)];
 
   initial begin

@@ -55,6 +55,7 @@ set sv_files {
     ../rtl/evaluation/display/vga/vga_timing.sv
     ../rtl/evaluation/display/draw/font/font.sv
     ../rtl/helpers/fwft_fifo.sv
+    ../rtl/helpers/async_fifo.sv
     ../rtl/helpers/edge_detector.sv
     ../rtl/helpers/cdc_sync.sv
     ../rtl/helpers/bram_tdp.sv
@@ -98,6 +99,7 @@ set vhdl_files {
 
 # Specify files for a memory initialization     -- EDIT
 set mem_files {
+    ../rtl/evaluation/display/data/OptiBolt400x102.mem
     ../rtl/evaluation/display/data/bitmap1_152x64.mem
     ../rtl/evaluation/display/data/font_11x7.mem
 }
