@@ -10,6 +10,9 @@
 # Run from the project root directory.
 
 # Ensure execution from the root directory
+if (-not $env:ROOT_DIR) {
+    $env:ROOT_DIR = (Resolve-Path "$PSScriptRoot\..").Path
+}
 Set-Location $env:ROOT_DIR
 
 $PROJECT_PATH = "fpga\build"

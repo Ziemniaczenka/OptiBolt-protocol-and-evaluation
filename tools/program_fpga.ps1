@@ -9,6 +9,9 @@
 # Run from the project root directory.
 
 # Ensure execution from the root directory
+if (-not $env:ROOT_DIR) {
+    $env:ROOT_DIR = (Resolve-Path "$PSScriptRoot\..").Path
+}
 Set-Location $env:ROOT_DIR
 
 $bitstream_file = (Get-ChildItem -Path results -Filter "*.bit" | Select-Object -First 1).FullName

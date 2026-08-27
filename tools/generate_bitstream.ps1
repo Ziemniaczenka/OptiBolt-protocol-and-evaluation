@@ -13,6 +13,9 @@
 # Run from the project root directory.
 
 # Ensure execution from the root directory
+if (-not $env:ROOT_DIR) {
+    $env:ROOT_DIR = (Resolve-Path "$PSScriptRoot\..").Path
+}
 Set-Location $env:ROOT_DIR
 
 # Remove untracked files
@@ -22,6 +25,9 @@ git clean -fXd fpga
 Set-Location fpga
 vivado.bat -mode tcl -source scripts/generate_bitstream.tcl
 Set-Location $env:ROOT_DIR
+
+# Ensure results directory exists
+New-Item -ItemType Directory -Force -Path results | Out-Null
 
 # Copy bitstream to results
 Get-ChildItem -Path fpga/build -Filter "*.bit" -Recurse | Copy-Item -Destination results/

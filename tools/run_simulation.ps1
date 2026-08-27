@@ -50,6 +50,7 @@ function Execute-Test {
     # Remove untracked files
     git clean -fXd .
 
+    if (-not (Test-Path "$env:ROOT_DIR/results")) { New-Item -ItemType Directory -Path "$env:ROOT_DIR/results" | Out-Null }
     if (-not (Test-Path "build")) { New-Item -ItemType Directory -Path "build" | Out-Null }
     Set-Location build
 
@@ -76,9 +77,7 @@ function Execute-Test {
     } else {
         $output = & xelab.bat $xelab_opts -standalone -runall 2>&1
         $output | ForEach-Object {
-            if ($_ -match '(?i)^|fatal:|error:|critical|warning:') {
-                Write-Host $_
-            }
+            Write-Host $_
         }
         return $output
     }
@@ -109,4 +108,4 @@ if ($a) {
     exit 0
 }
 
-if ($t) { Execute-Test -test_path $t | Out-Null }
+if ($t) { Execute-Test -test_path $t }

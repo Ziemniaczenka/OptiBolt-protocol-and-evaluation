@@ -1,13 +1,63 @@
+#!/usr/bin/env python3
+"""
+===============================================================================
+OptiBolt Tool: Image-to-Palette-Memory Converter (`img2mem_palette.py`)
+===============================================================================
+
+Author: Tomasz Więcławski & Sebastian Zoń
+Project: OptiBolt Protocol & Evaluation Platform (AGH UST)
+
+DESCRIPTION:
+    Converts any standard raster image (PNG, BMP, JPG) into a palette-indexed
+    Verilog/SystemVerilog `$readmemh` formatted memory file (`.mem`).
+    
+    Instead of storing uncompressed 12-bit RGB values per pixel (which consumes
+    massive amounts of Block RAM or LUTs), this script maps all unique colors
+    into an indexed color palette table:
+      - <= 2 colors:  1 bit per pixel  (2x BRAM compression)
+      - <= 4 colors:  2 bits per pixel (6x BRAM compression)
+      - <= 16 colors: 4 bits per pixel (3x BRAM compression)
+      - <= 256 colors: 8 bits per pixel (1.5x BRAM compression)
+
+    The generated `.mem` file includes a human-readable and machine-parseable
+    Verilog header with image dimensions, bits per pixel, and exact 12-bit RGB
+    hex values for each palette index.
+
+USAGE:
+    python tools/img2mem_palette.py <input_image> [output_file.mem]
+
+EXAMPLES:
+    1. Convert logo with default output name (creates OptiBolt400x102_palette.mem):
+       python tools/img2mem_palette.py doc/image_sources/OptiBolt400x102.png
+
+    2. Convert with explicit output path:
+       python tools/img2mem_palette.py doc/image_sources/OptiBolt400x102.png rtl/evaluation/display/data/OptiBolt400x102.mem
+
+SYSTEMVERILOG INTEGRATION:
+    In SystemVerilog (see `draw_bitmap.sv`):
+        draw_bitmap #(
+            .BITMAP('{WIDTH, HEIGHT}),
+            .USE_PALETTE(1'b1),
+            .PALETTE_BITS(2),
+            .PALETTE('{12'hFFF, 12'h000, 12'hFF3, 12'hCDF})
+        ) u_draw_logo ( ... );
+===============================================================================
+"""
+
 import sys
 import re
 from PIL import Image
 from numpy import asarray
 
 def convert_img_to_palette_mem(image_file, output_file_name=None):
+    """
+    Reads an image, extracts unique 12-bit RGB colors, generates palette metadata,
+    and writes hex index per pixel to output_file_name.
+    """
     try:
         image = Image.open(image_file).convert('RGB')
     except Exception as e:
-        print(f"Nie mozna otworzyc pliku: {e}")
+        print(f"Error opening image file '{image_file}': {e}")
         sys.exit(1)
 
     array = asarray(image)
@@ -16,7 +66,6 @@ def convert_img_to_palette_mem(image_file, output_file_name=None):
     b = array[:, :, 2]
 
     # Collect 12-bit RGB colors
-    pixels_12b = []
     color_order = []
     color_to_idx = {}
 
@@ -26,12 +75,12 @@ def convert_img_to_palette_mem(image_file, output_file_name=None):
             if c_hex not in color_to_idx:
                 color_to_idx[c_hex] = len(color_order)
                 color_order.append(c_hex)
-            pixels_12b.append(c_hex)
 
     num_colors = len(color_order)
-    print(f"Liczba unikalnych kolorow: {num_colors}")
+    print(f"Image dimensions: {image.width}x{image.height} ({image.width * image.height} pixels)")
+    print(f"Unique 12-bit colors found: {num_colors}")
     for idx, c in enumerate(color_order):
-        print(f"  Kolor {idx}: 12'h{c}")
+        print(f"  Palette[{idx}] = 12'h{c}")
 
     if num_colors <= 2:
         palette_bits = 1
@@ -42,7 +91,7 @@ def convert_img_to_palette_mem(image_file, output_file_name=None):
     elif num_colors <= 256:
         palette_bits = 8
     else:
-        print(f"Blad: Zbyt duzo kolorow dla palety: {num_colors}")
+        print(f"Error: Too many unique colors for palette mode ({num_colors} > 256).")
         sys.exit(1)
 
     if not output_file_name:
@@ -66,14 +115,14 @@ def convert_img_to_palette_mem(image_file, output_file_name=None):
                 else:
                     output_file.write(f"{idx:02X}\n")
 
-    print(f"Sukces! Utworzono plik: {output_file_name}")
-    print(f"Wymiary obrazka: WIDTH={image.width}, HEIGHT={image.height}, BITS_PER_PIXEL={palette_bits}")
+    print(f"Successfully generated palette memory file: {output_file_name}")
+    print(f"Total bits required: {image.width * image.height * palette_bits} bits "
+          f"({image.width * image.height * palette_bits / 36864:.2f} RAMB36 tiles)")
 
 if __name__ == '__main__':
     if len(sys.argv) < 2:
-        print("Uzycie: python img2mem_palette.py <nazwa_pliku.png> [wyjsciowy_plik.mem]")
+        print(__doc__)
         sys.exit(1)
 
     out_name = sys.argv[2] if len(sys.argv) >= 3 else None
     convert_img_to_palette_mem(sys.argv[1], out_name)
-
