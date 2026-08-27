@@ -1,0 +1,19 @@
+# Fast Headless Integration Simulation Project File
+# Tests complete evaluation system (keyboard + ui nav + eval controller + link handshake + BRAMs)
+# Runs in < 2 seconds without VGA rendering bottleneck
+
+sv work "../../rtl/helpers/bram_if.sv"
+sv work "../../rtl/helpers/bram_tdp.sv"
+sv work "../../rtl/helpers/pixel_prng.sv"
+sv work "../../rtl/helpers/counter.sv"
+sv work "../../rtl/protocol/protocol_pkg.sv"
+sv work "../../rtl/evaluation/ui_pkg.sv"
+sv work "../../rtl/evaluation/display/draw/string_pkg.sv"
+sv work "../../rtl/evaluation/link_handshake.sv"
+sv work "../../rtl/evaluation/ui_navigation.sv"
+vhdl work "../../rtl/evaluation/keyboard/Ps2Interface.vhd"
+sv work "../../rtl/evaluation/keyboard/keyboard_decoder.sv"
+sv work "../../rtl/evaluation/keyboard/keyboard_controller.sv"
+sv work "../../rtl/evaluation/keyboard/top_keyboard.sv"
+sv work "../../rtl/evaluation/evaluation_controller.sv"
+sv work "evaluation_system_tb.sv"

@@ -16,6 +16,7 @@ module top_draw (
     input logic rst_n,
 
     // Telemetry & Status inputs
+    input logic       rx_carrier = 1'b0,
     input logic [1:0] link_status,
     input logic [3:0] baud_rate,
     input logic [3:0] oversampling,
@@ -66,15 +67,30 @@ module top_draw (
 
   // String ROM BRAM Interfaces
   bram_if #(
+      .ADDR_WIDTH($clog2(STATUS_TITLE_LEN + 1)),
+      .DATA_WIDTH(8),
+      .READ_ONLY (1)
+  ) status_lbl_bram ();
+  bram_if #(
       .ADDR_WIDTH($clog2(STATUS_LINK_MAX_LEN + 1)),
       .DATA_WIDTH(8),
       .READ_ONLY (1)
   ) link_bram ();
   bram_if #(
+      .ADDR_WIDTH($clog2(STATUS_LIGHT_LEN + 1)),
+      .DATA_WIDTH(8),
+      .READ_ONLY (1)
+  ) light_bram ();
+  bram_if #(
       .ADDR_WIDTH($clog2(STATUS_BAUD_LEN + 1)),
       .DATA_WIDTH(8),
       .READ_ONLY (1)
   ) baud_bram ();
+  bram_if #(
+      .ADDR_WIDTH($clog2(STATUS_OS_LEN + 1)),
+      .DATA_WIDTH(8),
+      .READ_ONLY (1)
+  ) os_bram ();
   bram_if #(
       .ADDR_WIDTH($clog2(STATUS_PWR_LEN + 1)),
       .DATA_WIDTH(8),
@@ -176,9 +192,13 @@ module top_draw (
       .baud_rate(baud_rate),
       .oversampling(oversampling),
       .popup_mode(popup_mode),
+      .rx_carrier(rx_carrier),
 
+      .status_lbl_bram(status_lbl_bram),
       .link_bram(link_bram),
+      .light_bram(light_bram),
       .baud_bram(baud_bram),
+      .os_bram(os_bram),
       .pwr_bram (pwr_bram),
 
       .help_btn_bram  (help_btn_bram),
@@ -208,7 +228,7 @@ module top_draw (
   // Indices 1..24: Foreground Content & UI Controls
   // Indices 25..38: Frames, Borders, and Background Panels (Lower Priority)
   // =========================================================================
-  localparam int NUM_DRAW_ELEMENTS = 39;
+  localparam int NUM_DRAW_ELEMENTS = 42;
 
   logic [NUM_DRAW_ELEMENTS-1:0][11:0] draw_rgb;
   logic [NUM_DRAW_ELEMENTS-1:0]       draw_en;
@@ -235,11 +255,8 @@ module top_draw (
   ) u_draw_popup (
       .clk(clk),
       .rst_n(rst_n),
-      .xstart(11'd890),
-      .ystart(11'd280),
-      .width(11'd350),
-      .height(11'd160),
-      .title_bram(popup_title_bram),
+      .xstart(11'd510),
+      .width(11'd320),
       .desc_bram(popup_desc_bram),
       .btn1_bram(popup_btn_bram),
       .btn2_bram(popup_btn_bram),
@@ -460,8 +477,9 @@ module top_draw (
   );
 
   // =========================================================================
-  // [12..14] STATUS STRINGS
+  // [12..16] REAL-TIME TELEMETRY STRINGS (5 TIGHTLY PACKED STATUS LINES)
   // =========================================================================
+  // Line 1: Link Status (Disconnected / Connected / Loopback)
   draw_string #(
       .FONT(FONT_11x7),
       .FONT_PATH(FONT_11x7_PATH),
@@ -472,9 +490,9 @@ module top_draw (
       .rst_n(rst_n),
       .vga_in(vga_in),
       .start_x(12'd1035),
-      .start_y(12'd175),
+      .start_y(12'd163),
       .end_x(12'd1250),
-      .end_y(12'd190),
+      .end_y(12'd178),
       .wrap_text(1'b0),
       .char_bram(link_bram),
       .letter_spacing(8'd1),
@@ -486,6 +504,30 @@ module top_draw (
                         (link_status == 2'b10) ? COLOR_STATUS_LINK_LOOP :
                                                  COLOR_STATUS_LINK_DISCONN;
 
+  // Line 2: Optical Light Detection (Light Detect / No Light)
+  draw_string #(
+      .FONT(FONT_11x7),
+      .FONT_PATH(FONT_11x7_PATH),
+      .MAX_STRING_LEN(STATUS_LIGHT_LEN + 1),
+      .COLOR(COLOR_STATUS_LIGHT_ON)
+  ) u_draw_status_light (
+      .clk(clk),
+      .rst_n(rst_n),
+      .vga_in(vga_in),
+      .start_x(12'd1035),
+      .start_y(12'd187),
+      .end_x(12'd1250),
+      .end_y(12'd202),
+      .wrap_text(1'b0),
+      .char_bram(light_bram),
+      .letter_spacing(8'd1),
+      .row_spacing(8'd1),
+      .pixel_color(),
+      .draw_en(draw_en[13])
+  );
+  assign draw_rgb[13] = rx_carrier ? COLOR_STATUS_LIGHT_ON : COLOR_STATUS_LIGHT_OFF;
+
+  // Line 3: Baudrate
   draw_string #(
       .FONT(FONT_11x7),
       .FONT_PATH(FONT_11x7_PATH),
@@ -496,17 +538,40 @@ module top_draw (
       .rst_n(rst_n),
       .vga_in(vga_in),
       .start_x(12'd1035),
-      .start_y(12'd210),
+      .start_y(12'd211),
       .end_x(12'd1250),
-      .end_y(12'd225),
+      .end_y(12'd226),
       .wrap_text(1'b0),
       .char_bram(baud_bram),
       .letter_spacing(8'd1),
       .row_spacing(8'd1),
-      .pixel_color(draw_rgb[13]),
-      .draw_en(draw_en[13])
+      .pixel_color(draw_rgb[14]),
+      .draw_en(draw_en[14])
   );
 
+  // Line 4: Oversampling (8x / 16x)
+  draw_string #(
+      .FONT(FONT_11x7),
+      .FONT_PATH(FONT_11x7_PATH),
+      .MAX_STRING_LEN(STATUS_OS_LEN + 1),
+      .COLOR(COLOR_STATUS_OS)
+  ) u_draw_status_os (
+      .clk(clk),
+      .rst_n(rst_n),
+      .vga_in(vga_in),
+      .start_x(12'd1035),
+      .start_y(12'd235),
+      .end_x(12'd1250),
+      .end_y(12'd250),
+      .wrap_text(1'b0),
+      .char_bram(os_bram),
+      .letter_spacing(8'd1),
+      .row_spacing(8'd1),
+      .pixel_color(draw_rgb[15]),
+      .draw_en(draw_en[15])
+  );
+
+  // Line 5: Power Negotiation
   draw_string #(
       .FONT(FONT_11x7),
       .FONT_PATH(FONT_11x7_PATH),
@@ -517,19 +582,43 @@ module top_draw (
       .rst_n(rst_n),
       .vga_in(vga_in),
       .start_x(12'd1035),
-      .start_y(12'd245),
+      .start_y(12'd259),
       .end_x(12'd1250),
-      .end_y(12'd260),
+      .end_y(12'd274),
       .wrap_text(1'b0),
       .char_bram(pwr_bram),
       .letter_spacing(8'd1),
       .row_spacing(8'd1),
-      .pixel_color(draw_rgb[14]),
-      .draw_en(draw_en[14])
+      .pixel_color(draw_rgb[16]),
+      .draw_en(draw_en[16])
   );
 
   // =========================================================================
-  // [15..23] DIAGNOSTICS LABELS & METERS
+  // [17] STATUS CARD TITLE LABEL (ABOVE STATUS BOX)
+  // =========================================================================
+  draw_string #(
+      .FONT(FONT_11x7),
+      .FONT_PATH(FONT_11x7_PATH),
+      .MAX_STRING_LEN(STATUS_TITLE_LEN),
+      .COLOR(COLOR_STATUS_TITLE)
+  ) u_draw_status_lbl (
+      .clk(clk),
+      .rst_n(rst_n),
+      .vga_in(vga_in),
+      .start_x(12'd1035),
+      .start_y(12'd135),
+      .end_x(12'd1250),
+      .end_y(12'd150),
+      .wrap_text(1'b0),
+      .char_bram(status_lbl_bram),
+      .letter_spacing(8'd1),
+      .row_spacing(8'd1),
+      .pixel_color(draw_rgb[17]),
+      .draw_en(draw_en[17])
+  );
+
+  // =========================================================================
+  // [18] DIAGNOSTICS CARD TITLE LABEL (ABOVE DIAGNOSTICS BOX)
   // =========================================================================
   draw_string #(
       .FONT(FONT_11x7),
@@ -540,18 +629,21 @@ module top_draw (
       .clk(clk),
       .rst_n(rst_n),
       .vga_in(vga_in),
-      .start_x(12'd890),
-      .start_y(12'd320),
-      .end_x(12'd1240),
-      .end_y(12'd335),
+      .start_x(12'd885),
+      .start_y(12'd305),
+      .end_x(12'd1245),
+      .end_y(12'd320),
       .wrap_text(1'b0),
       .char_bram(diag_title_bram),
       .letter_spacing(8'd1),
       .row_spacing(8'd1),
-      .pixel_color(draw_rgb[15]),
-      .draw_en(draw_en[15])
+      .pixel_color(draw_rgb[18]),
+      .draw_en(draw_en[18])
   );
 
+  // =========================================================================
+  // [19..26] DIAGNOSTICS LABELS & METERS (INSIDE SHORTER BOX)
+  // =========================================================================
   draw_string #(
       .FONT(FONT_11x7),
       .FONT_PATH(FONT_11x7_PATH),
@@ -562,29 +654,29 @@ module top_draw (
       .rst_n(rst_n),
       .vga_in(vga_in),
       .start_x(12'd890),
-      .start_y(12'd355),
+      .start_y(12'd345),
       .end_x(12'd1240),
-      .end_y(12'd370),
+      .end_y(12'd360),
       .wrap_text(1'b0),
       .char_bram(diag_man_bram),
       .letter_spacing(8'd1),
       .row_spacing(8'd1),
-      .pixel_color(draw_rgb[16]),
-      .draw_en(draw_en[16])
+      .pixel_color(draw_rgb[19]),
+      .draw_en(draw_en[19])
   );
 
   draw_progress_bar u_meter_man (
       .clk(clk),
       .rst_n(rst_n),
       .xstart(11'd890),
-      .ystart(11'd375),
+      .ystart(11'd368),
       .width(11'd350),
       .height(11'd18),
       .progress(prog_man),
       .dynamic_color(color_man),
       .vga_in(vga_in),
-      .rgb_out(draw_rgb[17]),
-      .draw_en_out(draw_en[17])
+      .rgb_out(draw_rgb[20]),
+      .draw_en_out(draw_en[20])
   );
 
   draw_string #(
@@ -597,29 +689,29 @@ module top_draw (
       .rst_n(rst_n),
       .vga_in(vga_in),
       .start_x(12'd890),
-      .start_y(12'd415),
+      .start_y(12'd410),
       .end_x(12'd1240),
-      .end_y(12'd430),
+      .end_y(12'd425),
       .wrap_text(1'b0),
       .char_bram(diag_pre_bram),
       .letter_spacing(8'd1),
       .row_spacing(8'd1),
-      .pixel_color(draw_rgb[18]),
-      .draw_en(draw_en[18])
+      .pixel_color(draw_rgb[21]),
+      .draw_en(draw_en[21])
   );
 
   draw_progress_bar u_meter_pre (
       .clk(clk),
       .rst_n(rst_n),
       .xstart(11'd890),
-      .ystart(11'd435),
+      .ystart(11'd433),
       .width(11'd350),
       .height(11'd18),
       .progress(prog_pre),
       .dynamic_color(color_pre),
       .vga_in(vga_in),
-      .rgb_out(draw_rgb[19]),
-      .draw_en_out(draw_en[19])
+      .rgb_out(draw_rgb[22]),
+      .draw_en_out(draw_en[22])
   );
 
   draw_string #(
@@ -639,22 +731,22 @@ module top_draw (
       .char_bram(diag_par_bram),
       .letter_spacing(8'd1),
       .row_spacing(8'd1),
-      .pixel_color(draw_rgb[20]),
-      .draw_en(draw_en[20])
+      .pixel_color(draw_rgb[23]),
+      .draw_en(draw_en[23])
   );
 
   draw_progress_bar u_meter_par (
       .clk(clk),
       .rst_n(rst_n),
       .xstart(11'd890),
-      .ystart(11'd495),
+      .ystart(11'd498),
       .width(11'd350),
       .height(11'd18),
       .progress(prog_par),
       .dynamic_color(color_par),
       .vga_in(vga_in),
-      .rgb_out(draw_rgb[21]),
-      .draw_en_out(draw_en[21])
+      .rgb_out(draw_rgb[24]),
+      .draw_en_out(draw_en[24])
   );
 
   draw_string #(
@@ -667,33 +759,33 @@ module top_draw (
       .rst_n(rst_n),
       .vga_in(vga_in),
       .start_x(12'd890),
-      .start_y(12'd535),
+      .start_y(12'd540),
       .end_x(12'd1240),
-      .end_y(12'd550),
+      .end_y(12'd555),
       .wrap_text(1'b0),
       .char_bram(diag_hlt_bram),
       .letter_spacing(8'd1),
       .row_spacing(8'd1),
-      .pixel_color(draw_rgb[22]),
-      .draw_en(draw_en[22])
+      .pixel_color(draw_rgb[25]),
+      .draw_en(draw_en[25])
   );
 
   draw_progress_bar u_meter_hlt (
       .clk(clk),
       .rst_n(rst_n),
       .xstart(11'd890),
-      .ystart(11'd555),
+      .ystart(11'd565),
       .width(11'd350),
-      .height(11'd22),
+      .height(11'd24),
       .progress(prog_hlt),
       .dynamic_color(color_hlt),
       .vga_in(vga_in),
-      .rgb_out(draw_rgb[23]),
-      .draw_en_out(draw_en[23])
+      .rgb_out(draw_rgb[26]),
+      .draw_en_out(draw_en[26])
   );
 
   // =========================================================================
-  // [24] DYNAMIC BITMAP LABEL
+  // [27] DYNAMIC BITMAP LABEL (ABOVE BITMAP BOX)
   // =========================================================================
   draw_string #(
       .FONT(FONT_11x7),
@@ -712,12 +804,12 @@ module top_draw (
       .char_bram(bmp_lbl_bram),
       .letter_spacing(8'd1),
       .row_spacing(8'd1),
-      .pixel_color(draw_rgb[24]),
-      .draw_en(draw_en[24])
+      .pixel_color(draw_rgb[27]),
+      .draw_en(draw_en[27])
   );
 
   // =========================================================================
-  // [25] TOOLBAR DIVIDER LINE
+  // [28] TOOLBAR DIVIDER LINE
   // =========================================================================
   draw_rect u_draw_divider (
       .clk(clk),
@@ -730,12 +822,12 @@ module top_draw (
       .thickness(11'd0),
       .color(12'h2_5_8),
       .vga_in(vga_in),
-      .rgb_out(draw_rgb[25]),
-      .draw_en_out(draw_en[25])
+      .rgb_out(draw_rgb[28]),
+      .draw_en_out(draw_en[28])
   );
 
   // =========================================================================
-  // [26..27] CONSOLE FRAME & SOLID BACKGROUND
+  // [29..30] CONSOLE FRAME & SOLID BACKGROUND
   // =========================================================================
   draw_rect u_draw_console_frame (
       .clk(clk),
@@ -748,8 +840,8 @@ module top_draw (
       .thickness(11'd2),
       .color(12'h3_5_7),
       .vga_in(vga_in),
-      .rgb_out(draw_rgb[26]),
-      .draw_en_out(draw_en[26])
+      .rgb_out(draw_rgb[29]),
+      .draw_en_out(draw_en[29])
   );
 
   draw_rect u_draw_console_bg (
@@ -763,12 +855,12 @@ module top_draw (
       .thickness(11'd0),
       .color(12'h0_0_1),
       .vga_in(vga_in),
-      .rgb_out(draw_rgb[27]),
-      .draw_en_out(draw_en[27])
+      .rgb_out(draw_rgb[30]),
+      .draw_en_out(draw_en[30])
   );
 
   // =========================================================================
-  // [28..29] INPUT FRAME & BACKGROUND
+  // [31..32] INPUT FRAME & BACKGROUND
   // =========================================================================
   draw_rect u_draw_input_frame (
       .clk(clk),
@@ -781,8 +873,8 @@ module top_draw (
       .thickness((mode_text || ui_selected_item == ITEM_INPUT) ? 11'd3 : 11'd2),
       .color(mode_text ? 12'h0_F_8 : (ui_selected_item == ITEM_INPUT ? 12'hF_B_0 : 12'h3_5_7)),
       .vga_in(vga_in),
-      .rgb_out(draw_rgb[28]),
-      .draw_en_out(draw_en[28])
+      .rgb_out(draw_rgb[31]),
+      .draw_en_out(draw_en[31])
   );
 
   draw_rect u_draw_input_bg (
@@ -796,12 +888,12 @@ module top_draw (
       .thickness(11'd0),
       .color(12'h0_1_2),
       .vga_in(vga_in),
-      .rgb_out(draw_rgb[29]),
-      .draw_en_out(draw_en[29])
+      .rgb_out(draw_rgb[32]),
+      .draw_en_out(draw_en[32])
   );
 
   // =========================================================================
-  // [30..31] DYNAMIC BITMAP FRAME & CANVAS BACKGROUND
+  // [33..34] DYNAMIC BITMAP FRAME & CANVAS BACKGROUND
   // =========================================================================
   draw_rect u_draw_bmp_frame (
       .clk(clk),
@@ -814,8 +906,8 @@ module top_draw (
       .thickness(11'd2),
       .color(12'h2_4_6),
       .vga_in(vga_in),
-      .rgb_out(draw_rgb[30]),
-      .draw_en_out(draw_en[30])
+      .rgb_out(draw_rgb[33]),
+      .draw_en_out(draw_en[33])
   );
 
   draw_rect u_draw_bmp_bg (
@@ -829,12 +921,12 @@ module top_draw (
       .thickness(11'd0),
       .color(12'h0_0_0),
       .vga_in(vga_in),
-      .rgb_out(draw_rgb[31]),
-      .draw_en_out(draw_en[31])
+      .rgb_out(draw_rgb[34]),
+      .draw_en_out(draw_en[34])
   );
 
   // =========================================================================
-  // [32..33] STATUS CARD FRAME & BACKGROUND
+  // [35..36] STATUS CARD FRAME & BACKGROUND
   // =========================================================================
   draw_rect u_draw_status_frame (
       .clk(clk),
@@ -847,8 +939,8 @@ module top_draw (
       .thickness(11'd2),
       .color(12'h2_4_6),
       .vga_in(vga_in),
-      .rgb_out(draw_rgb[32]),
-      .draw_en_out(draw_en[32])
+      .rgb_out(draw_rgb[35]),
+      .draw_en_out(draw_en[35])
   );
 
   draw_rect u_draw_status_bg (
@@ -862,45 +954,45 @@ module top_draw (
       .thickness(11'd0),
       .color(12'h0_1_2),
       .vga_in(vga_in),
-      .rgb_out(draw_rgb[33]),
-      .draw_en_out(draw_en[33])
+      .rgb_out(draw_rgb[36]),
+      .draw_en_out(draw_en[36])
   );
 
   // =========================================================================
-  // [34..35] DIAGNOSTICS CARD FRAME & BACKGROUND
+  // [37..38] DIAGNOSTICS CARD FRAME & BACKGROUND (SHORTER: y=325..700)
   // =========================================================================
   draw_rect u_draw_diag_frame (
       .clk(clk),
       .rst_n(rst_n),
       .xstart(11'd875),
-      .ystart(11'd305),
+      .ystart(11'd325),
       .xend(11'd1255),
       .yend(11'd700),
       .filled(1'b0),
       .thickness(11'd2),
       .color(12'h3_5_7),
       .vga_in(vga_in),
-      .rgb_out(draw_rgb[34]),
-      .draw_en_out(draw_en[34])
+      .rgb_out(draw_rgb[37]),
+      .draw_en_out(draw_en[37])
   );
 
   draw_rect u_draw_diag_bg (
       .clk(clk),
       .rst_n(rst_n),
       .xstart(11'd875),
-      .ystart(11'd305),
+      .ystart(11'd325),
       .xend(11'd1255),
       .yend(11'd700),
       .filled(1'b1),
       .thickness(11'd0),
       .color(12'h0_1_2),
       .vga_in(vga_in),
-      .rgb_out(draw_rgb[35]),
-      .draw_en_out(draw_en[35])
+      .rgb_out(draw_rgb[38]),
+      .draw_en_out(draw_en[38])
   );
 
   // =========================================================================
-  // [36..37] TOP HEADER BAR BORDER & BACKGROUND
+  // [39..40] TOP HEADER BAR BORDER & BACKGROUND
   // =========================================================================
   draw_rect u_draw_header_border (
       .clk(clk),
@@ -913,8 +1005,8 @@ module top_draw (
       .thickness(11'd0),
       .color(12'h2_4_6),
       .vga_in(vga_in),
-      .rgb_out(draw_rgb[36]),
-      .draw_en_out(draw_en[36])
+      .rgb_out(draw_rgb[39]),
+      .draw_en_out(draw_en[39])
   );
 
   draw_rect u_draw_header_bg (
@@ -928,12 +1020,12 @@ module top_draw (
       .thickness(11'd0),
       .color(12'h9_A_B),
       .vga_in(vga_in),
-      .rgb_out(draw_rgb[37]),
-      .draw_en_out(draw_en[37])
+      .rgb_out(draw_rgb[40]),
+      .draw_en_out(draw_en[40])
   );
 
   // =========================================================================
-  // [38] SCREEN PERIMETER BORDER
+  // [41] SCREEN PERIMETER BORDER
   // =========================================================================
   draw_rect u_draw_screen_border (
       .clk(clk),
@@ -946,8 +1038,8 @@ module top_draw (
       .thickness(11'd1),
       .color(12'h2_3_4),
       .vga_in(vga_in),
-      .rgb_out(draw_rgb[38]),
-      .draw_en_out(draw_en[38])
+      .rgb_out(draw_rgb[41]),
+      .draw_en_out(draw_en[41])
   );
 
   // =========================================================================

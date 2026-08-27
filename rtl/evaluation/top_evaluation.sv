@@ -115,6 +115,7 @@ module top_evaluation (
   logic        show_progress_clk74;
   logic [7:0]  progress_val_clk74;
   logic [1:0]  popup_mode_clk74;
+  logic        rx_carrier_clk74;
   logic [1:0]  link_status_clk74;
   logic [3:0]  baud_rate_clk74;
   logic [3:0]  oversampling_clk74;
@@ -122,17 +123,19 @@ module top_evaluation (
   logic [11:0] color_man_clk74, color_pre_clk74, color_par_clk74, color_hlt_clk74;
 
   cdc_sync #(
-      .WIDTH(107)
+      .WIDTH(108)
   ) u_cdc_ui_sync (
       .clk_dst(clk74p25),
       .rst_n(rst_n),
       .d_in({
+        proto_eval_rx_carrier,
         mode_text, ui_selected_item, show_popup, show_progress, progress_val, popup_mode,
         link_status, eval_proto_baud_rate, eval_proto_oversampling,
         prog_man, prog_pre, prog_par, prog_hlt,
         color_man, color_pre, color_par, color_hlt
       }),
       .d_out({
+        rx_carrier_clk74,
         mode_text_clk74, ui_selected_item_clk74, show_popup_clk74, show_progress_clk74, progress_val_clk74, popup_mode_clk74,
         link_status_clk74, baud_rate_clk74, oversampling_clk74,
         prog_man_clk74, prog_pre_clk74, prog_par_clk74, prog_hlt_clk74,
@@ -339,6 +342,7 @@ module top_evaluation (
   top_display u_top_display (
       .clk(clk74p25),
       .rst_n(rst_n),
+      .rx_carrier(rx_carrier_clk74),
       .link_status(link_status_clk74),
       .baud_rate(baud_rate_clk74),
       .oversampling(oversampling_clk74),

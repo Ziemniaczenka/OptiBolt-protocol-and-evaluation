@@ -16,10 +16,14 @@ module string_rom (
     input logic [3:0] baud_rate,    // Bitrate index
     input logic [3:0] oversampling, // 0=8x, 1=16x
     input logic [1:0] popup_mode,   // 0=None, 1=About, 2=Progress
+    input logic       rx_carrier,   // 1=Optical light present, 0=No light
 
     // Status strings
+    interface status_lbl_bram,
     interface link_bram,
+    interface light_bram,
     interface baud_bram,
+    interface os_bram,
     interface pwr_bram,
 
     // Toolbar buttons
@@ -51,6 +55,10 @@ module string_rom (
     * Local variables and signals
     */
 
+  // STATUS: Box Label
+  logic [7:0] status_title_str[0:STATUS_TITLE_LEN];
+  `INIT_UNPACKED_STR(status_title_str, STATUS_TITLE_VAL, STATUS_TITLE_LEN, STATUS_TITLE_LEN + 1)
+
   // STATUS: Link
   logic [7:0] link_str_disconn[0:STATUS_LINK_MAX_LEN];
   logic [7:0] link_str_conn[0:STATUS_LINK_MAX_LEN];
@@ -58,6 +66,12 @@ module string_rom (
   `INIT_UNPACKED_STR(link_str_disconn, STATUS_LINK_VAL_DISCONN, STATUS_LINK_MAX_LEN, STATUS_LINK_MAX_LEN + 1)
   `INIT_UNPACKED_STR(link_str_conn, STATUS_LINK_VAL_CONN, STATUS_LINK_MAX_LEN, STATUS_LINK_MAX_LEN + 1)
   `INIT_UNPACKED_STR(link_str_loop, STATUS_LINK_VAL_LOOP, STATUS_LINK_MAX_LEN, STATUS_LINK_MAX_LEN + 1)
+
+  // STATUS: Optical Light
+  logic [7:0] light_str_on[0:STATUS_LIGHT_LEN];
+  logic [7:0] light_str_off[0:STATUS_LIGHT_LEN];
+  `INIT_UNPACKED_STR(light_str_on, STATUS_LIGHT_VAL_ON, STATUS_LIGHT_LEN, STATUS_LIGHT_LEN + 1)
+  `INIT_UNPACKED_STR(light_str_off, STATUS_LIGHT_VAL_OFF, STATUS_LIGHT_LEN, STATUS_LIGHT_LEN + 1)
 
   // STATUS: Baudrate
   logic [7:0] baud_str_100k[0:STATUS_BAUD_LEN];
@@ -81,6 +95,12 @@ module string_rom (
   `INIT_UNPACKED_STR(baud_str_8dot33m, STATUS_BAUD_VAL_8dot33M, STATUS_BAUD_LEN, STATUS_BAUD_LEN + 1)
   `INIT_UNPACKED_STR(baud_str_12dot5m, STATUS_BAUD_VAL_12dot5M, STATUS_BAUD_LEN, STATUS_BAUD_LEN + 1)
   `INIT_UNPACKED_STR(baud_str_25m, STATUS_BAUD_VAL_25M, STATUS_BAUD_LEN, STATUS_BAUD_LEN + 1)
+
+  // STATUS: Oversampling
+  logic [7:0] os_str_8x[0:STATUS_OS_LEN];
+  logic [7:0] os_str_16x[0:STATUS_OS_LEN];
+  `INIT_UNPACKED_STR(os_str_8x, STATUS_OS_VAL_8X, STATUS_OS_LEN, STATUS_OS_LEN + 1)
+  `INIT_UNPACKED_STR(os_str_16x, STATUS_OS_VAL_16X, STATUS_OS_LEN, STATUS_OS_LEN + 1)
 
   // STATUS: Power
   logic [7:0] pwr_str[0:STATUS_PWR_LEN];
@@ -136,6 +156,12 @@ module string_rom (
     */
 
   always_ff @(posedge clk) begin
+    // Status Box Title
+    if (status_lbl_bram.en) begin
+      status_lbl_bram.dout <= status_title_str[status_lbl_bram.addr];
+    end
+
+    // Line 1: Link Status
     if (link_bram.en) begin
       case (link_status)
         2'b00:   link_bram.dout <= link_str_disconn[link_bram.addr];
@@ -145,31 +171,33 @@ module string_rom (
       endcase
     end
 
-    if (baud_bram.en) begin
-      if (oversampling == 4'd1) begin
-        // 16x Oversampling
-        case (baud_rate)
-          4'd1:    baud_bram.dout <= baud_str_1dot25m[baud_bram.addr];
-          4'd3:    baud_bram.dout <= baud_str_3dot125m[baud_bram.addr];
-          4'd5:    baud_bram.dout <= baud_str_6dot25m[baud_bram.addr];
-          default: baud_bram.dout <= baud_str_1dot25m[baud_bram.addr];
-        endcase
-      end else begin
-        // 8x Oversampling (default)
-        case (baud_rate)
-          4'd0:    baud_bram.dout <= baud_str_100k[baud_bram.addr];
-          4'd1:    baud_bram.dout <= baud_str_1m[baud_bram.addr];
-          4'd2:    baud_bram.dout <= baud_str_2dot5m[baud_bram.addr];
-          4'd3:    baud_bram.dout <= baud_str_3dot125m[baud_bram.addr];
-          4'd4:    baud_bram.dout <= baud_str_5m[baud_bram.addr];
-          4'd5:    baud_bram.dout <= baud_str_8dot33m[baud_bram.addr];
-          4'd6:    baud_bram.dout <= baud_str_12dot5m[baud_bram.addr];
-          4'd7:    baud_bram.dout <= baud_str_25m[baud_bram.addr];
-          default: baud_bram.dout <= baud_str_1m[baud_bram.addr];
-        endcase
-      end
+    // Line 2: Optical Light Detection
+    if (light_bram.en) begin
+      light_bram.dout <= rx_carrier ? light_str_on[light_bram.addr] : light_str_off[light_bram.addr];
     end
 
+    // Line 3: Baudrate
+    if (baud_bram.en) begin
+      case (baud_rate)
+        4'd0:    baud_bram.dout <= baud_str_100k[baud_bram.addr];
+        4'd1:    baud_bram.dout <= baud_str_1m[baud_bram.addr];
+        4'd2:    baud_bram.dout <= baud_str_2dot5m[baud_bram.addr];
+        4'd3:    baud_bram.dout <= baud_str_3dot125m[baud_bram.addr];
+        4'd4:    baud_bram.dout <= baud_str_5m[baud_bram.addr];
+        4'd5:    baud_bram.dout <= baud_str_6dot25m[baud_bram.addr];
+        4'd6:    baud_bram.dout <= baud_str_8dot33m[baud_bram.addr];
+        4'd7:    baud_bram.dout <= baud_str_12dot5m[baud_bram.addr];
+        4'd8:    baud_bram.dout <= baud_str_25m[baud_bram.addr];
+        default: baud_bram.dout <= baud_str_1m[baud_bram.addr];
+      endcase
+    end
+
+    // Line 4: Oversampling
+    if (os_bram.en) begin
+      os_bram.dout <= (oversampling == 4'd1) ? os_str_16x[os_bram.addr] : os_str_8x[os_bram.addr];
+    end
+
+    // Line 5: Power Negotiation
     if (pwr_bram.en) pwr_bram.dout <= pwr_str[pwr_bram.addr];
 
     // Toolbar Buttons

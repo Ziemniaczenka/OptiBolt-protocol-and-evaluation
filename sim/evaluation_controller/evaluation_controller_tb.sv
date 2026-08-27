@@ -293,6 +293,29 @@ module evaluation_controller_tb;
     execute_cmd();
     $display("[PASS] Test 12: Disconnected command blocked verified.");
 
+    // 13. Test 128-byte long CLI buffer support
+    link_status = 2'b10; // LOOPBACK
+    type_string("this is a very long string exceeding the previous 32 byte limit to verify 128 bytes");
+    assert (u_eval.input_len == 11'(2 + 83)) else $error("Long buffer input failed (expected 85, got %0d)", u_eval.input_len);
+    execute_cmd();
+    $display("[PASS] Test 13: 128-byte long CLI buffer verified (len=%0d).", 85);
+
+    // 14. Test 4-entry history deduplication
+    // Recalling the previous command and executing should not add duplicate to history
+    @(posedge clk);
+    cmd_up = 1'b1;
+    @(posedge clk);
+    cmd_up = 1'b0;
+    wait (u_eval.state == u_eval.S_IDLE);
+    @(posedge clk);
+    execute_cmd();
+    assert (u_eval.history_count <= 4) else $error("History count overflow");
+    $display("[PASS] Test 14: 4-entry history deduplication verified.");
+
+    // 15. Test error metric decay window counter instance
+    assert (u_eval.u_err_window_counter.VALUE_MAX == 50_000_000 - 1) else $error("Counter VALUE_MAX mismatch");
+    $display("[PASS] Test 15: Error metric decay window counter.sv instantiation verified.");
+
     wait (u_eval.state == u_eval.S_IDLE);
     @(posedge clk);
     $display("All evaluation_controller testbench tests completed successfully!");

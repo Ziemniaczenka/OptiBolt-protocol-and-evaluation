@@ -146,8 +146,7 @@ module link_handshake #(
         end
       end else begin
         // Timeout / Disconnect tracking
-        if (!proto_eval_rx_carrier || proto_eval_preamble_error) begin
-          link_status <= LINK_DISCONNECTED;
+        if (!proto_eval_rx_carrier) begin
           timeout_cnt <= TIMEOUT_TICKS;
         end else if (timeout_cnt >= TIMEOUT_TICKS - 1) begin
           link_status <= LINK_DISCONNECTED;

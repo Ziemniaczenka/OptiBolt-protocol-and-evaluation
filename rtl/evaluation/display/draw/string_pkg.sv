@@ -24,6 +24,11 @@ package string_pkg;
     localparam TITLE_VAL = "OPTIBOLT - Protocol and Evaluation Platform";
     localparam int TITLE_LEN = $bits(TITLE_VAL) / 8;
 
+    // STATUS BOX TITLE
+    localparam logic [11:0] COLOR_STATUS_TITLE = 12'hF_F_8;
+    localparam STATUS_TITLE_VAL = "LINK & TELEMETRY";
+    localparam int STATUS_TITLE_LEN = $bits(STATUS_TITLE_VAL) / 8;
+
     // STATUS: LINK
     localparam logic [11:0] COLOR_STATUS_LINK_DISCONN = 12'hF_8_8;
     localparam logic [11:0] COLOR_STATUS_LINK_CONN    = 12'h8_F_8;
@@ -34,23 +39,36 @@ package string_pkg;
     localparam STATUS_LINK_VAL_LOOP    = "Link Status : LOOPBACK    ";
     localparam int STATUS_LINK_MAX_LEN = $bits(STATUS_LINK_VAL_DISCONN) / 8;
 
+    // STATUS: OPTICAL LIGHT / CARRIER
+    localparam logic [11:0] COLOR_STATUS_LIGHT_ON  = 12'h8_F_8;
+    localparam logic [11:0] COLOR_STATUS_LIGHT_OFF = 12'hF_5_5;
+    localparam STATUS_LIGHT_VAL_ON  = "Optical Rx  : LIGHT DETECT";
+    localparam STATUS_LIGHT_VAL_OFF = "Optical Rx  : NO LIGHT    ";
+    localparam int STATUS_LIGHT_LEN = $bits(STATUS_LIGHT_VAL_ON) / 8;
+
     // STATUS: BAUDRATE
     localparam logic [11:0] COLOR_STATUS_BAUD = 12'h8_F_8;
-    localparam STATUS_BAUD_VAL_100K     = "Baudrate    : 100 kbps  ";
-    localparam STATUS_BAUD_VAL_1M       = "Baudrate    : 1.0 Mbps  ";
-    localparam STATUS_BAUD_VAL_1dot25M  = "Baudrate    : 1.25 Mbps ";
-    localparam STATUS_BAUD_VAL_2dot5M   = "Baudrate    : 2.5 Mbps  ";
-    localparam STATUS_BAUD_VAL_3dot125M = "Baudrate    : 3.125 Mbps";
-    localparam STATUS_BAUD_VAL_5M       = "Baudrate    : 5.0 Mbps  ";
-    localparam STATUS_BAUD_VAL_6dot25M  = "Baudrate    : 6.25 Mbps ";
-    localparam STATUS_BAUD_VAL_8dot33M  = "Baudrate    : 8.33 Mbps ";
-    localparam STATUS_BAUD_VAL_12dot5M  = "Baudrate    : 12.5 Mbps ";
-    localparam STATUS_BAUD_VAL_25M      = "Baudrate    : 25.0 Mbps ";
+    localparam STATUS_BAUD_VAL_100K     = "Baudrate    : 100 kbps    ";
+    localparam STATUS_BAUD_VAL_1M       = "Baudrate    : 1.0 Mbps    ";
+    localparam STATUS_BAUD_VAL_1dot25M  = "Baudrate    : 1.25 Mbps   ";
+    localparam STATUS_BAUD_VAL_2dot5M   = "Baudrate    : 2.5 Mbps    ";
+    localparam STATUS_BAUD_VAL_3dot125M = "Baudrate    : 3.125 Mbps  ";
+    localparam STATUS_BAUD_VAL_5M       = "Baudrate    : 5.0 Mbps    ";
+    localparam STATUS_BAUD_VAL_6dot25M  = "Baudrate    : 6.25 Mbps   ";
+    localparam STATUS_BAUD_VAL_8dot33M  = "Baudrate    : 8.33 Mbps   ";
+    localparam STATUS_BAUD_VAL_12dot5M  = "Baudrate    : 12.5 Mbps   ";
+    localparam STATUS_BAUD_VAL_25M      = "Baudrate    : 25.0 Mbps   ";
     localparam int STATUS_BAUD_LEN      = $bits(STATUS_BAUD_VAL_100K) / 8;
+
+    // STATUS: OVERSAMPLING
+    localparam logic [11:0] COLOR_STATUS_OS = 12'hF_F_8;
+    localparam STATUS_OS_VAL_8X  = "Oversampling: 8x          ";
+    localparam STATUS_OS_VAL_16X = "Oversampling: 16x         ";
+    localparam int STATUS_OS_LEN = $bits(STATUS_OS_VAL_8X) / 8;
 
     // STATUS: POWER
     localparam logic [11:0] COLOR_STATUS_PWR = 12'hF_8_8;
-    localparam STATUS_PWR_VAL = "Power Neg.  : 5.0V / 1.0A";
+    localparam STATUS_PWR_VAL = "Power Neg.  : 5.0V / 1.0A ";
     localparam int STATUS_PWR_LEN = $bits(STATUS_PWR_VAL) / 8;
 
     // CONSOLE

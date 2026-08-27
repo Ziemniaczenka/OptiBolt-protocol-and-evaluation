@@ -10,6 +10,7 @@
 module top_display (
     input logic       clk,
     input logic       rst_n,
+    input logic       rx_carrier = 1'b0,
     input logic [1:0] link_status,
     input logic [3:0] baud_rate,
     input logic [3:0] oversampling,
@@ -83,6 +84,7 @@ module top_display (
   top_draw u_top_draw (
       .clk(clk),
       .rst_n(rst_n),
+      .rx_carrier(rx_carrier),
       .link_status(link_status),
       .baud_rate(baud_rate),
       .oversampling(oversampling),

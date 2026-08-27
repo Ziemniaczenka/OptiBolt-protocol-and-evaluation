@@ -100,13 +100,20 @@ module evaluation_controller (
   localparam logic [2:0] MSG_BITMAP = 3'b101; // Map bitmap packet to MSG_TEST1 (3'b101)
   localparam logic [7:0] PING_TOKEN  = 8'hEE; // Ping request / response token
 
-  typedef enum logic [3:0] {
+  typedef enum logic [4:0] {
     S_INIT,
     S_IDLE,
+    S_HIST_SCAN,
+    S_HIST_UPDATE,
     S_PROCESS_CMD,
     S_PRINT_MSG,
+    S_FIND_NL_READ,
+    S_FIND_NL_WAIT,
+    S_FIND_NL_CHECK,
     S_SCROLL_READ,
+    S_SCROLL_WAIT,
     S_SCROLL_WRITE,
+    S_SCROLL_CLEAR,
     S_CLEAR_CONSOLE,
     S_UPDATE_INPUT_RAM,
     S_BITMAP_SEND,
@@ -116,7 +123,8 @@ module evaluation_controller (
     S_SWEEP_WAIT,
     S_SWEEP_REPORT,
     S_PING_BCD_INIT,
-    S_PING_BCD_STEP
+    S_PING_BCD_STEP,
+    S_PING_FMT_STEP
   } state_t;
 
   state_t state, state_after_scroll;
@@ -143,7 +151,8 @@ module evaluation_controller (
     SRC_SWEEP_START,
     SRC_SWEEP_PASS,
     SRC_SWEEP_FAIL,
-    SRC_SWEEP_DONE
+    SRC_SWEEP_DONE,
+    SRC_RX_CHAR
   } msg_src_t;
 
   msg_src_t msg_src;
@@ -160,19 +169,36 @@ module evaluation_controller (
   logic [31:0] bcd_reg;
   logic [31:0] bin_reg;
   logic [ 5:0] bcd_cnt;
+  logic [ 3:0] bcd_d [0:7];
+  logic [ 5:0] fmt_ptr;
+  logic [ 2:0] fmt_phase;
+  logic [ 3:0] fmt_digit_idx;
+  logic [ 4:0] fmt_text_idx;
+  logic        fmt_lead_zero;
 
-  // Optimized Compact CLI Input Buffer (32 bytes)
-  localparam CLI_BUF_LEN = 32;
+  // CLI Input Buffer (128 bytes - full line width)
+  localparam CLI_BUF_LEN = 128;
   logic [7:0] input_buf [0:CLI_BUF_LEN-1];
   logic [10:0] input_len;
   logic [10:0] input_cursor;
 
-  // Shell Command History Buffer (4 commands x 32 chars)
-  logic [7:0] history_buf [0:3][0:CLI_BUF_LEN-1];
-  logic [4:0] history_len [0:3];
-  logic [1:0] history_head;
+  // Shell Command History Buffer (4 commands x 64 chars)
+  localparam HIST_BUF_LEN = 64;
+  logic [7:0] history_buf [0:3][0:HIST_BUF_LEN-1];
+  logic [6:0] history_len [0:3];
   logic [2:0] history_count;
-  logic [2:0] history_pos; // 0 = current, 1 = 1 back, 2 = 2 back...
+  logic [2:0] history_pos; // 0 = current live, 1 = entry 0, 2 = entry 1...
+
+  // Sequential History Reordering / Deduplication Registers
+  logic [1:0] hist_check_idx;
+  logic [1:0] hist_match_idx;
+  logic       hist_matched;
+
+  // Console Line & Scrolling Registers
+  localparam int MAX_CONSOLE_LINES = 40;
+  logic [5:0] console_line_cnt;
+  logic [6:0] console_col_cnt;
+  logic [7:0] rx_char_hold;
 
   // Pointers & Indices
   logic [9:0] console_write_ptr;
@@ -204,6 +230,16 @@ module evaluation_controller (
   logic [31:0] sweep_timer;
   logic [10:0] sweep_pass_mask;
   logic        sweep_active;
+  logic        sweep_step_passed;
+
+  // Newline-based console auto-scroll registers
+  logic [9:0] scan_idx;
+  logic [9:0] nl_len;
+  logic [9:0] clear_src;
+
+  // Periodic 0.5s Error Metric Window Registers
+  logic [26:0] err_window_timer;
+  logic [15:0] err_man_acc, err_pre_acc, err_par_acc;
 
   localparam logic [3:0] SWEEP_BAUD[0:10] = '{4'd0, 4'd1, 4'd1, 4'd2, 4'd3, 4'd3, 4'd4, 4'd5, 4'd5, 4'd6, 4'd7};
   localparam logic [3:0] SWEEP_OS[0:10]   = '{4'd0, 4'd0, 4'd1, 4'd0, 4'd0, 4'd1, 4'd0, 4'd1, 4'd0, 4'd0, 4'd0};
@@ -227,7 +263,19 @@ module evaluation_controller (
       .pixel_byte(prng_pixel_byte)
   );
 
-  // Real-time Error Counters (with edge detectors on error pulses)
+  // 0.5s periodic window decay timer instantiated using counter.sv
+  logic err_window_tick;
+  counter #(
+      .VALUE_MAX(50_000_000 - 1)
+  ) u_err_window_counter (
+      .clk(clk),
+      .rst_n(rst_n),
+      .enabled(1'b1),
+      .value(),
+      .overflow(err_window_tick)
+  );
+
+  // Real-time Error Counters (with edge detectors and 0.5s periodic window decay)
   logic man_err_d1, pre_err_d1, par_err_d1;
 
   always_ff @(posedge clk or negedge rst_n) begin
@@ -235,6 +283,9 @@ module evaluation_controller (
       man_err_d1  <= 1'b0;
       pre_err_d1  <= 1'b0;
       par_err_d1  <= 1'b0;
+      err_man_acc <= 16'd0;
+      err_pre_acc <= 16'd0;
+      err_par_acc <= 16'd0;
       err_man_cnt <= 16'd0;
       err_pre_cnt <= 16'd0;
       err_par_cnt <= 16'd0;
@@ -244,13 +295,23 @@ module evaluation_controller (
       par_err_d1 <= proto_eval_parity_error;
 
       if (proto_eval_manchester_code_error && !man_err_d1) begin
-        if (err_man_cnt != 16'hFFFF) err_man_cnt <= err_man_cnt + 16'd1;
+        if (err_man_acc != 16'hFFFF) err_man_acc <= err_man_acc + 16'd1;
       end
       if (proto_eval_preamble_error && !pre_err_d1) begin
-        if (err_pre_cnt != 16'hFFFF) err_pre_cnt <= err_pre_cnt + 16'd1;
+        if (err_pre_acc != 16'hFFFF) err_pre_acc <= err_pre_acc + 16'd1;
       end
       if (proto_eval_parity_error && !par_err_d1) begin
-        if (err_par_cnt != 16'hFFFF) err_par_cnt <= err_par_cnt + 16'd1;
+        if (err_par_acc != 16'hFFFF) err_par_acc <= err_par_acc + 16'd1;
+      end
+
+      // Latch counts to display registers and reset accumulator every 0.5s
+      if (err_window_tick) begin
+        err_man_cnt <= err_man_acc;
+        err_pre_cnt <= err_pre_acc;
+        err_par_cnt <= err_par_acc;
+        err_man_acc <= 16'd0;
+        err_pre_acc <= 16'd0;
+        err_par_acc <= 16'd0;
       end
     end
   end
@@ -309,17 +370,36 @@ module evaluation_controller (
     "T", "y", "p", "e", " ", "/", "h", "e", "l", "p", " ", "f", "o", "r", " ", "c", "o", "m", "m", "a", "n", "d", "s", ".", "\n"
   };
 
-  localparam logic [7:0] HELP_BYTES [0:284] = '{
-    "-", "-", "-", " ", "O", "p", "t", "i", "B", "o", "l", "t", " ", "H", "e", "l", "p", " ", "-", "-", "-", "\n",
-    "/", "h", "e", "l", "p", " ", " ", " ", " ", " ", " ", " ", " ", " ", ":", " ", "S", "h", "o", "w", " ", "h", "e", "l", "p", "\n",
-    "/", "s", "t", "a", "t", "u", "s", " ", " ", " ", " ", " ", " ", ":", " ", "L", "i", "n", "k", " ", "s", "t", "a", "t", "u", "s", "\n",
-    "/", "b", "a", "u", "d", " ", "<", "r", "a", "t", "e", ">", " ", ":", " ", "S", "e", "t", " ", "b", "a", "u", "d", "r", "a", "t", "e", "\n",
-    "/", "o", "s", " ", "<", "8", "|", "1", "6", ">", " ", " ", " ", ":", " ", "S", "e", "t", " ", "o", "v", "e", "r", "s", "a", "m", "p", "l", "i", "n", "g", "\n",
-    "/", "l", "o", "o", "p", "b", "a", "c", "k", " ", " ", " ", ":", " ", "T", "o", "g", "g", "l", "e", " ", "l", "o", "o", "p", "b", "a", "c", "k", "\n",
-    "/", "p", "i", "n", "g", " ", " ", " ", " ", " ", " ", " ", " ", ":", " ", "M", "e", "a", "s", "u", "r", "e", " ", "R", "T", "T", "\n",
-    "/", "t", "e", "s", "t", " ", "s", "w", "e", "e", "p", " ", ":", " ", "S", "w", "e", "e", "p", " ", "a", "l", "l", " ", "s", "p", "e", "e", "d", "s", "\n",
-    "/", "b", "i", "t", "m", "a", "p", " ", "s", "e", "n", "d", ":", " ", "S", "t", "r", "e", "a", "m", " ", "1", "2", "8", "x", "1", "2", "8", " ", "B", "M", "P", "\n",
-    "/", "c", "l", "e", "a", "r", " ", " ", " ", " ", " ", " ", " ", ":", " ", "C", "l", "e", "a", "r", " ", "c", "o", "n", "s", "o", "l", "e", "\n"
+  localparam logic [7:0] HELP_BYTES [0:463] = '{
+    "-", "-", "-", " ", "O", "p", "t", "i", "B", "o", "l", "t", " ", "H", "e", "l",
+    "p", " ", "-", "-", "-", "\n", "/", "h", "e", "l", "p", " ", " ", " ", " ", " ",
+    " ", " ", " ", " ", ":", " ", "S", "h", "o", "w", " ", "c", "o", "m", "m", "a",
+    "n", "d", "s", "\n", "/", "s", "t", "a", "t", "u", "s", " ", " ", " ", " ", " ",
+    " ", " ", ":", " ", "L", "i", "n", "k", " ", "&", " ", "b", "a", "u", "d", " ",
+    "s", "t", "a", "t", "u", "s", "\n", "/", "b", "a", "u", "d", " ", "<", "r", "a",
+    "t", "e", ">", " ", " ", ":", " ", "1", "0", "0", "k", ",", " ", "1", "m", ",",
+    " ", "1", ".", "2", "5", "m", ",", " ", "2", ".", "5", "m", ",", " ", "3", ".",
+    "1", "2", "5", "m", ",", "\n", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ",
+    " ", " ", " ", " ", " ", " ", "5", "m", ",", " ", "6", ".", "2", "5", "m", ",",
+    " ", "8", ".", "3", "3", "m", ",", " ", "1", "2", ".", "5", "m", ",", " ", "2",
+    "5", "m", "\n", "/", "o", "s", " ", "<", "8", "|", "1", "6", ">", " ", " ", " ",
+    " ", ":", " ", "S", "e", "t", " ", "8", "x", " ", "o", "r", " ", "1", "6", "x",
+    " ", "o", "v", "e", "r", "s", "a", "m", "p", "l", "i", "n", "g", "\n", "/", "l",
+    "o", "o", "p", "b", "a", "c", "k", " ", " ", " ", " ", " ", ":", " ", "T", "o",
+    "g", "g", "l", "e", " ", "o", "p", "t", "i", "c", "a", "l", " ", "l", "o", "o",
+    "p", "b", "a", "c", "k", "\n", "/", "p", "i", "n", "g", " ", " ", " ", " ", " ",
+    " ", " ", " ", " ", ":", " ", "M", "e", "a", "s", "u", "r", "e", " ", "o", "p",
+    "t", "i", "c", "a", "l", " ", "R", "T", "T", " ", "l", "a", "t", "e", "n", "c",
+    "y", "\n", "/", "t", "e", "s", "t", " ", "s", "w", "e", "e", "p", " ", " ", " ",
+    ":", " ", "S", "w", "e", "e", "p", " ", "a", "l", "l", " ", "1", "1", " ", "b",
+    "a", "u", "d", "/", "o", "s", " ", "c", "o", "n", "f", "i", "g", "s", "\n", "/",
+    "b", "i", "t", "m", "a", "p", " ", "s", "e", "n", "d", " ", " ", ":", " ", "S",
+    "t", "r", "e", "a", "m", " ", "1", "2", "8", "x", "1", "2", "8", " ", "B", "M",
+    "P", " ", "i", "m", "a", "g", "e", "\n", "/", "b", "i", "t", "m", "a", "p", " ",
+    "c", "l", "e", "a", "r", " ", ":", " ", "C", "l", "e", "a", "r", " ", "d", "y",
+    "n", "a", "m", "i", "c", " ", "b", "i", "t", "m", "a", "p", "\n", "/", "c", "l",
+    "e", "a", "r", " ", " ", " ", " ", " ", " ", " ", " ", ":", " ", "C", "l", "e",
+    "a", "r", " ", "c", "o", "n", "s", "o", "l", "e", " ", "t", "e", "x", "t", "\n"
   };
 
   localparam logic [7:0] STATUS_DISCONN_BYTES [0:22] = '{
@@ -370,6 +450,12 @@ module evaluation_controller (
   localparam logic [7:0] SWEEP_DONE_BYTES [0:21] = '{
     "S", "w", "e", "e", "p", " ", "t", "e", "s", "t", " ", "c", "o", "m", "p", "l", "e", "t", "e", "d", "!", "\n"
   };
+
+  localparam logic [7:0] PING_LOOP_PREFIX [0:16] = '{"P","i","n","g"," ","(","L","o","o","p","b","a","c","k",")",":"," "};
+  localparam logic [7:0] PING_REM_PREFIX  [0:14] = '{"P","i","n","g"," ","(","R","e","m","o","t","e",")",":"," "};
+  localparam logic [7:0] PING_TIMEOUT_STR [0:13] = '{"P","i","n","g"," ","t","i","m","e","o","u","t",".","\n"};
+  localparam logic [7:0] PING_CYC_STR     [0:8]  = '{" ","c","y","c","l","e","s"," ","("};
+  localparam logic [7:0] PING_US_STR      [0:4]  = '{" ","u","s",")","\n"};
 
   // Baudrate Sweep Pre-formatted Constant Lines
   localparam logic [7:0] SWEEP_PASS_STR [0:10][0:20] = '{
@@ -424,6 +510,7 @@ module evaluation_controller (
       SRC_SWEEP_PASS:     current_msg_char = SWEEP_PASS_STR[sweep_step][msg_idx];
       SRC_SWEEP_FAIL:     current_msg_char = SWEEP_FAIL_STR[sweep_step][msg_idx];
       SRC_SWEEP_DONE:     current_msg_char = SWEEP_DONE_BYTES[msg_idx];
+      SRC_RX_CHAR:        current_msg_char = rx_char_hold;
       default:            current_msg_char = 8'h00;
     endcase
   end
@@ -463,7 +550,18 @@ module evaluation_controller (
       prng_next_pixel <= 1'b0;
       hs_tx_ack <= 1'b0;
 
-      history_head  <= '0;
+      console_line_cnt <= 6'd0;
+      console_col_cnt  <= 7'd0;
+      rx_char_hold     <= 8'h00;
+      hist_check_idx   <= 2'd0;
+      hist_match_idx   <= 2'd0;
+      hist_matched     <= 1'b0;
+      fmt_ptr          <= 6'd0;
+      fmt_phase        <= 3'd0;
+      fmt_digit_idx    <= 4'd0;
+      fmt_text_idx     <= 4'd0;
+      fmt_lead_zero    <= 1'b1;
+      for (int i = 0; i < 8; i++) bcd_d[i] <= 4'd0;
       history_count <= '0;
       history_pos   <= '0;
       for (int h = 0; h < 4; h++) begin
@@ -534,14 +632,7 @@ module evaluation_controller (
         end
       end
 
-      // Loopback ping self-reply
-      if (ping_active && link_status == 2'b10 && ping_timer > 32'd200) begin
-        ping_active      <= 1'b0;
-        ping_rtt_cycles  <= ping_timer;
-        ping_is_timeout  <= 1'b0;
-        ping_is_loopback <= 1'b1;
-        state            <= S_PING_BCD_INIT;
-      end
+// Fake loopback self-reply removed: real packet transit through optical TX/RX is measured
 
       // Process Incoming Protocol Packets
       if (proto_eval_rx_valid) begin
@@ -615,25 +706,19 @@ module evaluation_controller (
         end
       end
 
-      // Drain RX FIFO to console BRAM when controller is not actively printing
-      if (state != S_PRINT_MSG && state != S_INIT && state != S_CLEAR_CONSOLE && state != S_SCROLL_READ && state != S_SCROLL_WRITE && rx_fifo_count > 0) begin
-        if (console_write_ptr >= 10'd800) begin
-          state_after_scroll <= state;
-          scroll_src         <= 10'd80;
-          scroll_dst         <= 10'd0;
-          state              <= S_SCROLL_READ;
-        end else begin
-          console_addr      <= console_write_ptr;
-          console_din       <= rx_fifo_chars[rx_fifo_tail];
-          console_we        <= 1'b1;
-          console_write_ptr <= (console_write_ptr == CONSOLE_MAX_LEN - 1) ? 10'd0 : console_write_ptr + 10'd1;
-          rx_fifo_tail      <= rx_fifo_tail + 2'd1;
-          rx_fifo_count     <= rx_fifo_count - 3'd1;
-        end
+      // Drain RX FIFO to console BRAM safely when controller is in S_IDLE
+      if (state == S_IDLE && rx_fifo_count > 0) begin
+        rx_char_hold  <= rx_fifo_chars[rx_fifo_tail];
+        rx_fifo_tail  <= rx_fifo_tail + 2'd1;
+        rx_fifo_count <= rx_fifo_count - 3'd1;
+        msg_src       <= SRC_RX_CHAR;
+        msg_idx       <= '0;
+        msg_len       <= 11'd1;
+        state         <= S_PRINT_MSG;
       end
 
       // Packet arbitration for Handshake / Baud Negotiation / Ping
-      if (state == S_IDLE && !proto_eval_tx_full) begin
+      if (state != S_BITMAP_SEND && state != S_TEXT_SEND && !proto_eval_tx_full) begin
         if (pending_ping_reply) begin
           eval_proto_tx_valid <= 1'b1;
           eval_proto_tx_type  <= MSG_ACCEPT;
@@ -682,15 +767,19 @@ module evaluation_controller (
               input_update_idx <= 7'd0;
               state <= S_UPDATE_INPUT_RAM;
             end else if (cmd_enter) begin
-              state <= S_PROCESS_CMD;
+              input_buf[input_len[6:0]] <= 8'h0A;
+              msg_src <= SRC_INPUT_ECHO;
+              msg_idx <= '0;
+              msg_len <= 11'(input_len + 1);
+              state   <= S_PRINT_MSG;
             end else if (cmd_up) begin
               if (history_count > 0 && history_pos < history_count) begin
                 logic [1:0] load_idx;
-                load_idx = 2'(history_head - 1 - history_pos[1:0]);
+                load_idx = history_pos[1:0];
                 input_len    <= 11'(history_len[load_idx] + 2);
                 input_cursor <= 11'(history_len[load_idx] + 2);
                 for (int i = 2; i < CLI_BUF_LEN; i++) begin
-                  if ((i - 2) < history_len[load_idx]) input_buf[i] <= history_buf[load_idx][i-2];
+                  if ((i - 2) < history_len[load_idx] && (i - 2) < HIST_BUF_LEN) input_buf[i] <= history_buf[load_idx][i-2];
                   else input_buf[i] <= 8'h00;
                 end
                 history_pos <= history_pos + 3'd1;
@@ -701,11 +790,11 @@ module evaluation_controller (
               if (history_pos > 1) begin
                 logic [1:0] load_idx;
                 history_pos <= history_pos - 3'd1;
-                load_idx = 2'(history_head - 1 - (history_pos[1:0] - 2'd2));
+                load_idx = 2'(history_pos[1:0] - 2'd2);
                 input_len    <= 11'(history_len[load_idx] + 2);
                 input_cursor <= 11'(history_len[load_idx] + 2);
                 for (int i = 2; i < CLI_BUF_LEN; i++) begin
-                  if ((i - 2) < history_len[load_idx]) input_buf[i] <= history_buf[load_idx][i-2];
+                  if ((i - 2) < history_len[load_idx] && (i - 2) < HIST_BUF_LEN) input_buf[i] <= history_buf[load_idx][i-2];
                   else input_buf[i] <= 8'h00;
                 end
                 input_update_idx <= 7'd0;
@@ -718,37 +807,16 @@ module evaluation_controller (
                 input_update_idx <= 7'd0;
                 state <= S_UPDATE_INPUT_RAM;
               end
-            end else if (cmd_left && input_cursor > 2) begin
-              input_cursor <= input_cursor - 1;
-              input_update_idx <= 7'd0;
-              state <= S_UPDATE_INPUT_RAM;
-            end else if (cmd_right && input_cursor < input_len) begin
-              input_cursor <= input_cursor + 1;
-              input_update_idx <= 7'd0;
-              state <= S_UPDATE_INPUT_RAM;
             end else if (char_valid && input_len < (CLI_BUF_LEN - 2)) begin
-              if (input_cursor == input_len) begin
-                input_buf[input_cursor[4:0]] <= char_ascii;
-              end else begin
-                for (int i = CLI_BUF_LEN - 1; i > 0; i--) begin
-                  if (i > input_cursor) input_buf[i] <= input_buf[i-1];
-                end
-                input_buf[input_cursor[4:0]] <= char_ascii;
-              end
-              input_cursor <= input_cursor + 1;
-              input_len <= input_len + 1;
+              input_buf[input_len[6:0]] <= char_ascii;
+              input_cursor <= input_len + 1;
+              input_len    <= input_len + 1;
               input_update_idx <= 7'd0;
               state <= S_UPDATE_INPUT_RAM;
-            end else if (cmd_backspace && input_cursor > 2) begin
-              if (input_cursor == input_len) begin
-                input_buf[input_cursor[4:0] - 1] <= 8'h00;
-              end else begin
-                for (int i = 2; i < CLI_BUF_LEN - 1; i++) begin
-                  if (i >= input_cursor - 1) input_buf[i] <= input_buf[i+1];
-                end
-              end
-              input_cursor <= input_cursor - 1;
-              input_len <= input_len - 1;
+            end else if (cmd_backspace && input_len > 2) begin
+              input_buf[input_len[6:0] - 1] <= 8'h00;
+              input_cursor <= input_len - 1;
+              input_len    <= input_len - 1;
               input_update_idx <= 7'd0;
               state <= S_UPDATE_INPUT_RAM;
             end
@@ -764,7 +832,7 @@ module evaluation_controller (
                 ITEM_HELP_BTN: begin
                   msg_src <= SRC_HELP;
                   msg_idx <= '0;
-                  msg_len <= 11'd285;
+                  msg_len <= 11'd464;
                   state   <= S_PRINT_MSG;
                 end
                 ITEM_PING_BTN: begin
@@ -840,37 +908,80 @@ module evaluation_controller (
           end
         end
 
-        S_PROCESS_CMD: begin
-          // Save to command history if length > 2
-          if (input_len > 2) begin
-            bit is_dup;
-            is_dup = (history_count > 0 &&
-                      history_len[2'(history_head-1)] == (input_len - 2) &&
-                      input_buf[2] == history_buf[2'(history_head-1)][0]);
-            if (!is_dup) begin
-              history_len[history_head] <= 5'(input_len - 2);
-              for (int c = 0; c < CLI_BUF_LEN; c++) begin
-                if (c < input_len - 2) history_buf[history_head][c] <= input_buf[c+2];
-                else history_buf[history_head][c] <= 8'h00;
-              end
-              history_head <= history_head + 2'd1;
-              if (history_count < 3'd4) history_count <= history_count + 3'd1;
+        // Sequential Command History Deduplication & MRU Reordering FSM
+        S_HIST_SCAN: begin
+          if (hist_check_idx < history_count && history_len[hist_check_idx] == 7'(input_len - 2)) begin
+            bit match;
+            match = 1'b1;
+            for (int c = 0; c < HIST_BUF_LEN; c++) begin
+              if (c < input_len - 2 && input_buf[c+2] != history_buf[hist_check_idx][c]) match = 1'b0;
             end
+            if (match) begin
+              hist_matched   <= 1'b1;
+              hist_match_idx <= hist_check_idx;
+              state          <= S_HIST_UPDATE;
+            end else if (hist_check_idx == 2'd3 || hist_check_idx == 2'(history_count - 1)) begin
+              hist_matched <= 1'b0;
+              state        <= S_HIST_UPDATE;
+            end else begin
+              hist_check_idx <= hist_check_idx + 2'd1;
+            end
+          end else if (hist_check_idx == 2'd3 || hist_check_idx == 2'(history_count - 1)) begin
+            hist_matched <= 1'b0;
+            state        <= S_HIST_UPDATE;
+          end else begin
+            hist_check_idx <= hist_check_idx + 2'd1;
+          end
+        end
+
+        S_HIST_UPDATE: begin
+          if (hist_matched) begin
+            // Match found: promote hist_match_idx to entry 0 (MRU), shift newer entries down
+            case (hist_match_idx)
+              2'd0: begin
+                // Already at MRU, update contents
+                for (int c = 0; c < HIST_BUF_LEN; c++) history_buf[0][c] <= (c < input_len - 2) ? input_buf[c+2] : 8'h00;
+                history_len[0] <= 7'(input_len - 2);
+              end
+              2'd1: begin
+                history_buf[1] <= history_buf[0]; history_len[1] <= history_len[0];
+                for (int c = 0; c < HIST_BUF_LEN; c++) history_buf[0][c] <= (c < input_len - 2) ? input_buf[c+2] : 8'h00;
+                history_len[0] <= 7'(input_len - 2);
+              end
+              2'd2: begin
+                history_buf[2] <= history_buf[1]; history_len[2] <= history_len[1];
+                history_buf[1] <= history_buf[0]; history_len[1] <= history_len[0];
+                for (int c = 0; c < HIST_BUF_LEN; c++) history_buf[0][c] <= (c < input_len - 2) ? input_buf[c+2] : 8'h00;
+                history_len[0] <= 7'(input_len - 2);
+              end
+              2'd3: begin
+                history_buf[3] <= history_buf[2]; history_len[3] <= history_len[2];
+                history_buf[2] <= history_buf[1]; history_len[2] <= history_len[1];
+                history_buf[1] <= history_buf[0]; history_len[1] <= history_len[0];
+                for (int c = 0; c < HIST_BUF_LEN; c++) history_buf[0][c] <= (c < input_len - 2) ? input_buf[c+2] : 8'h00;
+                history_len[0] <= 7'(input_len - 2);
+              end
+            endcase
+          end else begin
+            // Brand new command: shift older commands down, insert at entry 0 (MRU)
+            history_buf[3] <= history_buf[2]; history_len[3] <= history_len[2];
+            history_buf[2] <= history_buf[1]; history_len[2] <= history_len[1];
+            history_buf[1] <= history_buf[0]; history_len[1] <= history_len[0];
+            for (int c = 0; c < HIST_BUF_LEN; c++) history_buf[0][c] <= (c < input_len - 2) ? input_buf[c+2] : 8'h00;
+            history_len[0] <= 7'(input_len - 2);
+            if (history_count < 3'd4) history_count <= history_count + 3'd1;
           end
           history_pos <= 3'd0;
+          state <= S_PROCESS_CMD;
+        end
 
-          // Echo input line with \n
-          input_buf[input_len[4:0]] <= 8'h0A;
-          msg_src <= SRC_INPUT_ECHO;
-          msg_idx <= '0;
-          msg_len <= 11'(input_len + 1);
-
+        S_PROCESS_CMD: begin
           // Parse commands
           if (input_len > 2 && input_buf[2] == "/") begin
             if (input_len >= 7 && input_buf[3]=="h" && input_buf[4]=="e" && input_buf[5]=="l" && input_buf[6]=="p") begin
               msg_src <= SRC_HELP;
               msg_idx <= '0;
-              msg_len <= 11'd285;
+              msg_len <= 11'd464;
               state <= S_PRINT_MSG;
             end else if (input_len >= 9 && input_buf[3]=="s" && input_buf[4]=="t" && input_buf[5]=="a" && input_buf[6]=="t" && input_buf[7]=="u" && input_buf[8]=="s") begin
               if (link_status == 2'b00) msg_src <= SRC_STATUS_DISCONN;
@@ -1036,19 +1147,39 @@ module evaluation_controller (
         end
 
         S_PRINT_MSG: begin
-          if (console_write_ptr >= 10'd800) begin
+          if (console_line_cnt >= MAX_CONSOLE_LINES || console_write_ptr >= 10'd850) begin
             state_after_scroll <= S_PRINT_MSG;
-            scroll_src         <= 10'd80;
-            scroll_dst         <= 10'd0;
-            state              <= S_SCROLL_READ;
+            scan_idx           <= 10'd0;
+            state              <= S_FIND_NL_READ;
           end else begin
             console_addr      <= console_write_ptr;
             console_din       <= current_msg_char;
             console_we        <= 1'b1;
             console_write_ptr <= (console_write_ptr == CONSOLE_MAX_LEN - 1) ? 10'd0 : console_write_ptr + 10'd1;
 
+            if (current_msg_char == 8'h0A) begin
+              console_line_cnt <= console_line_cnt + 6'd1;
+              console_col_cnt  <= 7'd0;
+            end else begin
+              if (console_col_cnt >= 7'd95) begin
+                console_line_cnt <= console_line_cnt + 6'd1;
+                console_col_cnt  <= 7'd0;
+              end else begin
+                console_col_cnt  <= console_col_cnt + 7'd1;
+              end
+            end
+
             if (msg_idx + 1 == msg_len) begin
-              if (sweep_active) begin
+              if (msg_src == SRC_INPUT_ECHO) begin
+                if (input_len > 2) begin
+                  hist_check_idx <= 2'd0;
+                  hist_match_idx <= 2'd0;
+                  hist_matched   <= 1'b0;
+                  state          <= S_HIST_SCAN;
+                end else begin
+                  state          <= S_PROCESS_CMD;
+                end
+              end else if (sweep_active) begin
                 if (msg_src == SRC_SWEEP_START || msg_src == SRC_SWEEP_PASS || msg_src == SRC_SWEEP_FAIL) begin
                   if (sweep_step == 4'd10 && (msg_src == SRC_SWEEP_PASS || msg_src == SRC_SWEEP_FAIL)) begin
                     msg_src <= SRC_SWEEP_DONE;
@@ -1065,12 +1196,14 @@ module evaluation_controller (
                   popup_mode    <= POPUP_NONE;
                   input_len     <= 11'd2;
                   input_cursor  <= 11'd2;
+                  for (int i = 2; i < CLI_BUF_LEN; i++) input_buf[i] <= 8'h00;
                   input_update_idx <= 7'd0;
                   state <= S_UPDATE_INPUT_RAM;
                 end
               end else begin
                 input_len     <= 11'd2;
                 input_cursor  <= 11'd2;
+                for (int i = 2; i < CLI_BUF_LEN; i++) input_buf[i] <= 8'h00;
                 input_update_idx <= 7'd0;
                 state <= S_UPDATE_INPUT_RAM;
               end
@@ -1105,70 +1238,146 @@ module evaluation_controller (
           bin_reg <= {bin_reg[30:0], 1'b0};
 
           if (bcd_cnt == 6'd31) begin
-            // Double-Dabble complete! Build ping string
-            logic [3:0] d7, d6, d5, d4, d3, d2, d1, d0;
-            int p;
-            d7 = n7; d6 = n6; d5 = n5; d4 = n4; d3 = n3; d2 = n2; d1 = n1; d0 = {n0[2:0], bin_reg[31]};
-
-            p = 0;
-            if (ping_is_timeout) begin
-              ping_msg_buf[0] = "P"; ping_msg_buf[1] = "i"; ping_msg_buf[2] = "n"; ping_msg_buf[3] = "g";
-              ping_msg_buf[4] = " "; ping_msg_buf[5] = "t"; ping_msg_buf[6] = "i"; ping_msg_buf[7] = "m";
-              ping_msg_buf[8] = "e"; ping_msg_buf[9] = "o"; ping_msg_buf[10] = "u"; ping_msg_buf[11] = "t";
-              ping_msg_buf[12] = "."; ping_msg_buf[13] = "\n";
-              ping_msg_len <= 6'd14;
-            end else begin
-              if (ping_is_loopback) begin
-                ping_msg_buf[0] = "P"; ping_msg_buf[1] = "i"; ping_msg_buf[2] = "n"; ping_msg_buf[3] = "g";
-                ping_msg_buf[4] = " "; ping_msg_buf[5] = "("; ping_msg_buf[6] = "L"; ping_msg_buf[7] = "o";
-                ping_msg_buf[8] = "o"; ping_msg_buf[9] = "p"; ping_msg_buf[10] = "b"; ping_msg_buf[11] = "a";
-                ping_msg_buf[12] = "c"; ping_msg_buf[13] = "k"; ping_msg_buf[14] = ")"; ping_msg_buf[15] = ":";
-                ping_msg_buf[16] = " ";
-                p = 17;
-              end else begin
-                ping_msg_buf[0] = "P"; ping_msg_buf[1] = "i"; ping_msg_buf[2] = "n"; ping_msg_buf[3] = "g";
-                ping_msg_buf[4] = " "; ping_msg_buf[5] = "("; ping_msg_buf[6] = "R"; ping_msg_buf[7] = "e";
-                ping_msg_buf[8] = "m"; ping_msg_buf[9] = "o"; ping_msg_buf[10] = "t"; ping_msg_buf[11] = "e";
-                ping_msg_buf[12] = ")"; ping_msg_buf[13] = ":"; ping_msg_buf[14] = " ";
-                p = 15;
-              end
-
-              // Format cycles
-              if (d7 != 0) ping_msg_buf[p++] = 8'h30 + d7;
-              if (d7 != 0 || d6 != 0) ping_msg_buf[p++] = 8'h30 + d6;
-              if (d7 != 0 || d6 != 0 || d5 != 0) ping_msg_buf[p++] = 8'h30 + d5;
-              if (d7 != 0 || d6 != 0 || d5 != 0 || d4 != 0) ping_msg_buf[p++] = 8'h30 + d4;
-              if (d7 != 0 || d6 != 0 || d5 != 0 || d4 != 0 || d3 != 0) ping_msg_buf[p++] = 8'h30 + d3;
-              if (d7 != 0 || d6 != 0 || d5 != 0 || d4 != 0 || d3 != 0 || d2 != 0) ping_msg_buf[p++] = 8'h30 + d2;
-              if (d7 != 0 || d6 != 0 || d5 != 0 || d4 != 0 || d3 != 0 || d2 != 0 || d1 != 0) ping_msg_buf[p++] = 8'h30 + d1;
-              ping_msg_buf[p++] = 8'h30 + d0;
-
-              ping_msg_buf[p++] = " "; ping_msg_buf[p++] = "c"; ping_msg_buf[p++] = "y";
-              ping_msg_buf[p++] = "c"; ping_msg_buf[p++] = "l"; ping_msg_buf[p++] = "e";
-              ping_msg_buf[p++] = "s"; ping_msg_buf[p++] = " "; ping_msg_buf[p++] = "(";
-
-              // Format microseconds (integer part d7..d2, frac part d1..d0)
-              if (d7 != 0) ping_msg_buf[p++] = 8'h30 + d7;
-              if (d7 != 0 || d6 != 0) ping_msg_buf[p++] = 8'h30 + d6;
-              if (d7 != 0 || d6 != 0 || d5 != 0) ping_msg_buf[p++] = 8'h30 + d5;
-              if (d7 != 0 || d6 != 0 || d5 != 0 || d4 != 0) ping_msg_buf[p++] = 8'h30 + d4;
-              if (d7 != 0 || d6 != 0 || d5 != 0 || d4 != 0 || d3 != 0) ping_msg_buf[p++] = 8'h30 + d3;
-              ping_msg_buf[p++] = 8'h30 + d2;
-
-              ping_msg_buf[p++] = ".";
-              ping_msg_buf[p++] = 8'h30 + d1;
-              ping_msg_buf[p++] = 8'h30 + d0;
-              ping_msg_buf[p++] = " "; ping_msg_buf[p++] = "u"; ping_msg_buf[p++] = "s";
-              ping_msg_buf[p++] = ")"; ping_msg_buf[p++] = "\n";
-              ping_msg_len <= 6'(p);
-            end
-
-            msg_src <= SRC_PING_MSG;
-            msg_idx <= '0;
-            msg_len <= 11'(p == 0 ? 14 : p);
-            state   <= S_PRINT_MSG;
+            // Latch digits for timing-clean sequential formatting (1 byte/cycle)
+            bcd_d[7] <= n7;
+            bcd_d[6] <= n6;
+            bcd_d[5] <= n5;
+            bcd_d[4] <= n4;
+            bcd_d[3] <= n3;
+            bcd_d[2] <= n2;
+            bcd_d[1] <= n1;
+            bcd_d[0] <= {n0[2:0], bin_reg[31]};
+            fmt_ptr       <= 6'd0;
+            fmt_phase     <= 3'd0;
+            fmt_digit_idx <= 4'd7;
+            fmt_text_idx  <= 4'd0;
+            fmt_lead_zero <= 1'b1;
+            state         <= S_PING_FMT_STEP;
           end else begin
             bcd_cnt <= bcd_cnt + 6'd1;
+          end
+        end
+
+        // -------------------------------------------------------------------
+        // Sequential Timing-Clean Ping String Formatter (1 byte / cycle)
+        // -------------------------------------------------------------------
+        S_PING_FMT_STEP: begin
+          if (ping_is_timeout) begin
+            if (fmt_ptr < 6'd14) begin
+              ping_msg_buf[fmt_ptr] <= PING_TIMEOUT_STR[fmt_ptr[3:0]];
+              fmt_ptr <= fmt_ptr + 6'd1;
+            end else begin
+              ping_msg_len <= 6'd14;
+              msg_src      <= SRC_PING_MSG;
+              msg_idx      <= '0;
+              msg_len      <= 11'd14;
+              state        <= S_PRINT_MSG;
+            end
+          end else begin
+            case (fmt_phase)
+              // Phase 0: Prefix String
+              3'd0: begin
+                if (ping_is_loopback) begin
+                  ping_msg_buf[fmt_ptr] <= PING_LOOP_PREFIX[fmt_text_idx];
+                  fmt_ptr       <= fmt_ptr + 6'd1;
+                  fmt_text_idx  <= fmt_text_idx + 5'd1;
+                  if (fmt_text_idx == 5'd16) begin
+                    fmt_phase     <= 3'd1;
+                    fmt_digit_idx <= 4'd7;
+                    fmt_lead_zero <= 1'b1;
+                  end
+                end else begin
+                  ping_msg_buf[fmt_ptr] <= PING_REM_PREFIX[fmt_text_idx];
+                  fmt_ptr       <= fmt_ptr + 6'd1;
+                  fmt_text_idx  <= fmt_text_idx + 5'd1;
+                  if (fmt_text_idx == 5'd14) begin
+                    fmt_phase     <= 3'd1;
+                    fmt_digit_idx <= 4'd7;
+                    fmt_lead_zero <= 1'b1;
+                  end
+                end
+              end
+
+              // Phase 1: Cycles Integer Digits (7 down to 0)
+              3'd1: begin
+                if (fmt_digit_idx == 4'd0 || bcd_d[fmt_digit_idx[2:0]] != 4'd0 || !fmt_lead_zero) begin
+                  fmt_lead_zero         <= 1'b0;
+                  ping_msg_buf[fmt_ptr] <= 8'h30 + bcd_d[fmt_digit_idx[2:0]];
+                  fmt_ptr               <= fmt_ptr + 6'd1;
+                end
+                if (fmt_digit_idx == 4'd0) begin
+                  fmt_phase    <= 3'd2;
+                  fmt_text_idx <= 4'd0;
+                end else begin
+                  fmt_digit_idx <= fmt_digit_idx - 4'd1;
+                end
+              end
+
+              // Phase 2: " cycles (" (9 characters)
+              3'd2: begin
+                ping_msg_buf[fmt_ptr] <= PING_CYC_STR[fmt_text_idx];
+                fmt_ptr      <= fmt_ptr + 6'd1;
+                fmt_text_idx <= fmt_text_idx + 4'd1;
+                if (fmt_text_idx == 4'd8) begin
+                  fmt_phase     <= 3'd3;
+                  fmt_digit_idx <= 4'd7;
+                  fmt_lead_zero <= 1'b1;
+                end
+              end
+
+              // Phase 3: Microseconds Integer Digits (7 down to 2)
+              3'd3: begin
+                if (fmt_digit_idx == 4'd2 || bcd_d[fmt_digit_idx[2:0]] != 4'd0 || !fmt_lead_zero) begin
+                  fmt_lead_zero         <= 1'b0;
+                  ping_msg_buf[fmt_ptr] <= 8'h30 + bcd_d[fmt_digit_idx[2:0]];
+                  fmt_ptr               <= fmt_ptr + 6'd1;
+                end
+                if (fmt_digit_idx == 4'd2) begin
+                  fmt_phase    <= 3'd4;
+                  fmt_text_idx <= 4'd0;
+                end else begin
+                  fmt_digit_idx <= fmt_digit_idx - 4'd1;
+                end
+              end
+
+              // Phase 4: Decimal point and 2 fractional digits
+              3'd4: begin
+                case (fmt_text_idx)
+                  4'd0: begin
+                    ping_msg_buf[fmt_ptr] <= 8'h2E; // '.'
+                    fmt_ptr      <= fmt_ptr + 6'd1;
+                    fmt_text_idx <= 4'd1;
+                  end
+                  4'd1: begin
+                    ping_msg_buf[fmt_ptr] <= 8'h30 + bcd_d[1];
+                    fmt_ptr      <= fmt_ptr + 6'd1;
+                    fmt_text_idx <= 4'd2;
+                  end
+                  4'd2: begin
+                    ping_msg_buf[fmt_ptr] <= 8'h30 + bcd_d[0];
+                    fmt_ptr      <= fmt_ptr + 6'd1;
+                    fmt_phase    <= 3'd5;
+                    fmt_text_idx <= 4'd0;
+                  end
+                  default: fmt_phase <= 3'd5;
+                endcase
+              end
+
+              // Phase 5: " us)\n" (5 characters)
+              3'd5: begin
+                ping_msg_buf[fmt_ptr] <= PING_US_STR[fmt_text_idx];
+                fmt_ptr      <= fmt_ptr + 6'd1;
+                fmt_text_idx <= fmt_text_idx + 4'd1;
+                if (fmt_text_idx == 4'd4) begin
+                  ping_msg_len <= 6'(fmt_ptr + 1);
+                  msg_src      <= SRC_PING_MSG;
+                  msg_idx      <= '0;
+                  msg_len      <= 11'(fmt_ptr + 1);
+                  state        <= S_PRINT_MSG;
+                end
+              end
+              default: state <= S_IDLE;
+            endcase
           end
         end
 
@@ -1179,21 +1388,36 @@ module evaluation_controller (
           eval_proto_baud_rate    <= SWEEP_BAUD[sweep_step];
           eval_proto_oversampling <= SWEEP_OS[sweep_step];
           sweep_timer             <= '0;
+          sweep_step_passed       <= 1'b0;
           progress_val            <= 8'((255 * (sweep_step + 1)) / 11);
           state                   <= S_SWEEP_WAIT;
         end
 
         S_SWEEP_WAIT: begin
-          if (sweep_timer == 32'd100_000) begin // 1 ms settling & test delay
+          // Send ping request after 2 ms (200,000 cycles) to allow clock settling
+          if (sweep_timer == 32'd200_000) begin
             eval_proto_tx_valid <= 1'b1;
             eval_proto_tx_type  <= MSG_REQUEST;
             eval_proto_tx_data  <= PING_TOKEN;
           end
 
-          if (sweep_timer >= 32'd500_000) begin // 5 ms timeout per step
-            msg_src <= (link_status != 2'b00) ? SRC_SWEEP_PASS : SRC_SWEEP_FAIL;
+          // Check if ping token returned through receiver
+          if (proto_eval_rx_valid && proto_eval_rx_type == MSG_REQUEST && proto_eval_rx_data == PING_TOKEN) begin
+            sweep_step_passed <= 1'b1;
+          end
+
+          // 20 ms timeout (2,000,000 cycles at 100MHz) per step
+          if (sweep_timer >= 32'd2_000_000) begin
+            if (sweep_step_passed && link_status != 2'b00) begin
+              sweep_pass_mask[sweep_step] <= 1'b1;
+              msg_src <= SRC_SWEEP_PASS;
+              msg_len <= 11'd21;
+            end else begin
+              sweep_pass_mask[sweep_step] <= 1'b0;
+              msg_src <= SRC_SWEEP_FAIL;
+              msg_len <= 11'd26;
+            end
             msg_idx <= '0;
-            msg_len <= (link_status != 2'b00) ? 11'd21 : 11'd26;
             state   <= S_PRINT_MSG;
           end else begin
             sweep_timer <= sweep_timer + 32'd1;
@@ -1201,12 +1425,38 @@ module evaluation_controller (
         end
 
         // -------------------------------------------------------------------
-        // Sequential Block RAM Console Auto-Scrolling
+        // Line-by-Line Synchronous Block RAM Console Auto-Scrolling
         // -------------------------------------------------------------------
+        S_FIND_NL_READ: begin
+          console_addr <= scan_idx;
+          console_we   <= 1'b0;
+          state        <= S_FIND_NL_WAIT;
+        end
+
+        S_FIND_NL_WAIT: begin
+          state <= S_FIND_NL_CHECK;
+        end
+
+        S_FIND_NL_CHECK: begin
+          if (console_dout == 8'h0A || scan_idx >= 10'd100 || scan_idx >= console_write_ptr) begin
+            nl_len     <= scan_idx + 10'd1;
+            scroll_src <= scan_idx + 10'd1;
+            scroll_dst <= 10'd0;
+            state      <= S_SCROLL_READ;
+          end else begin
+            scan_idx <= scan_idx + 10'd1;
+            state    <= S_FIND_NL_READ;
+          end
+        end
+
         S_SCROLL_READ: begin
           console_addr <= scroll_src;
           console_we   <= 1'b0;
-          state        <= S_SCROLL_WRITE;
+          state        <= S_SCROLL_WAIT;
+        end
+
+        S_SCROLL_WAIT: begin
+          state <= S_SCROLL_WRITE;
         end
 
         S_SCROLL_WRITE: begin
@@ -1216,12 +1466,24 @@ module evaluation_controller (
           scroll_dst   <= scroll_dst + 10'd1;
           scroll_src   <= scroll_src + 10'd1;
 
-          if (scroll_dst == CONSOLE_MAX_LEN - 1) begin
-            console_write_ptr <= (console_write_ptr > 10'd80) ? (console_write_ptr - 10'd80) : 10'd0;
-            state <= state_after_scroll;
-            state_after_scroll <= S_IDLE;
+          if (scroll_src >= console_write_ptr) begin
+            clear_src <= scroll_dst + 10'd1;
+            state     <= S_SCROLL_CLEAR;
           end else begin
             state <= S_SCROLL_READ;
+          end
+        end
+
+        S_SCROLL_CLEAR: begin
+          console_addr <= clear_src;
+          console_din  <= 8'h00;
+          console_we   <= 1'b1;
+          if (clear_src >= console_write_ptr) begin
+            console_write_ptr <= (console_write_ptr > nl_len) ? (console_write_ptr - nl_len) : 10'd0;
+            console_line_cnt  <= (console_line_cnt > 0) ? (console_line_cnt - 6'd1) : 6'd0;
+            state <= state_after_scroll;
+          end else begin
+            clear_src <= clear_src + 10'd1;
           end
         end
 
@@ -1236,6 +1498,7 @@ module evaluation_controller (
             if (text_send_idx > input_len) begin
               input_len <= 11'd2;
               input_cursor <= 11'd2;
+              for (int i = 2; i < CLI_BUF_LEN; i++) input_buf[i] <= 8'h00;
               input_update_idx <= 7'd0;
               state <= S_UPDATE_INPUT_RAM;
             end
@@ -1250,7 +1513,7 @@ module evaluation_controller (
             eval_proto_tx_data  <= prng_pixel_byte;
             prng_next_pixel     <= 1'b1;
             tx_pixel_cnt        <= tx_pixel_cnt + 15'd1;
-            progress_val        <= 8'(tx_pixel_cnt[14:7]); // 0 to 255 progress
+            progress_val <= (tx_pixel_cnt >= 15'd16384) ? 8'd255 : 8'(tx_pixel_cnt[13:6]);
           end else begin
             eval_proto_tx_valid <= 1'b0;
             prng_next_pixel     <= 1'b0;
@@ -1290,6 +1553,8 @@ module evaluation_controller (
 
           if (clear_idx == CONSOLE_MAX_LEN - 1) begin
             console_write_ptr <= 10'd0;
+            console_line_cnt  <= 6'd0;
+            console_col_cnt   <= 7'd0;
             input_len <= 11'd2;
             input_cursor <= 11'd2;
             input_update_idx <= 7'd0;
@@ -1303,14 +1568,14 @@ module evaluation_controller (
           input_addr <= input_update_idx;
           input_we   <= 1'b1;
           if (input_update_idx < input_cursor && input_update_idx < CLI_BUF_LEN) begin
-            input_din <= input_buf[input_update_idx[4:0]];
+            input_din <= input_buf[input_update_idx[6:0]];
           end else if (input_update_idx == input_cursor) begin
             if (mode_text) input_din <= 8'h5F; // '_'
-            else if (input_update_idx < input_len && input_update_idx < CLI_BUF_LEN) input_din <= input_buf[input_update_idx[4:0]];
+            else if (input_update_idx < input_len && input_update_idx < CLI_BUF_LEN) input_din <= input_buf[input_update_idx[6:0]];
             else input_din <= 8'h00;
           end else if (input_update_idx <= input_len && input_update_idx < CLI_BUF_LEN) begin
-            if (mode_text) input_din <= input_buf[input_update_idx[4:0] - 1];
-            else input_din <= input_buf[input_update_idx[4:0]];
+            if (mode_text) input_din <= input_buf[input_update_idx[6:0] - 1];
+            else input_din <= input_buf[input_update_idx[6:0]];
           end else begin
             input_din <= 8'h00;
           end
