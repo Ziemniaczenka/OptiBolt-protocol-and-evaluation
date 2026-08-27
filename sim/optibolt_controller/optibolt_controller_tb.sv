@@ -1,3 +1,12 @@
+/**
+ * Copyright (C) 2025  AGH University of Science and Technology
+ * MTM UEC2
+ * Author: Tomasz Więcławski & Sebastian Zoń
+ *
+ * Description:
+ * Testbench for optibolt_controller
+ */
+
 module optibolt_controller_tb();
 
     logic clk200;
@@ -60,7 +69,6 @@ module optibolt_controller_tb();
         #15 rst_n = 1;
         #100;
 
-        // Wysłanie 3 wiadomości pod rząd (back-to-back)
         @(posedge clk200);
         for (int i = 0; i < 3; i++) begin
             tx_msg_type = 3'b100;
@@ -70,22 +78,17 @@ module optibolt_controller_tb();
         end
         tx_enable = 0;
 
-        /// Oczekiwanie na wiadomości i weryfikacja poprawności (loopback)
         for (int i = 0; i < 3; i++) begin
-            // 1. Aktywne czekanie na pojawienie się paczki (bezpieczniejsze dla symulatora niż samo wait)
             while (rx_empty == 1'b1) @(posedge clk200);
             $display("loop: %h.", i);
-            // 2. Sprawdzamy dane ZANIM zdejmiemy je z kolejki
             if (data_out !== (8'hA0 + i) || msg_type_out !== 3'b100) begin
                 $error("Error: loopback data mismatch. Expected data: %h, Got: %h", (8'hA0 + i), data_out);
             end
             
-            // 3. Potwierdzamy odczyt (ściągamy paczkę z FIFO)
             rx_enable = 1;
             @(posedge clk200);
             rx_enable = 0;
             
-            // Dodatkowy takt zegara, żeby FIFO miało czas zaktualizować flagę rx_empty
             @(posedge clk200); 
         end
 

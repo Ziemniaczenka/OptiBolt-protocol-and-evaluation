@@ -161,6 +161,9 @@ module optibolt_link_manager #(
         current_os             <= proto_rx_data[7:4];
         speed_updated_pulse    <= 1'b1;
         speed_nego_in_progress <= 1'b0;
+        nego_tx_valid          <= 1'b1;
+        nego_tx_type           <= MSG_ACCEPT;
+        nego_tx_data           <= NEGO_ACK_HEADER;
       end
     end
   end

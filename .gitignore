@@ -40,3 +40,5 @@ xrun.log
 
 results/*
 fpga/dfx_runtime.txt
+
+.Xil/
