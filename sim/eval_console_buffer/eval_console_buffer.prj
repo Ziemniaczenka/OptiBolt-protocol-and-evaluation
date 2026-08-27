@@ -1,0 +1,7 @@
+# Dedicated Testbench for eval_console_buffer
+sv work "../../rtl/helpers/bram_if.sv"
+sv work "../../rtl/helpers/bram_tdp.sv"
+sv work "../../rtl/evaluation/display/draw/string_pkg.sv"
+sv work "../../rtl/evaluation/controller/eval_console_buffer.sv"
+sv work "eval_console_buffer_tb.sv"
+

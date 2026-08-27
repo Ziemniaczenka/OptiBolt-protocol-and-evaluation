@@ -139,4 +139,8 @@ package string_pkg;
     localparam BITMAP_DYN_LBL_VAL = "DYNAMIC BITMAP (128x128)";
     localparam int BITMAP_DYN_LBL_LEN = $bits(BITMAP_DYN_LBL_VAL) / 8;
 
+    // CONSOLE LABEL
+    localparam CONSOLE_TITLE_VAL = "CONSOLE (CLI TERMINAL)";
+    localparam int CONSOLE_TITLE_LEN = $bits(CONSOLE_TITLE_VAL) / 8;
+
 endpackage

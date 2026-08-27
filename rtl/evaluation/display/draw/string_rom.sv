@@ -48,7 +48,10 @@ module string_rom (
     interface diag_hlt_bram,
 
     // Dynamic Bitmap label
-    interface bmp_lbl_bram
+    interface bmp_lbl_bram,
+
+    // Console label
+    interface console_title_bram
 );
 
   /**
@@ -151,6 +154,10 @@ module string_rom (
   `INIT_UNPACKED_STR(diag_hlt_str,   DIAG_HLT_VAL,   DIAG_HLT_LEN,   DIAG_HLT_LEN + 1)
   `INIT_UNPACKED_STR(bmp_lbl_str,    BITMAP_DYN_LBL_VAL, BITMAP_DYN_LBL_LEN, BITMAP_DYN_LBL_LEN + 1)
 
+  // Console label
+  logic [7:0] console_title_str[0:CONSOLE_TITLE_LEN];
+  `INIT_UNPACKED_STR(console_title_str, CONSOLE_TITLE_VAL, CONSOLE_TITLE_LEN, CONSOLE_TITLE_LEN + 1)
+
   /**
     * Internal logic
     */
@@ -228,7 +235,10 @@ module string_rom (
     if (diag_hlt_bram.en)   diag_hlt_bram.dout   <= diag_hlt_str[diag_hlt_bram.addr];
 
     // Bitmap Label
-    if (bmp_lbl_bram.en)    bmp_lbl_bram.dout    <= bmp_lbl_str[bmp_lbl_bram.addr];
+    if (bmp_lbl_bram.en)          bmp_lbl_bram.dout          <= bmp_lbl_str[bmp_lbl_bram.addr];
+
+    // Console Label
+    if (console_title_bram.en)    console_title_bram.dout    <= console_title_str[console_title_bram.addr];
   end
 
 endmodule

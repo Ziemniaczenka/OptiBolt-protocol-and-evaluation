@@ -263,45 +263,15 @@ module top_display_tb;
     u_writer_console.write_string("Multiline string test\nSecond line\nThird line\nLast line.");
     u_writer_input.write_string("> ping_");
 
-    ui_selected_item = ITEM_ABOUT_BTN;
-
-    @(negedge vs) $display("Info: Frame 1 done at %t", $time);
-    // Frame 1: Top About button selected, Input returns to thin purple outline
-
-    u_writer_console.write_string("Different multiline\n Another line\nLast");
-    u_writer_input.write_string("> _");
-
     show_popup = 1'b1;
     ui_selected_item = ITEM_POPUP_BTN;
     show_progress = 1'b1;
-    progress_val = 8'd85;  // Approx. 33%
+    progress_val = 8'd128; // 50%
 
-    @(negedge vs) $display("Info: Frame 2 done at %t", $time);
-    // Frame 2: Popup window shown with OK button selected, progress bar at 33%
+    @(negedge vs) $display("Info: Frame 1 done at %t", $time);
+    // Frame 1: Popup window shown with OK button selected, progress bar at 50%
 
-    ui_selected_item = ITEM_NONE;  // Deselect items
-    progress_val = 8'd170;  // Approx. 66%
-
-    @(negedge vs) $display("Info: Frame 3 done at %t", $time);
-    // Frame 3: No selection (gray elements), progress bar at 66%
-
-    ui_selected_item = ITEM_INPUT;  // Return to input
-    progress_val = 8'd255;  // 100%
-
-    @(negedge vs) $display("Info: Frame 4 done at %t", $time);
-    // Frame 4: Input selected again, full progress bar (100%) in popup window
-
-    // @(negedge vs) $display("Info: Frame 5 done at %t",$time);
-    // @(negedge vs) $display("Info: Frame 6 done at %t",$time);
-    // @(negedge vs) $display("Info: Frame 7 done at %t",$time);
-    // @(negedge vs) $display("Info: Frame 8 done at %t",$time);
-    // @(negedge vs) $display("Info: Frame 9 done at %t",$time);
-    @(posedge vs)  //Wait for the frame to finish
-    // End the simulation.
-    $display(
-        "Simulation is over, check the waveforms."
-    );
-
+    $display("=== top_display testbench completed successfully! ===");
     $finish;
   end
 

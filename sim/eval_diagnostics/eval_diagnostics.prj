@@ -1,0 +1,5 @@
+# Dedicated Testbench for eval_diagnostics
+sv work "../../rtl/helpers/counter.sv"
+sv work "../../rtl/evaluation/controller/eval_diagnostics.sv"
+sv work "eval_diagnostics_tb.sv"
+

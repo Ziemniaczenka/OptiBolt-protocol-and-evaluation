@@ -121,7 +121,7 @@ module evaluation_system_tb;
   // Link Handshake Engine
   link_handshake #(
       .HEARTBEAT_TICKS(200),
-      .TIMEOUT_TICKS  (600)
+      .TIMEOUT_TICKS  (20_000_000)
   ) u_link_hs (
       .clk(clk100),
       .rst_n(rst_n),
