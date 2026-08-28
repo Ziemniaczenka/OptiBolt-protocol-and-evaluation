@@ -92,7 +92,7 @@ module manchester_decoder (
           counter <= counter + 1;
           vote_evaluation <= 1'b0;
         end
-        if (edge_detected) begin
+        if (rx_sync ^ rx_past) begin
           if (searching) begin
             counter   <= CENTER + 1;
             searching <= 1'b0;

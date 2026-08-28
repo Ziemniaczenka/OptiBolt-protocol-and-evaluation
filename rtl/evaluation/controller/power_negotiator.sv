@@ -99,9 +99,8 @@ module power_negotiator #(
   assign pwr_tx_data  = tx_byte;
 
   always_ff @(posedge clk or negedge rst_n) begin
-    if (!rst_n || cfg_clear || !cfg_ready) begin
-      state                <= S_IDLE;
-      pwr_status_code      <= (link_status == 2'b10) ? STAT_LOOPBACK : STAT_NOT_READY;
+    if (!rst_n) begin
+      pwr_status_code      <= STAT_NOT_READY;
       contract_active      <= 1'b0;
       contract_error       <= 1'b0;
       active_voltage_id    <= 2'd0;

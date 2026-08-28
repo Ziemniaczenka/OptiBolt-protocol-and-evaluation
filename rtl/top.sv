@@ -205,12 +205,44 @@ module top (
   end
 
   // Error Status Synchronizers (clk200 -> clk100)
+  logic manchester_error_stretched, preamble_error_stretched;
+  logic [1:0] man_stretch_cnt, pre_stretch_cnt;
+
+  always_ff @(posedge clk200 or negedge rst_n) begin
+    if (!rst_n) begin
+      man_stretch_cnt            <= 2'd0;
+      pre_stretch_cnt            <= 2'd0;
+      manchester_error_stretched <= 1'b0;
+      preamble_error_stretched   <= 1'b0;
+    end else begin
+      if (manchester_error_200) begin
+        man_stretch_cnt            <= 2'd3;
+        manchester_error_stretched <= 1'b1;
+      end else if (man_stretch_cnt > 2'd0) begin
+        man_stretch_cnt            <= man_stretch_cnt - 2'd1;
+        manchester_error_stretched <= 1'b1;
+      end else begin
+        manchester_error_stretched <= 1'b0;
+      end
+
+      if (preamble_error_200) begin
+        pre_stretch_cnt          <= 2'd3;
+        preamble_error_stretched <= 1'b1;
+      end else if (pre_stretch_cnt > 2'd0) begin
+        pre_stretch_cnt          <= pre_stretch_cnt - 2'd1;
+        preamble_error_stretched <= 1'b1;
+      end else begin
+        preamble_error_stretched <= 1'b0;
+      end
+    end
+  end
+
   cdc_sync #(
       .WIDTH(3)
   ) u_cdc_rx_err (
       .clk_dst(clk100),
       .rst_n(rst_n),
-      .d_in({preamble_error_200, parity_error_200, manchester_error_200}),
+      .d_in({preamble_error_stretched, parity_error_200, manchester_error_stretched}),
       .d_out({proto_eval_preamble_error, proto_eval_parity_error, proto_eval_manchester_code_error})
   );
 

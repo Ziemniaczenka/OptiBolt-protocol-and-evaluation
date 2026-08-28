@@ -427,11 +427,6 @@ module eval_cmd_exec #(
       // Ping timer & timeout monitor
       if (ping_active) begin
         ping_timer <= ping_timer + 32'd1;
-        if (proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data == PING_TOKEN) begin
-          proto_tx_valid <= 1'b1;
-          proto_tx_type  <= MSG_REQUEST;
-          proto_tx_data  <= PING_REPLY;
-        end
         if (proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data == PING_REPLY) begin
           ping_active      <= 1'b0;
           ping_rtt_cycles  <= ping_timer;
@@ -492,11 +487,11 @@ module eval_cmd_exec #(
                 sweep_step        <= 5'd0;
                 sweep_print_step  <= 5'd0;
                 sweep_timer       <= '0;
+                sweep_pkt_gap     <= '0;
                 sweep_active      <= 1'b1;
                 sweep_tx_count    <= 4'd0;
                 sweep_rx_count    <= 4'd0;
                 sweep_had_error   <= 1'b0;
-                show_popup        <= 1'b1;
                 popup_mode        <= POPUP_PROGRESS;
                 progress_val      <= 8'd0;
                 msg_src <= SRC_SWEEP_START; msg_len <= 11'd27; msg_idx <= '0; state <= E_STREAM_MSG;
@@ -657,11 +652,11 @@ module eval_cmd_exec #(
               sweep_step        <= 5'd0;
               sweep_print_step  <= 5'd0;
               sweep_timer       <= '0;
+              sweep_pkt_gap     <= '0;
               sweep_active      <= 1'b1;
               sweep_tx_count    <= 4'd0;
               sweep_rx_count    <= 4'd0;
               sweep_had_error   <= 1'b0;
-              show_popup        <= 1'b1;
               show_progress     <= 1'b1;
               popup_mode        <= POPUP_PROGRESS;
               progress_val      <= 8'd0;
@@ -909,11 +904,11 @@ module eval_cmd_exec #(
             req_oversampling <= SWEEP_OS[sweep_step];
             set_speed_req    <= 1'b1;
             sweep_timer      <= '0;
+            sweep_pkt_gap    <= '0;
             sweep_tx_count   <= 4'd0;
             sweep_rx_count   <= 4'd0;
             sweep_had_error  <= 1'b0;
             progress_val     <= 8'((255 * (sweep_step + 1)) / 16);
-            state            <= E_SWEEP_WAIT;
           end else begin
             // Sweep complete: restore default 1.0 Mbps 8x
             req_baud_rate    <= 4'd1;
@@ -933,42 +928,28 @@ module eval_cmd_exec #(
         E_SWEEP_WAIT: begin
           sweep_timer <= sweep_timer + 32'd1;
 
-          // Latch any protocol errors occurring during this baudrate test step
-          if (proto_eval_parity_error || proto_eval_manchester_code_error || proto_eval_preamble_error) begin
-            sweep_had_error <= 1'b1;
+          // Settle guard window (1/8th of step duration, ~6.25ms in hardware):
+          // Allow clock dividers and optical line to stabilize, ignore transition transients
+          if (sweep_timer < (SWEEP_STEP_TICKS >> 3)) begin
+            sweep_had_error <= 1'b0;
+            sweep_pkt_gap   <= '0;
+          end else begin
+            // Latch any protocol errors occurring during the active measurement window
+            if (proto_eval_parity_error || proto_eval_manchester_code_error || proto_eval_preamble_error) begin
+              sweep_had_error <= 1'b1;
+                sweep_pkt_gap  <= '0;
+              end
+            end else if (proto_tx_valid && !proto_tx_full) begin
+              proto_tx_valid <= 1'b0;
+            end
           end
 
-          // Transmit 8 test request packets spaced out across the step duration
-          if (sweep_timer[15:0] == 16'h0080 && sweep_tx_count < 4'd8 && !proto_tx_full) begin
-            proto_tx_valid <= 1'b1;
-            proto_tx_type  <= MSG_REQUEST;
-            proto_tx_data  <= {4'hA, sweep_tx_count};
-            sweep_tx_count <= sweep_tx_count + 4'd1;
-          end else if (proto_tx_valid && !proto_tx_full) begin
-            proto_tx_valid <= 1'b0;
-          end
-
-          // Count received test packets
-          if (proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data[7:4] == 4'hA) begin
-            sweep_rx_count <= sweep_rx_count + 4'd1;
-          end
-
-          // Dwell for SWEEP_STEP_TICKS to evaluate link performance under this speed
-          if (sweep_timer >= SWEEP_STEP_TICKS) begin
-            proto_tx_valid   <= 1'b0;
-            sweep_print_step <= sweep_step;
-            sweep_step       <= sweep_step + 5'd1;
-            msg_idx          <= '0;
-            if (sweep_rx_count >= 4'd3 && !sweep_had_error && rx_carrier && link_status != 2'b00) begin
-              msg_src <= SRC_SWEEP_PASS;
-              msg_len <= 11'd21;
-            end else begin
+          // Count received test packets tagged specifically for this sweep step
+          if (proto_rx_valid && proto_rx_type == MSG_TEST3 && proto_rx_data[7:4] == sweep_step[3:0]) begin
               msg_src <= SRC_SWEEP_FAIL;
               msg_len <= 11'd24;
             end
             state <= E_STREAM_MSG;
-          end
-        end
 
         // -------------------------------------------------------------------
         // Dynamic Bitmap Streaming (2 bytes per pixel for 4096 colors)
@@ -979,7 +960,6 @@ module eval_cmd_exec #(
             proto_tx_valid <= 1'b1;
           end else begin
             // Previous byte was consumed (or first byte starting)
-            if (tx_pixel_cnt < 15'd16384) begin
               proto_tx_valid <= 1'b1;
               proto_tx_type  <= MSG_BITMAP;
               if (!tx_pixel_phase) begin
