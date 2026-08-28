@@ -238,7 +238,11 @@ module evaluation_system_tb;
       .proto_eval_rx_carrier(proto_eval_rx_carrier),
       .proto_eval_link_status(1'b1),
       .proto_eval_ber_count(32'd0),
-      .proto_eval_err_count(16'd0)
+      .proto_eval_err_count(16'd0),
+      .pwr_status_code(),
+      .active_voltage_id(),
+      .active_amps(),
+      .contract_active()
   );
 
   // 100 MHz Clock Generator (10ns period)
@@ -419,10 +423,22 @@ module evaluation_system_tb;
     type_ps2_key(8'h5A);  // Enter (execute recalled command)
     #50000;
 
-    // Execute '/status' command
-    type_ps2_command("/status");
+    // Execute Power Commands Suite
+    type_ps2_command("/power role wall");
     #50000;
-    $display("[PASS] Step 6: Executed '/status'. Link health telemetry streamed to BRAM.");
+    type_ps2_command("/power out 20 5");
+    #50000;
+    type_ps2_command("/power in 5 1");
+    #50000;
+    type_ps2_command("/power ready");
+    #50000;
+    type_ps2_command("/power status");
+    #50000;
+    $display("[PASS] Step 6: Configured power role, tables, and executed '/power status'.");
+
+    type_ps2_command("/power clear");
+    #50000;
+    $display("[PASS] Step 6a: Executed '/power clear'. Power tables reset.");
 
     // Execute '/bitmap send'
     type_ps2_command("/bitmap send");

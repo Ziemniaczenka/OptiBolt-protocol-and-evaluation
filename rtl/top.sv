@@ -23,9 +23,9 @@ module top (
     output logic [3:0] b,
     inout  wire        ps2_clk,
     inout  wire        ps2_data,
-    output logic [ 3:0] an,
-    output logic [ 6:0] seg,
-    output logic        dp,
+    output logic [3:0] an,
+    output logic [6:0] seg,
+    output logic       dp,
 
     // OptiBolt
     input  logic OptiBolt_rx,
@@ -37,25 +37,25 @@ module top (
     */
 
   // Control & Settings (clk100)
-  logic [3:0] eval_proto_baud_rate;
-  logic [3:0] eval_proto_oversampling;
-  logic       eval_proto_loopback_en;
+  logic [ 3:0] eval_proto_baud_rate;
+  logic [ 3:0] eval_proto_oversampling;
+  logic        eval_proto_loopback_en;
 
   // TX Interface (clk100)
-  logic       eval_proto_tx_valid;
-  logic [2:0] eval_proto_tx_type;
-  logic [7:0] eval_proto_tx_data;
-  logic       proto_eval_tx_full;
-  logic       proto_eval_tx_empty;
+  logic        eval_proto_tx_valid;
+  logic [ 2:0] eval_proto_tx_type;
+  logic [ 7:0] eval_proto_tx_data;
+  logic        proto_eval_tx_full;
+  logic        proto_eval_tx_empty;
 
   // RX Interface (clk100)
-  logic       proto_eval_rx_valid;
-  logic [2:0] proto_eval_rx_type;
-  logic [7:0] proto_eval_rx_data;
-  logic       proto_eval_parity_error;
-  logic       proto_eval_manchester_code_error;
-  logic       proto_eval_preamble_error;
-  logic       proto_eval_rx_carrier;
+  logic        proto_eval_rx_valid;
+  logic [ 2:0] proto_eval_rx_type;
+  logic [ 7:0] proto_eval_rx_data;
+  logic        proto_eval_parity_error;
+  logic        proto_eval_manchester_code_error;
+  logic        proto_eval_preamble_error;
+  logic        proto_eval_rx_carrier;
 
   // Telemetry & Status (clk100)
   logic        proto_eval_link_status;
@@ -109,7 +109,7 @@ module top (
 
       if (rx_pin_sync1 ^ rx_pin_d1) begin
         // Optical Manchester transitions detected (idle 101010 pattern or data)
-        rx_carrier_timer      <= 20'd1_000_000; // Hold active for 10ms after last edge
+        rx_carrier_timer      <= 20'd1_000_000;  // Hold active for 10ms after last edge
         proto_eval_rx_carrier <= 1'b1;
       end else if (rx_carrier_timer > 0) begin
         rx_carrier_timer <= rx_carrier_timer - 20'd1;
@@ -140,8 +140,8 @@ module top (
   logic        tx_enable_200;
 
   async_fifo #(
-      .DATA_WIDTH(11), // 3-bit msg_type + 8-bit data
-      .ADDR_WIDTH(5)   // Depth = 32 words
+      .DATA_WIDTH(11),  // 3-bit msg_type + 8-bit data
+      .ADDR_WIDTH(5)    // Depth = 32 words
   ) u_tx_async_fifo (
       .clk_wr(clk100),
       .rst_wr_n(rst_n),
@@ -159,7 +159,7 @@ module top (
   assign proto_eval_tx_empty = 1'b0;
 
   // Transfer from TX async_fifo into optibolt_controller tx_fifo
-  assign tx_enable_200   = !tx_async_empty_200 && !tx_full_200;
+  assign tx_enable_200 = !tx_async_empty_200 && !tx_full_200;
   assign tx_async_rd_200 = tx_enable_200;
 
   // 3. RX Asynchronous FIFO (clk200 -> clk100)
@@ -172,8 +172,8 @@ module top (
   assign rx_async_wr_200 = rx_enable_200;
 
   async_fifo #(
-      .DATA_WIDTH(11), // 3-bit msg_type + 8-bit data
-      .ADDR_WIDTH(5)   // Depth = 32 words
+      .DATA_WIDTH(11),  // 3-bit msg_type + 8-bit data
+      .ADDR_WIDTH(5)    // Depth = 32 words
   ) u_rx_async_fifo (
       .clk_wr(clk200),
       .rst_wr_n(rst_n),

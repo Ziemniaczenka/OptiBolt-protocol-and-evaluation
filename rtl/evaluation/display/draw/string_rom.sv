@@ -24,7 +24,12 @@ module string_rom (
     interface light_bram,
     interface baud_bram,
     interface os_bram,
-    interface pwr_bram,
+    input logic [2:0] pwr_status_code,
+    input logic [1:0] active_voltage_id,
+    input logic [3:0] active_amps,
+    input logic contract_active,
+    interface pwr_state_bram,
+    interface pwr_val_bram,
     input logic failover_en,
     interface failover_bram,
 
@@ -107,9 +112,26 @@ module string_rom (
   `INIT_UNPACKED_STR(os_str_8x, STATUS_OS_VAL_8X, STATUS_OS_LEN, STATUS_OS_LEN + 1)
   `INIT_UNPACKED_STR(os_str_16x, STATUS_OS_VAL_16X, STATUS_OS_LEN, STATUS_OS_LEN + 1)
 
-  // STATUS: Power
-  logic [7:0] pwr_str[0:STATUS_PWR_LEN];
-  `INIT_UNPACKED_STR(pwr_str, STATUS_PWR_VAL, STATUS_PWR_LEN, STATUS_PWR_LEN + 1)
+  // STATUS: Power State
+  logic [7:0] pwr_state_not_ready[0:STATUS_PWR_STATE_LEN];
+  logic [7:0] pwr_state_ready[0:STATUS_PWR_STATE_LEN];
+  logic [7:0] pwr_state_sending[0:STATUS_PWR_STATE_LEN];
+  logic [7:0] pwr_state_receiving[0:STATUS_PWR_STATE_LEN];
+  logic [7:0] pwr_state_active[0:STATUS_PWR_STATE_LEN];
+  logic [7:0] pwr_state_error[0:STATUS_PWR_STATE_LEN];
+  logic [7:0] pwr_state_loopback[0:STATUS_PWR_STATE_LEN];
+
+  `INIT_UNPACKED_STR(pwr_state_not_ready, STATUS_PWR_STATE_VAL_NOT_READY, STATUS_PWR_STATE_LEN, STATUS_PWR_STATE_LEN + 1)
+  `INIT_UNPACKED_STR(pwr_state_ready,     STATUS_PWR_STATE_VAL_READY,     STATUS_PWR_STATE_LEN, STATUS_PWR_STATE_LEN + 1)
+  `INIT_UNPACKED_STR(pwr_state_sending,   STATUS_PWR_STATE_VAL_SENDING,   STATUS_PWR_STATE_LEN, STATUS_PWR_STATE_LEN + 1)
+  `INIT_UNPACKED_STR(pwr_state_receiving, STATUS_PWR_STATE_VAL_RECEIVING, STATUS_PWR_STATE_LEN, STATUS_PWR_STATE_LEN + 1)
+  `INIT_UNPACKED_STR(pwr_state_active,    STATUS_PWR_STATE_VAL_ACTIVE,    STATUS_PWR_STATE_LEN, STATUS_PWR_STATE_LEN + 1)
+  `INIT_UNPACKED_STR(pwr_state_error,     STATUS_PWR_STATE_VAL_ERROR,     STATUS_PWR_STATE_LEN, STATUS_PWR_STATE_LEN + 1)
+  `INIT_UNPACKED_STR(pwr_state_loopback,  STATUS_PWR_STATE_VAL_LOOPBACK,  STATUS_PWR_STATE_LEN, STATUS_PWR_STATE_LEN + 1)
+
+  // STATUS: Power Value
+  logic [7:0] pwr_val_paused[0:STATUS_PWR_VAL_LEN];
+  `INIT_UNPACKED_STR(pwr_val_paused, STATUS_PWR_VAL_PAUSED, STATUS_PWR_VAL_LEN, STATUS_PWR_VAL_LEN + 1)
 
   // STATUS: Failover
   logic [7:0] failover_str_on[0:STATUS_FAILOVER_LEN];
@@ -213,8 +235,51 @@ module string_rom (
       os_bram.dout <= (oversampling == 4'd1) ? os_str_16x[os_bram.addr] : os_str_8x[os_bram.addr];
     end
 
-    // Line 5: Power Negotiation
-    if (pwr_bram.en) pwr_bram.dout <= pwr_str[pwr_bram.addr];
+    // Line 5: Power State
+    if (pwr_state_bram.en) begin
+      case (pwr_status_code)
+        3'd1:    pwr_state_bram.dout <= pwr_state_ready[pwr_state_bram.addr];
+        3'd2:    pwr_state_bram.dout <= pwr_state_sending[pwr_state_bram.addr];
+        3'd3:    pwr_state_bram.dout <= pwr_state_receiving[pwr_state_bram.addr];
+        3'd4:    pwr_state_bram.dout <= pwr_state_active[pwr_state_bram.addr];
+        3'd5:    pwr_state_bram.dout <= pwr_state_error[pwr_state_bram.addr];
+        3'd6:    pwr_state_bram.dout <= pwr_state_loopback[pwr_state_bram.addr];
+        default: pwr_state_bram.dout <= pwr_state_not_ready[pwr_state_bram.addr];
+      endcase
+    end
+
+    // Line 6: Power Value
+    if (pwr_val_bram.en) begin
+      if (!contract_active) begin
+        pwr_val_bram.dout <= pwr_val_paused[pwr_val_bram.addr];
+      end else begin
+        case (pwr_val_bram.addr)
+          5'd0:  pwr_val_bram.dout <= "P";
+          5'd1:  pwr_val_bram.dout <= "o";
+          5'd2:  pwr_val_bram.dout <= "w";
+          5'd3:  pwr_val_bram.dout <= "e";
+          5'd4:  pwr_val_bram.dout <= "r";
+          5'd5:  pwr_val_bram.dout <= " ";
+          5'd6:  pwr_val_bram.dout <= "V";
+          5'd7:  pwr_val_bram.dout <= "a";
+          5'd8:  pwr_val_bram.dout <= "l";
+          5'd9:  pwr_val_bram.dout <= "u";
+          5'd10: pwr_val_bram.dout <= "e";
+          5'd11: pwr_val_bram.dout <= " ";
+          5'd12: pwr_val_bram.dout <= ":";
+          5'd13: pwr_val_bram.dout <= " ";
+          5'd14: pwr_val_bram.dout <= (active_voltage_id == 2'd3) ? "2" : (active_voltage_id == 2'd2) ? "1" : " ";
+          5'd15: pwr_val_bram.dout <= (active_voltage_id == 2'd3) ? "0" : (active_voltage_id == 2'd2) ? "2" : (active_voltage_id == 2'd1) ? "9" : "5";
+          5'd16: pwr_val_bram.dout <= "V";
+          5'd17: pwr_val_bram.dout <= " ";
+          5'd18: pwr_val_bram.dout <= "@";
+          5'd19: pwr_val_bram.dout <= " ";
+          5'd20: pwr_val_bram.dout <= 8'd48 + {4'd0, active_amps};
+          5'd21: pwr_val_bram.dout <= "A";
+          default: pwr_val_bram.dout <= " ";
+        endcase
+      end
+    end
 
     // Line 6: Failover
     if (failover_bram.en) begin

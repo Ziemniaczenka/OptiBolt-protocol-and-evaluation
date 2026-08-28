@@ -32,12 +32,12 @@ module ui_navigation (
   };
 
   logic [2:0] toolbar_idx, toolbar_idx_nxt;
-  logic       on_toolbar, on_toolbar_nxt;
+  logic on_toolbar, on_toolbar_nxt;
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
       toolbar_idx      <= 3'd0;
-      on_toolbar       <= 1'b0; // Default selection: Input Field
+      on_toolbar       <= 1'b0;  // Default selection: Input Field
       ui_selected_item <= ITEM_INPUT;
     end else begin
       toolbar_idx <= toolbar_idx_nxt;
@@ -60,7 +60,7 @@ module ui_navigation (
     if (!show_popup) begin
       if (on_toolbar) begin
         if (cmd_down) begin
-          on_toolbar_nxt = 1'b0; // Move down to input field
+          on_toolbar_nxt = 1'b0;  // Move down to input field
         end else if (cmd_right) begin
           toolbar_idx_nxt = (toolbar_idx == NUM_TOOLBAR_BTNS - 1) ? 3'd0 : toolbar_idx + 3'd1;
         end else if (cmd_left) begin
@@ -69,7 +69,7 @@ module ui_navigation (
       end else begin
         // On Input Field
         if (cmd_up) begin
-          on_toolbar_nxt = 1'b1; // Return to toolbar
+          on_toolbar_nxt = 1'b1;  // Return to toolbar
         end
       end
     end

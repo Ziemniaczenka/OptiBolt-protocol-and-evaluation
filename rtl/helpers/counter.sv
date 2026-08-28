@@ -1,8 +1,15 @@
-/* Copyright (C) 2025  AGH University of Krakow */
+/**
+ * Copyright (C) 2026  AGH University of Science and Technology
+ * MTM UEC2
+ * Author: Tomasz Więcławski & Sebastian Zoń
+ *
+ * Description:
+ * Generic synchronous counter with active-low reset and overflow indicator.
+ */
 
 module counter #(
     parameter VALUE_MAX = 4'd7
-)(
+) (
     input logic clk,
     input logic rst_n,
     input logic enabled,
@@ -11,39 +18,39 @@ module counter #(
 );
 
 
-/* Local variables and signals */
+  /* Local variables and signals */
 
-logic [$clog2(VALUE_MAX + 1) - 1:0] value_nxt;
-logic overflow_nxt;
+  logic [$clog2(VALUE_MAX + 1) - 1:0] value_nxt;
+  logic overflow_nxt;
 
-/*localparam logic [3:0] value_max = 10;*/
+  /*localparam logic [3:0] value_max = 10;*/
 
 
-/* Module internal logic */
+  /* Module internal logic */
 
-always_ff @(posedge clk or negedge rst_n) begin
+  always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-        value <= '0;
-        overflow <= 1'b0;
+      value <= '0;
+      overflow <= 1'b0;
     end else begin
-        value <= value_nxt;
-        overflow <= overflow_nxt;
+      value <= value_nxt;
+      overflow <= overflow_nxt;
     end
-end
+  end
 
-always_comb begin
+  always_comb begin
     value_nxt = value;
     overflow_nxt = overflow;
 
     if (enabled) begin
-        if (value == VALUE_MAX) begin
-            value_nxt = 0;
-            overflow_nxt = 1;
-        end else begin
-            value_nxt = value + 1;
-            overflow_nxt = 0;
-        end
+      if (value == VALUE_MAX) begin
+        value_nxt = 0;
+        overflow_nxt = 1;
+      end else begin
+        value_nxt = value + 1;
+        overflow_nxt = 0;
+      end
     end
-end
+  end
 
 endmodule

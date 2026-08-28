@@ -17,23 +17,23 @@ module optibolt_link_manager #(
     parameter logic [3:0] DEFAULT_BAUD_RATE    = 4'd1, // 1.0 Mbps
     parameter logic [3:0] DEFAULT_OVERSAMPLING = 4'd0  // 16x OS
 ) (
-    input  logic       clk,
-    input  logic       rst_n,
+    input logic clk,
+    input logic rst_n,
 
     // Link telemetry inputs
-    input  logic [1:0] link_status,
-    input  logic       rx_carrier,
-    input  logic       proto_eval_parity_error,
-    input  logic       proto_eval_manchester_code_error,
-    input  logic       proto_eval_preamble_error,
+    input logic [1:0] link_status,
+    input logic       rx_carrier,
+    input logic       proto_eval_parity_error,
+    input logic       proto_eval_manchester_code_error,
+    input logic       proto_eval_preamble_error,
 
     // User configuration & commands
-    input  logic       failover_en,
-    input  logic       set_speed_req,
-    input  logic [3:0] req_baud_rate,
-    input  logic [3:0] req_oversampling,
-    input  logic       set_loopback_req,
-    input  logic       req_loopback_en,
+    input logic       failover_en,
+    input logic       set_speed_req,
+    input logic [3:0] req_baud_rate,
+    input logic [3:0] req_oversampling,
+    input logic       set_loopback_req,
+    input logic       req_loopback_en,
 
     // Speed negotiation packet interface
     input  logic       proto_rx_valid,
@@ -49,14 +49,14 @@ module optibolt_link_manager #(
     output logic       active_loopback_en,
 
     // Alerts & status
-    output logic       failover_triggered,
-    output logic       speed_nego_in_progress,
-    output logic       speed_updated_pulse
+    output logic failover_triggered,
+    output logic speed_nego_in_progress,
+    output logic speed_updated_pulse
 );
 
   // Default speed constants
-  localparam logic [7:0] NEGO_REQ_HEADER  = 8'hB0;
-  localparam logic [7:0] NEGO_ACK_HEADER  = 8'hB1;
+  localparam logic [7:0] NEGO_REQ_HEADER = 8'hB0;
+  localparam logic [7:0] NEGO_ACK_HEADER = 8'hB1;
 
   logic [3:0] current_baud;
   logic [3:0] current_os;
@@ -70,7 +70,7 @@ module optibolt_link_manager #(
   logic [23:0] err_monitor_timer;
   logic [15:0] window_error_count;
   logic [19:0] carrier_loss_timer;
-  logic        man_d1, pre_d1, par_d1;
+  logic man_d1, pre_d1, par_d1;
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -94,9 +94,9 @@ module optibolt_link_manager #(
       speed_updated_pulse <= 1'b0;
       nego_tx_valid       <= 1'b0;
 
-      man_d1 <= proto_eval_manchester_code_error;
-      pre_d1 <= proto_eval_preamble_error;
-      par_d1 <= proto_eval_parity_error;
+      man_d1              <= proto_eval_manchester_code_error;
+      pre_d1              <= proto_eval_preamble_error;
+      par_d1              <= proto_eval_parity_error;
 
       // ---------------------------------------------------------------------
       // Error Accumulator in 100ms window
@@ -138,12 +138,12 @@ module optibolt_link_manager #(
       // User Speed Setting Request
       // ---------------------------------------------------------------------
       if (set_speed_req) begin
-        if (link_status == 2'b01) begin // Remote connected: initiate negotiation
+        if (link_status == 2'b01) begin  // Remote connected: initiate negotiation
           nego_tx_valid          <= 1'b1;
           nego_tx_type           <= MSG_REQUEST;
           nego_tx_data           <= {req_oversampling, req_baud_rate};
           speed_nego_in_progress <= 1'b1;
-        end else begin // Disconnected or Loopback: apply immediately
+        end else begin  // Disconnected or Loopback: apply immediately
           current_baud        <= req_baud_rate;
           current_os          <= req_oversampling;
           speed_updated_pulse <= 1'b1;
@@ -160,8 +160,8 @@ module optibolt_link_manager #(
       if (link_status == 2'b01) begin
         if (proto_rx_valid && proto_rx_type == MSG_REQUEST && 
             proto_rx_data[7:4] != 4'hA && proto_rx_data[7:4] != 4'h5 &&
-            proto_rx_data[7:4] <= 4'd1 && proto_rx_data[3:0] <= 4'd7) begin
-          // Remote requested speed change: apply and acknowledge
+            proto_rx_data[7:4] <= 4'd1 && proto_rx_data[3:0] <= 4'd9) begin
+          // Remote peer requested speed change: apply and acknowledge
           current_baud           <= proto_rx_data[3:0];
           current_os             <= proto_rx_data[7:4];
           speed_updated_pulse    <= 1'b1;
@@ -169,6 +169,12 @@ module optibolt_link_manager #(
           nego_tx_valid          <= 1'b1;
           nego_tx_type           <= MSG_ACCEPT;
           nego_tx_data           <= NEGO_ACK_HEADER;
+        end else if (speed_nego_in_progress && proto_rx_valid && proto_rx_type == MSG_ACCEPT && proto_rx_data == NEGO_ACK_HEADER) begin
+          // Remote peer accepted our speed change request: apply requested speed
+          current_baud           <= req_baud_rate;
+          current_os             <= req_oversampling;
+          speed_updated_pulse    <= 1'b1;
+          speed_nego_in_progress <= 1'b0;
         end
       end
     end

@@ -10,17 +10,17 @@
 module draw_progress_bar #(
     parameter [11:0] BAR_COLOR = 12'h0_F_8
 ) (
-    input  logic        clk,
-    input  logic        rst_n,
-    input  logic [10:0] xstart,
-    input  logic [10:0] ystart,
-    input  logic [10:0] width,
-    input  logic [10:0] height,
-    input  logic [ 7:0] progress, // 0-255
-    input  logic [11:0] dynamic_color,
-           vga_if.in    vga_in,
-    output logic [11:0] rgb_out,
-    output logic        draw_en_out
+    input  logic            clk,
+    input  logic            rst_n,
+    input  logic     [10:0] xstart,
+    input  logic     [10:0] ystart,
+    input  logic     [10:0] width,
+    input  logic     [10:0] height,
+    input  logic     [ 7:0] progress,       // 0-255
+    input  logic     [11:0] dynamic_color,
+           vga_if.in        vga_in,
+    output logic     [11:0] rgb_out,
+    output logic            draw_en_out
 );
 
   /**

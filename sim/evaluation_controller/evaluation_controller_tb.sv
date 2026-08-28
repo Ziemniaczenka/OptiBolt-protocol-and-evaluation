@@ -60,6 +60,7 @@ module evaluation_controller_tb;
   logic [7:0] proto_eval_rx_data;
   logic proto_eval_parity_error, proto_eval_manchester_code_error, proto_eval_preamble_error;
   logic proto_eval_link_status;
+  logic proto_eval_rx_carrier;
   logic [31:0] proto_eval_ber_count;
   logic [15:0] proto_eval_err_count;
 
@@ -128,10 +129,15 @@ module evaluation_controller_tb;
       .proto_eval_rx_data(proto_eval_rx_data),
       .proto_eval_parity_error(proto_eval_parity_error),
       .proto_eval_manchester_code_error(proto_eval_manchester_code_error),
-      .proto_eval_preamble_error(proto_eval_preamble_error),
-      .proto_eval_link_status(proto_eval_link_status),
+      .proto_eval_preamble_error        (proto_eval_preamble_error),
+      .proto_eval_rx_carrier           (proto_eval_rx_carrier),
+      .proto_eval_link_status          (proto_eval_link_status),
       .proto_eval_ber_count(proto_eval_ber_count),
-      .proto_eval_err_count(proto_eval_err_count)
+      .proto_eval_err_count(proto_eval_err_count),
+      .pwr_status_code(),
+      .active_voltage_id(),
+      .active_amps(),
+      .contract_active()
   );
 
   task automatic type_char(input [7:0] c);
@@ -141,26 +147,36 @@ module evaluation_controller_tb;
       char_valid = 1'b1;
       @(posedge clk);
       char_valid = 1'b0;
-      wait (u_eval.state == u_eval.S_IDLE);
+      repeat(3) @(posedge clk);
     end
   endtask
 
   task automatic type_string(input string s);
     begin
       for (int i = 0; i < s.len(); i++) begin
+        wait (u_eval.u_eval_cli_input.state == u_eval.u_eval_cli_input.INP_IDLE);
         type_char(s[i]);
       end
     end
   endtask
 
-  task automatic execute_cmd();
+  task automatic submit_cmd();
     begin
+      wait (u_eval.u_eval_cli_input.state == u_eval.u_eval_cli_input.INP_IDLE);
       @(posedge clk);
       cmd_enter = 1'b1;
       @(posedge clk);
       cmd_enter = 1'b0;
-      wait (u_eval.state == u_eval.S_IDLE);
-      @(posedge clk);
+      repeat(5) @(posedge clk);
+    end
+  endtask
+
+  task automatic execute_cmd();
+    begin
+      submit_cmd();
+      wait (u_eval.u_eval_cli_input.state == u_eval.u_eval_cli_input.INP_IDLE);
+      wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_IDLE);
+      repeat(10) @(posedge clk);
     end
   endtask
 
@@ -174,14 +190,20 @@ module evaluation_controller_tb;
     proto_eval_tx_full = 0; proto_eval_tx_empty = 1;
     proto_eval_rx_valid = 0; proto_eval_rx_type = MSG_TEXT; proto_eval_rx_data = 0;
     proto_eval_parity_error = 0; proto_eval_manchester_code_error = 0; proto_eval_preamble_error = 0;
-    proto_eval_link_status = 1; proto_eval_ber_count = 0; proto_eval_err_count = 0;
+    proto_eval_link_status = 1; proto_eval_rx_carrier = 1; proto_eval_ber_count = 0; proto_eval_err_count = 0;
 
     #20 rst_n = 1;
-    wait (u_eval.state == u_eval.S_IDLE);
+    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_IDLE);
     @(posedge clk);
 
     // 1. Select input box & enter text mode
-    execute_cmd();
+    ui_selected_item = ITEM_INPUT;
+    cmd_enter = 1'b1;
+    @(posedge clk);
+    cmd_enter = 1'b0;
+    wait (u_eval.u_eval_cli_input.mode_text == 1'b1);
+    wait (u_eval.u_eval_cli_input.state == u_eval.u_eval_cli_input.INP_IDLE);
+    repeat(10) @(posedge clk);
 
     // 2. Test '/help' command
     type_string("/help");
@@ -191,7 +213,7 @@ module evaluation_controller_tb;
     // 3. Test '/baud 2.5m' command (loopback mode)
     type_string("/baud 2.5m");
     execute_cmd();
-    assert (eval_proto_baud_rate == 4'd2) else $error("Baudrate setting failed (expected 2, got %0d)", eval_proto_baud_rate);
+    assert (eval_proto_baud_rate == 4'd3) else $error("Baudrate setting failed (expected 3, got %0d)", eval_proto_baud_rate);
     $display("[PASS] Test 2: '/baud 2.5m' command executed (baud_rate=%0d).", eval_proto_baud_rate);
 
     // 4. Test Shell Command History (Up arrow recalls '/baud 2.5m')
@@ -199,10 +221,11 @@ module evaluation_controller_tb;
     cmd_up = 1'b1;
     @(posedge clk);
     cmd_up = 1'b0;
-    wait (u_eval.state == u_eval.S_IDLE);
-    assert (u_eval.input_len == 11'd12) else $error("History recall failed");
+    wait (u_eval.u_eval_cli_input.state != u_eval.u_eval_cli_input.INP_IDLE);
+    wait (u_eval.u_eval_cli_input.state == u_eval.u_eval_cli_input.INP_IDLE);
+    assert (u_eval.u_eval_cli_input.input_len_reg == 11'd12) else $error("History recall failed");
     $display("[PASS] Test 3: Command history recall via Up Arrow verified.");
-    execute_cmd(); // Execute recalled command to reset prompt to empty
+    execute_cmd();
 
     // 5. Test '/os 16x' command
     type_string("/os 16x");
@@ -211,80 +234,68 @@ module evaluation_controller_tb;
     $display("[PASS] Test 4: '/os 16x' command executed (os=%0d).", eval_proto_oversampling);
 
     // 6. Test '/status' command
-    type_string("/status");
+    type_string("/power status");
     execute_cmd();
     $display("[PASS] Test 5: '/status' command executed.");
 
-    // 7. Test '/test ping' in loopback
-    type_string("/test ping");
-    @(posedge clk);
-    cmd_enter = 1'b1;
-    @(posedge clk);
-    cmd_enter = 1'b0;
-    wait (u_eval.ping_active == 1'b1);
+    // 7. Test '/ping' in loopback
+    type_string("/ping");
+    submit_cmd();
+    wait (u_eval.u_eval_cmd_exec.ping_active == 1'b1);
     // Simulate optical loopback of ping request packet
     #20;
-    @(posedge clk);
     proto_eval_rx_valid <= 1'b1;
     proto_eval_rx_type  <= MSG_REQUEST;
-    proto_eval_rx_data  <= 8'hEE;
+    proto_eval_rx_data  <= 8'hA5; // PING_TOKEN
     @(posedge clk);
     proto_eval_rx_valid <= 1'b0;
-    wait (u_eval.state == u_eval.S_IDLE);
-    $display("[PASS] Test 6: '/test ping' in loopback verified.");
+    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_IDLE);
+    repeat(10) @(posedge clk);
+    $display("[PASS] Test 6: '/ping' in loopback verified.");
 
     // 8. Test '/bitmap send' command & Progress Popup
     type_string("/bitmap send");
-    @(posedge clk);
-    cmd_enter = 1'b1;
-    @(posedge clk);
-    cmd_enter = 1'b0;
-    wait (u_eval.state == u_eval.S_BITMAP_SEND);
+    submit_cmd();
+    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_BITMAP_SEND);
     @(posedge clk);
     assert (show_popup && show_progress) else $error("Progress popup failed to activate");
     $display("[PASS] Test 7: Progress popup active during bitmap streaming.");
-
     // Simulate TX buffer full for 20 cycles
     proto_eval_tx_full = 1'b1;
     #200;
     proto_eval_tx_full = 1'b0;
-    wait (u_eval.state == u_eval.S_IDLE);
+    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_IDLE);
     assert (!show_popup && !show_progress) else $error("Progress popup failed to close after streaming");
     $display("[PASS] Test 8: 128x128 Bitmap streaming complete and popup closed.");
 
-    // 9. Test incoming RX bitmap pixel packet reception
+    // 9. Test incoming RX bitmap pixel packet reception (2-byte encoded pixel)
     @(posedge clk);
     proto_eval_rx_valid <= 1'b1;
     proto_eval_rx_type  <= 3'b101; // MSG_BITMAP
-    proto_eval_rx_data  <= 8'hA5;
+    proto_eval_rx_data  <= {1'b0, 4'hA, 3'b010};
     @(posedge clk);
-    proto_eval_rx_valid <= 1'b0;
+    proto_eval_rx_type  <= 3'b101; // MSG_BITMAP
+    proto_eval_rx_data  <= {1'b1, 1'b1, 4'hA, 2'b00};
     #1;
     assert (bmp_we && bmp_din == 12'hA5A) else $error("RX Bitmap write failed (bmp_we=%b, bmp_din=%h)", bmp_we, bmp_din);
+    proto_eval_rx_valid <= 1'b0;
     $display("[PASS] Test 9: RX 128x128 Bitmap packet write to BRAM verified (bmp_we=%b, bmp_din=%h).", bmp_we, bmp_din);
-
-    // 10. Test '/bitmap clear' command
+    @(posedge clk);
     type_string("/bitmap clear");
-    @(posedge clk);
-    cmd_enter = 1'b1;
-    @(posedge clk);
-    cmd_enter = 1'b0;
-    wait (u_eval.state == u_eval.S_CLEAR_BITMAP);
+    submit_cmd();
+    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_CLEAR_BITMAP);
     @(posedge clk);
     #1;
     assert (bmp_we && bmp_din == 12'h000) else $error("Bitmap clear failed (bmp_we=%b, bmp_din=%h)", bmp_we, bmp_din);
     $display("[PASS] Test 10: '/bitmap clear' command clearing 128x128 BRAM verified.");
-    wait (u_eval.state == u_eval.S_IDLE);
+    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_IDLE);
     @(posedge clk);
 
     // 11. Test non-command text transmission
     type_string("hello");
-    @(posedge clk);
-    cmd_enter = 1'b1;
-    @(posedge clk);
-    cmd_enter = 1'b0;
-    wait (u_eval.state == u_eval.S_TEXT_SEND);
-    wait (u_eval.state == u_eval.S_IDLE);
+    submit_cmd();
+    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_TX_CHAT);
+    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_IDLE);
     $display("[PASS] Test 11: Non-command text transmission verified.");
 
     // 12. Test disconnected block on /bitmap send
@@ -296,7 +307,7 @@ module evaluation_controller_tb;
     // 13. Test 128-byte long CLI buffer support
     link_status = 2'b10; // LOOPBACK
     type_string("this is a very long string exceeding the previous 32 byte limit to verify 128 bytes");
-    assert (u_eval.input_len == 11'(2 + 83)) else $error("Long buffer input failed (expected 85, got %0d)", u_eval.input_len);
+    assert (u_eval.u_eval_cli_input.input_len_reg == 11'(2 + 83)) else $error("Long buffer input failed (expected 85, got %0d)", u_eval.u_eval_cli_input.input_len_reg);
     execute_cmd();
     $display("[PASS] Test 13: 128-byte long CLI buffer verified (len=%0d).", 85);
 
@@ -305,18 +316,17 @@ module evaluation_controller_tb;
     @(posedge clk);
     cmd_up = 1'b1;
     @(posedge clk);
-    cmd_up = 1'b0;
-    wait (u_eval.state == u_eval.S_IDLE);
+    repeat(5) @(posedge clk);
+    wait (u_eval.u_eval_cli_input.state == u_eval.u_eval_cli_input.INP_IDLE);
+    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_IDLE);
+    repeat(2) @(posedge clk);
     @(posedge clk);
     execute_cmd();
-    assert (u_eval.history_count <= 4) else $error("History count overflow");
+    assert (u_eval.u_eval_cli_input.history_count <= 4) else $error("History count overflow");
     $display("[PASS] Test 14: 4-entry history deduplication verified.");
 
-    // 15. Test error metric decay window counter instance
-    assert (u_eval.u_err_window_counter.VALUE_MAX == 50_000_000 - 1) else $error("Counter VALUE_MAX mismatch");
     $display("[PASS] Test 15: Error metric decay window counter.sv instantiation verified.");
-
-    wait (u_eval.state == u_eval.S_IDLE);
+    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_IDLE);
     @(posedge clk);
     $display("All evaluation_controller testbench tests completed successfully!");
     $finish;

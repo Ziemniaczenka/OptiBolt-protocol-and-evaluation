@@ -18,22 +18,25 @@ import string_pkg::*;
 import ui_pkg::*;
 import protocol_pkg::*;
 
-module evaluation_controller (
-    input  logic clk,
-    input  logic rst_n,
+module evaluation_controller #(
+    parameter int SWEEP_STEP_TICKS = 5_000_000,
+    parameter int PWR_RETRY_TICKS  = 10_000_000
+) (
+    input logic clk,
+    input logic rst_n,
 
     // Keyboard Inputs
-    input  logic cmd_up,
-    input  logic cmd_down,
-    input  logic cmd_left,
-    input  logic cmd_right,
-    input  logic cmd_enter,
-    input  logic cmd_esc,
+    input logic cmd_up,
+    input logic cmd_down,
+    input logic cmd_left,
+    input logic cmd_right,
+    input logic cmd_enter,
+    input logic cmd_esc,
 
     // Text Inputs
-    input  logic       char_valid,
-    input  logic [7:0] char_ascii,
-    input  logic       cmd_backspace,
+    input logic       char_valid,
+    input logic [7:0] char_ascii,
+    input logic       cmd_backspace,
 
     // --- RAM Interfaces ---
     output logic [$clog2(string_pkg::CONSOLE_MAX_LEN)-1:0] console_addr,
@@ -91,18 +94,24 @@ module evaluation_controller (
     input  logic       proto_eval_tx_empty,
 
     // RX Interface
-    input  logic       proto_eval_rx_valid,
-    input  logic [2:0] proto_eval_rx_type,
-    input  logic [7:0] proto_eval_rx_data,
-    input  logic       proto_eval_parity_error,
-    input  logic       proto_eval_manchester_code_error,
-    input  logic       proto_eval_preamble_error,
-    input  logic       proto_eval_rx_carrier,
+    input logic       proto_eval_rx_valid,
+    input logic [2:0] proto_eval_rx_type,
+    input logic [7:0] proto_eval_rx_data,
+    input logic       proto_eval_parity_error,
+    input logic       proto_eval_manchester_code_error,
+    input logic       proto_eval_preamble_error,
+    input logic       proto_eval_rx_carrier,
 
     // Telemetry / Status
-    input  logic        proto_eval_link_status,
-    input  logic [31:0] proto_eval_ber_count,
-    input  logic [15:0] proto_eval_err_count
+    input logic        proto_eval_link_status,
+    input logic [31:0] proto_eval_ber_count,
+    input logic [15:0] proto_eval_err_count,
+
+    // Power Negotiation Outputs to UI
+    output logic [2:0] pwr_status_code,
+    output logic [1:0] active_voltage_id,
+    output logic [3:0] active_amps,
+    output logic       contract_active
 );
 
   localparam int CLI_BUF_LEN = 128;
@@ -110,17 +119,17 @@ module evaluation_controller (
 
   // Inter-module signals
   logic        cli_cmd_valid;
-  logic [7:0]  cli_cmd_buf [0:CLI_BUF_LEN-1];
+  logic [ 7:0] cli_cmd_buf          [0:CLI_BUF_LEN-1];
   logic [10:0] cli_cmd_len;
   logic        btn_trigger;
 
   logic        echo_req;
-  logic [7:0]  echo_buf [0:CLI_BUF_LEN-1];
+  logic [ 7:0] echo_buf             [0:CLI_BUF_LEN-1];
   logic [10:0] echo_len;
   logic        echo_ack;
 
   logic        print_valid;
-  logic [7:0]  print_char;
+  logic [ 7:0] print_char;
   logic        print_last;
   logic        print_ready;
 
@@ -129,19 +138,34 @@ module evaluation_controller (
 
   // Link manager & speed control signals
   logic        set_speed_req;
-  logic [3:0]  req_baud_rate;
-  logic [3:0]  req_oversampling;
+  logic [ 3:0] req_baud_rate;
+  logic [ 3:0] req_oversampling;
   logic        failover_en;
   logic        failover_triggered;
 
   logic        nego_tx_valid;
-  logic [2:0]  nego_tx_type;
-  logic [7:0]  nego_tx_data;
+  logic [ 2:0] nego_tx_type;
+  logic [ 7:0] nego_tx_data;
 
   // Cmd exec TX packet interface
   logic        cmd_tx_valid;
-  logic [2:0]  cmd_tx_type;
-  logic [7:0]  cmd_tx_data;
+  logic [ 2:0] cmd_tx_type;
+  logic [ 7:0] cmd_tx_data;
+
+  // Power Negotiation Signals
+  logic [ 1:0] cfg_role;
+  logic [ 3:0] cfg_in_amps          [              4];
+  logic [ 3:0] cfg_out_amps         [              4];
+  logic        cfg_ready;
+  logic        cfg_clear;
+  logic        contract_error;
+  logic        active_is_source;
+  logic        contract_event_pulse;
+
+  logic        pwr_tx_valid;
+  logic [ 2:0] pwr_tx_type;
+  logic [ 7:0] pwr_tx_data;
+  logic        pwr_tx_ready;
 
   // Bitmap RAM control multiplexing (Cmd Exec TX vs Protocol RX)
   logic [13:0] cmd_bmp_addr;
@@ -159,8 +183,10 @@ module evaluation_controller (
       // Reconstruct 12-bit RGB:
       // Byte 0: {1'b0, R[3:0], G[3:1]}
       // Byte 1: {1'b1, G[0], B[3:0], 2'b00}
-      bmp_din  = {rx_pixel_rg[6:3], rx_pixel_rg[2:0], proto_eval_rx_data[6], proto_eval_rx_data[5:2]};
-      bmp_we   = 1'b1;
+      bmp_din = {
+        rx_pixel_rg[6:3], rx_pixel_rg[2:0], proto_eval_rx_data[6], proto_eval_rx_data[5:2]
+      };
+      bmp_we = 1'b1;
     end else begin
       bmp_addr = cmd_bmp_addr;
       bmp_din  = cmd_bmp_din;
@@ -203,23 +229,23 @@ module evaluation_controller (
   // 1. Dedicated Diagnostics & Error Metrics Submodule
   // =========================================================================
   eval_diagnostics u_eval_diagnostics (
-      .clk                              (clk),
-      .rst_n                            (rst_n),
-      .proto_eval_manchester_code_error (proto_eval_manchester_code_error),
-      .proto_eval_preamble_error        (proto_eval_preamble_error),
-      .proto_eval_parity_error          (proto_eval_parity_error),
-      .link_status                      (link_status),
-      .err_man_cnt                      (err_man_cnt),
-      .err_pre_cnt                      (err_pre_cnt),
-      .err_par_cnt                      (err_par_cnt),
-      .prog_man                         (prog_man),
-      .prog_pre                         (prog_pre),
-      .prog_par                         (prog_par),
-      .prog_hlt                         (prog_hlt),
-      .color_man                        (color_man),
-      .color_pre                        (color_pre),
-      .color_par                        (color_par),
-      .color_hlt                        (color_hlt)
+      .clk                             (clk),
+      .rst_n                           (rst_n),
+      .proto_eval_manchester_code_error(proto_eval_manchester_code_error),
+      .proto_eval_preamble_error       (proto_eval_preamble_error),
+      .proto_eval_parity_error         (proto_eval_parity_error),
+      .link_status                     (link_status),
+      .err_man_cnt                     (err_man_cnt),
+      .err_pre_cnt                     (err_pre_cnt),
+      .err_par_cnt                     (err_par_cnt),
+      .prog_man                        (prog_man),
+      .prog_pre                        (prog_pre),
+      .prog_par                        (prog_par),
+      .prog_hlt                        (prog_hlt),
+      .color_man                       (color_man),
+      .color_pre                       (color_pre),
+      .color_par                       (color_par),
+      .color_hlt                       (color_hlt)
   );
 
   // =========================================================================
@@ -228,28 +254,28 @@ module evaluation_controller (
   eval_cli_input #(
       .CLI_BUF_LEN(CLI_BUF_LEN)
   ) u_eval_cli_input (
-      .clk              (clk),
-      .rst_n            (rst_n),
-      .cmd_up           (cmd_up),
-      .cmd_down         (cmd_down),
-      .cmd_enter        (cmd_enter),
-      .cmd_esc          (cmd_esc),
-      .char_valid       (char_valid),
-      .char_ascii       (char_ascii),
-      .cmd_backspace    (cmd_backspace),
-      .ui_selected_item (ui_selected_item),
-      .mode_text        (mode_text),
-      .btn_trigger      (btn_trigger),
-      .input_addr       (input_addr),
-      .input_we         (input_we),
-      .input_din        (input_din),
-      .cmd_valid        (cli_cmd_valid),
-      .cmd_buf          (cli_cmd_buf),
-      .cmd_len          (cli_cmd_len),
-      .echo_req         (echo_req),
-      .echo_buf         (echo_buf),
-      .echo_len         (echo_len),
-      .echo_ack         (echo_ack)
+      .clk             (clk),
+      .rst_n           (rst_n),
+      .cmd_up          (cmd_up),
+      .cmd_down        (cmd_down),
+      .cmd_enter       (cmd_enter),
+      .cmd_esc         (cmd_esc),
+      .char_valid      (char_valid),
+      .char_ascii      (char_ascii),
+      .cmd_backspace   (cmd_backspace),
+      .ui_selected_item(ui_selected_item),
+      .mode_text       (mode_text),
+      .btn_trigger     (btn_trigger),
+      .input_addr      (input_addr),
+      .input_we        (input_we),
+      .input_din       (input_din),
+      .cmd_valid       (cli_cmd_valid),
+      .cmd_buf         (cli_cmd_buf),
+      .cmd_len         (cli_cmd_len),
+      .echo_req        (echo_req),
+      .echo_buf        (echo_buf),
+      .echo_len        (echo_len),
+      .echo_ack        (echo_ack)
   );
 
   // =========================================================================
@@ -277,7 +303,7 @@ module evaluation_controller (
             if (rx_bol && proto_eval_rx_data != 8'h0A) begin
               // At beginning of incoming message line: inject '<'
               rx_held_byte       <= proto_eval_rx_data;
-              rx_data_char_byte  <= 8'h3C; // '<'
+              rx_data_char_byte  <= 8'h3C;  // '<'
               rx_data_char_valid <= 1'b1;
               rx_prefix_phase    <= 2'd1;
               rx_bol             <= 1'b0;
@@ -329,23 +355,23 @@ module evaluation_controller (
       .MAX_LINES(40),
       .LINE_WRAP_COLS(95)
   ) u_eval_console_buffer (
-      .clk            (clk),
-      .rst_n          (rst_n),
-      .console_addr   (console_addr),
-      .console_we     (console_we),
-      .console_din    (console_din),
-      .console_dout   (console_dout),
-      .print_valid    (print_valid),
-      .print_char     (print_char),
-      .print_last     (print_last),
-      .print_ready    (print_ready),
-      .rx_char_valid  (rx_data_char_valid),
-      .rx_char_data   (rx_data_char_byte),
-      .rx_char_ready  (rx_console_char_ready),
-      .clear_req      (clear_console_req),
-      .clear_ack      (clear_console_ack),
-      .line_count     (),
-      .console_busy   ()
+      .clk          (clk),
+      .rst_n        (rst_n),
+      .console_addr (console_addr),
+      .console_we   (console_we),
+      .console_din  (console_din),
+      .console_dout (console_dout),
+      .print_valid  (print_valid),
+      .print_char   (print_char),
+      .print_last   (print_last),
+      .print_ready  (print_ready),
+      .rx_char_valid(rx_data_char_valid),
+      .rx_char_data (rx_data_char_byte),
+      .rx_char_ready(rx_console_char_ready),
+      .clear_req    (clear_console_req),
+      .clear_ack    (clear_console_ack),
+      .line_count   (),
+      .console_busy ()
   );
 
   // =========================================================================
@@ -354,80 +380,121 @@ module evaluation_controller (
   assign eval_failover_en = failover_en;
 
   optibolt_link_manager #(
-      .DEFAULT_BAUD_RATE    (4'd1), // 1.0 Mbps
-      .DEFAULT_OVERSAMPLING (4'd0)  // 16x OS
+      .DEFAULT_BAUD_RATE   (4'd1),  // 1.0 Mbps
+      .DEFAULT_OVERSAMPLING(4'd0)   // 16x OS
   ) u_optibolt_link_manager (
-      .clk                              (clk),
-      .rst_n                            (rst_n),
-      .link_status                      (link_status),
-      .rx_carrier                       (proto_eval_rx_carrier),
-      .proto_eval_parity_error          (proto_eval_parity_error),
-      .proto_eval_manchester_code_error (proto_eval_manchester_code_error),
-      .proto_eval_preamble_error        (proto_eval_preamble_error),
-      .failover_en                      (failover_en),
-      .set_speed_req                    (set_speed_req),
-      .req_baud_rate                    (req_baud_rate),
-      .req_oversampling                 (req_oversampling),
-      .set_loopback_req                 (1'b0),
-      .req_loopback_en                  (1'b0),
-      .proto_rx_valid                   (proto_eval_rx_valid),
-      .proto_rx_type                    (proto_eval_rx_type),
-      .proto_rx_data                    (proto_eval_rx_data),
-      .nego_tx_valid                    (nego_tx_valid),
-      .nego_tx_type                     (nego_tx_type),
-      .nego_tx_data                     (nego_tx_data),
-      .active_baud_rate                 (eval_proto_baud_rate),
-      .active_oversampling              (eval_proto_oversampling),
-      .active_loopback_en               (eval_proto_loopback_en),
-      .failover_triggered               (failover_triggered),
-      .speed_nego_in_progress           (),
-      .speed_updated_pulse              (speed_updated_pulse)
+      .clk                             (clk),
+      .rst_n                           (rst_n),
+      .link_status                     (link_status),
+      .rx_carrier                      (proto_eval_rx_carrier),
+      .proto_eval_parity_error         (proto_eval_parity_error),
+      .proto_eval_manchester_code_error(proto_eval_manchester_code_error),
+      .proto_eval_preamble_error       (proto_eval_preamble_error),
+      .failover_en                     (failover_en),
+      .set_speed_req                   (set_speed_req),
+      .req_baud_rate                   (req_baud_rate),
+      .req_oversampling                (req_oversampling),
+      .set_loopback_req                (1'b0),
+      .req_loopback_en                 (1'b0),
+      .proto_rx_valid                  (proto_eval_rx_valid),
+      .proto_rx_type                   (proto_eval_rx_type),
+      .proto_rx_data                   (proto_eval_rx_data),
+      .nego_tx_valid                   (nego_tx_valid),
+      .nego_tx_type                    (nego_tx_type),
+      .nego_tx_data                    (nego_tx_data),
+      .active_baud_rate                (eval_proto_baud_rate),
+      .active_oversampling             (eval_proto_oversampling),
+      .active_loopback_en              (eval_proto_loopback_en),
+      .failover_triggered              (failover_triggered),
+      .speed_nego_in_progress          (),
+      .speed_updated_pulse             (speed_updated_pulse)
   );
 
   // =========================================================================
   // 5. Dedicated Command Parser & Execution Engine Submodule
   // =========================================================================
   eval_cmd_exec #(
-      .CLI_BUF_LEN(CLI_BUF_LEN)
+      .CLI_BUF_LEN     (CLI_BUF_LEN),
+      .SWEEP_STEP_TICKS(SWEEP_STEP_TICKS)
   ) u_eval_cmd_exec (
-      .clk                (clk),
-      .rst_n              (rst_n),
-      .cmd_valid          (cli_cmd_valid),
-      .cmd_buf            (cli_cmd_buf),
-      .cmd_len            (cli_cmd_len),
-      .btn_trigger        (btn_trigger),
-      .ui_selected_item   (ui_selected_item),
-      .echo_req           (echo_req),
-      .echo_buf           (echo_buf),
-      .echo_len           (echo_len),
-      .echo_ack           (echo_ack),
-      .print_valid        (print_valid),
-      .print_char         (print_char),
-      .print_last         (print_last),
-      .print_ready        (print_ready),
-      .clear_console_req  (clear_console_req),
-      .clear_console_ack  (clear_console_ack),
-      .bmp_addr           (cmd_bmp_addr),
-      .bmp_we             (cmd_bmp_we),
-      .bmp_din            (cmd_bmp_din),
-      .show_popup         (show_popup),
-      .show_progress      (show_progress),
-      .progress_val       (progress_val),
-      .popup_mode         (popup_mode),
-      .set_speed_req      (set_speed_req),
-      .req_baud_rate      (req_baud_rate),
-      .req_oversampling   (req_oversampling),
-      .failover_en        (failover_en),
-      .failover_triggered (failover_triggered),
-      .link_status        (link_status),
-      .rx_carrier         (proto_eval_rx_carrier),
-      .proto_tx_valid     (cmd_tx_valid),
-      .proto_tx_type      (cmd_tx_type),
-      .proto_tx_data      (cmd_tx_data),
-      .proto_tx_full      (proto_eval_tx_full),
-      .proto_rx_valid     (proto_eval_rx_valid),
-      .proto_rx_type      (proto_eval_rx_type),
-      .proto_rx_data      (proto_eval_rx_data)
+      .clk                             (clk),
+      .rst_n                           (rst_n),
+      .cmd_valid                       (cli_cmd_valid),
+      .cmd_buf                         (cli_cmd_buf),
+      .cmd_len                         (cli_cmd_len),
+      .btn_trigger                     (btn_trigger),
+      .ui_selected_item                (ui_selected_item),
+      .echo_req                        (echo_req),
+      .echo_buf                        (echo_buf),
+      .echo_len                        (echo_len),
+      .echo_ack                        (echo_ack),
+      .print_valid                     (print_valid),
+      .print_char                      (print_char),
+      .print_last                      (print_last),
+      .print_ready                     (print_ready),
+      .clear_console_req               (clear_console_req),
+      .clear_console_ack               (clear_console_ack),
+      .bmp_addr                        (cmd_bmp_addr),
+      .bmp_we                          (cmd_bmp_we),
+      .bmp_din                         (cmd_bmp_din),
+      .show_popup                      (show_popup),
+      .show_progress                   (show_progress),
+      .progress_val                    (progress_val),
+      .popup_mode                      (popup_mode),
+      .set_speed_req                   (set_speed_req),
+      .req_baud_rate                   (req_baud_rate),
+      .req_oversampling                (req_oversampling),
+      .failover_en                     (failover_en),
+      .failover_triggered              (failover_triggered),
+      .link_status                     (link_status),
+      .rx_carrier                      (proto_eval_rx_carrier),
+      .proto_tx_valid                  (cmd_tx_valid),
+      .proto_tx_type                   (cmd_tx_type),
+      .proto_tx_data                   (cmd_tx_data),
+      .proto_tx_full                   (proto_eval_tx_full),
+      .proto_rx_valid                  (proto_eval_rx_valid),
+      .proto_rx_type                   (proto_eval_rx_type),
+      .proto_rx_data                   (proto_eval_rx_data),
+      .proto_eval_parity_error         (proto_eval_parity_error),
+      .proto_eval_manchester_code_error(proto_eval_manchester_code_error),
+      .proto_eval_preamble_error       (proto_eval_preamble_error),
+      .cfg_role                        (cfg_role),
+      .cfg_in_amps                     (cfg_in_amps),
+      .cfg_out_amps                    (cfg_out_amps),
+      .cfg_ready                       (cfg_ready),
+      .cfg_clear                       (cfg_clear),
+      .pwr_status_code                 (pwr_status_code),
+      .contract_active                 (contract_active),
+      .active_voltage_id               (active_voltage_id),
+      .active_amps                     (active_amps),
+      .contract_event_pulse            (contract_event_pulse)
+  );
+
+  power_negotiator #(
+      .RETRY_TICKS(PWR_RETRY_TICKS)
+  ) u_pwr_nego (
+      .clk                 (clk),
+      .rst_n               (rst_n),
+      .link_status         (link_status),
+      .cfg_role            (cfg_role),
+      .cfg_in_amps         (cfg_in_amps),
+      .cfg_out_amps        (cfg_out_amps),
+      .cfg_ready           (cfg_ready),
+      .cfg_clear           (cfg_clear),
+      .pwr_status_code     (pwr_status_code),
+      .contract_active     (contract_active),
+      .contract_error      (contract_error),
+      .active_voltage_id   (active_voltage_id),
+      .active_amps         (active_amps),
+      .active_is_source    (active_is_source),
+      .contract_event_pulse(contract_event_pulse),
+      .pwr_tx_valid        (pwr_tx_valid),
+      .pwr_tx_type         (pwr_tx_type),
+      .pwr_tx_data         (pwr_tx_data),
+      .pwr_tx_ready        (pwr_tx_ready),
+      .proto_rx_valid      (proto_eval_rx_valid),
+      .proto_rx_type       (proto_eval_rx_type),
+      .proto_rx_data       (proto_eval_rx_data)
   );
 
   // =========================================================================
@@ -439,21 +506,31 @@ module evaluation_controller (
       eval_proto_tx_type  = cmd_tx_type;
       eval_proto_tx_data  = cmd_tx_data;
       hs_tx_ack           = 1'b0;
+      pwr_tx_ready        = 1'b0;
+    end else if (pwr_tx_valid) begin
+      eval_proto_tx_valid = 1'b1;
+      eval_proto_tx_type  = pwr_tx_type;
+      eval_proto_tx_data  = pwr_tx_data;
+      hs_tx_ack           = 1'b0;
+      pwr_tx_ready        = !proto_eval_tx_full;
     end else if (nego_tx_valid) begin
       eval_proto_tx_valid = 1'b1;
       eval_proto_tx_type  = nego_tx_type;
       eval_proto_tx_data  = nego_tx_data;
       hs_tx_ack           = 1'b0;
+      pwr_tx_ready        = 1'b0;
     end else if (hs_tx_req) begin
       eval_proto_tx_valid = 1'b1;
       eval_proto_tx_type  = hs_tx_type;
       eval_proto_tx_data  = hs_tx_data;
       hs_tx_ack           = !proto_eval_tx_full;
+      pwr_tx_ready        = 1'b0;
     end else begin
       eval_proto_tx_valid = 1'b0;
       eval_proto_tx_type  = 3'b000;
       eval_proto_tx_data  = 8'h00;
       hs_tx_ack           = 1'b0;
+      pwr_tx_ready        = 1'b0;
     end
   end
 

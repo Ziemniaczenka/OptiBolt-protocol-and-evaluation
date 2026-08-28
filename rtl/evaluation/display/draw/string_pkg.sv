@@ -66,10 +66,25 @@ package string_pkg;
     localparam STATUS_OS_VAL_16X = "Oversample  : 16x         ";
     localparam int STATUS_OS_LEN = $bits(STATUS_OS_VAL_8X) / 8;
 
-    // STATUS: POWER
-    localparam logic [11:0] COLOR_STATUS_PWR = 12'hF_8_8;
-    localparam STATUS_PWR_VAL = "Power Neg.  : 5.0V / 1.0A ";
-    localparam int STATUS_PWR_LEN = $bits(STATUS_PWR_VAL) / 8;
+    // STATUS: POWER STATE
+    localparam logic [11:0] COLOR_STATUS_PWR_ACTIVE = 12'h0_F_0;
+    localparam logic [11:0] COLOR_STATUS_PWR_SEND   = 12'hF_F_8;
+    localparam logic [11:0] COLOR_STATUS_PWR_RECV   = 12'h8_F_F;
+    localparam logic [11:0] COLOR_STATUS_PWR_ERR    = 12'hF_4_4;
+    localparam logic [11:0] COLOR_STATUS_PWR_IDLE   = 12'h8_8_8;
+
+    localparam STATUS_PWR_STATE_VAL_NOT_READY = "Power State : NOT READY   ";
+    localparam STATUS_PWR_STATE_VAL_READY     = "Power State : READY       ";
+    localparam STATUS_PWR_STATE_VAL_SENDING   = "Power State : SENDING     ";
+    localparam STATUS_PWR_STATE_VAL_RECEIVING = "Power State : RECEIVING   ";
+    localparam STATUS_PWR_STATE_VAL_ACTIVE    = "Power State : CONTRACT OK ";
+    localparam STATUS_PWR_STATE_VAL_ERROR     = "Power State : ERROR       ";
+    localparam STATUS_PWR_STATE_VAL_LOOPBACK  = "Power State : LOOPBACK N/A";
+    localparam int STATUS_PWR_STATE_LEN       = $bits(STATUS_PWR_STATE_VAL_NOT_READY) / 8;
+
+    // STATUS: POWER VALUE
+    localparam STATUS_PWR_VAL_PAUSED          = "Power Value : --.-V @ -.--A ";
+    localparam int STATUS_PWR_VAL_LEN         = $bits(STATUS_PWR_VAL_PAUSED) / 8;
 
     // STATUS: FAILOVER
     localparam logic [11:0] COLOR_STATUS_FAILOVER_ON  = 12'h8_F_8;

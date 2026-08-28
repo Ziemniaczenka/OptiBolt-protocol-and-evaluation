@@ -78,6 +78,7 @@ set sv_files {
     ../rtl/evaluation/controller/eval_cli_input.sv
     ../rtl/evaluation/controller/eval_console_buffer.sv
     ../rtl/evaluation/controller/eval_cmd_exec.sv
+    ../rtl/evaluation/controller/power_negotiator.sv
     ../rtl/evaluation/link_handshake.sv
     ../rtl/evaluation/evaluation_controller.sv
     ../rtl/evaluation/ui_navigation.sv

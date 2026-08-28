@@ -42,3 +42,4 @@ results/*
 fpga/dfx_runtime.txt
 
 .Xil/
+.history/

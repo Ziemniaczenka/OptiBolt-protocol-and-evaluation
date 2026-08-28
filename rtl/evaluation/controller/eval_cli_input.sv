@@ -15,38 +15,38 @@ import ui_pkg::*;
 module eval_cli_input #(
     parameter int CLI_BUF_LEN = 128
 ) (
-    input  logic                                         clk,
-    input  logic                                         rst_n,
+    input logic clk,
+    input logic rst_n,
 
     // Keyboard inputs
-    input  logic                                         cmd_up,
-    input  logic                                         cmd_down,
-    input  logic                                         cmd_enter,
-    input  logic                                         cmd_esc,
-    input  logic                                         char_valid,
-    input  logic [7:0]                                   char_ascii,
-    input  logic                                         cmd_backspace,
+    input logic       cmd_up,
+    input logic       cmd_down,
+    input logic       cmd_enter,
+    input logic       cmd_esc,
+    input logic       char_valid,
+    input logic [7:0] char_ascii,
+    input logic       cmd_backspace,
 
     // UI navigation state
-    input  logic [3:0]                                   ui_selected_item,
-    output logic                                         mode_text,
-    output logic                                         btn_trigger,
+    input  logic [3:0] ui_selected_item,
+    output logic       mode_text,
+    output logic       btn_trigger,
 
     // Input BRAM interface (for VGA display rendering)
     output logic [$clog2(string_pkg::INPUT_MAX_LEN)-1:0] input_addr,
     output logic                                         input_we,
-    output logic [7:0]                                   input_din,
+    output logic [                                  7:0] input_din,
 
     // Command dispatch interface to command executor
-    output logic                                         cmd_valid,
-    output logic [7:0]                                   cmd_buf [0:CLI_BUF_LEN-1],
-    output logic [10:0]                                  cmd_len,
+    output logic        cmd_valid,
+    output logic [ 7:0] cmd_buf  [0:CLI_BUF_LEN-1],
+    output logic [10:0] cmd_len,
 
     // Direct echo interface to console buffer
-    output logic                                         echo_req,
-    output logic [7:0]                                   echo_buf [0:CLI_BUF_LEN-1],
-    output logic [10:0]                                  echo_len,
-    input  logic                                         echo_ack
+    output logic        echo_req,
+    output logic [ 7:0] echo_buf[0:CLI_BUF_LEN-1],
+    output logic [10:0] echo_len,
+    input  logic        echo_ack
 );
 
   typedef enum logic [2:0] {
@@ -57,24 +57,24 @@ module eval_cli_input #(
     INP_WAIT_ECHO
   } inp_state_t;
 
-  inp_state_t state;
+  inp_state_t        state;
 
   // Local CLI input line buffer
-  logic [7:0]  input_buf_reg [0:CLI_BUF_LEN-1];
-  logic [10:0] input_len_reg;
-  logic [10:0] input_cursor_reg;
-  logic [6:0]  input_update_idx;
+  logic       [ 7:0] input_buf_reg    [0:CLI_BUF_LEN-1];
+  logic       [10:0] input_len_reg;
+  logic       [10:0] input_cursor_reg;
+  logic       [ 6:0] input_update_idx;
 
   // 4-entry MRU command history registers
-  logic [7:0]  history_buf [0:3][0:63];
-  logic [10:0] history_len [0:3];
-  logic [2:0]  history_count;
-  logic [2:0]  history_pos;
+  logic       [ 7:0] history_buf      [            0:3] [0:63];
+  logic       [10:0] history_len      [            0:3];
+  logic       [ 2:0] history_count;
+  logic       [ 2:0] history_pos;
 
   // Sequential MRU history matching registers
-  logic [1:0]  hist_check_idx;
-  logic [1:0]  hist_match_idx;
-  logic        hist_matched;
+  logic       [ 1:0] hist_check_idx;
+  logic       [ 1:0] hist_match_idx;
+  logic              hist_matched;
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -101,16 +101,16 @@ module eval_cli_input #(
         echo_buf[i]      <= 8'h00;
         cmd_buf[i]       <= 8'h00;
       end
-      input_buf_reg[0] <= 8'h3E; // '>'
-      input_buf_reg[1] <= 8'h20; // ' '
+      input_buf_reg[0] <= 8'h3E;  // '>'
+      input_buf_reg[1] <= 8'h20;  // ' '
 
       for (int h = 0; h < 4; h++) begin
         history_len[h] <= '0;
         for (int c = 0; c < 64; c++) history_buf[h][c] <= 8'h00;
       end
     end else begin
-      cmd_valid   <= 1'b0; // 1-cycle strobe
-      btn_trigger <= 1'b0; // 1-cycle strobe
+      cmd_valid   <= 1'b0;  // 1-cycle strobe
+      btn_trigger <= 1'b0;  // 1-cycle strobe
       if (echo_ack) echo_req <= 1'b0;
 
       case (state)
@@ -123,7 +123,7 @@ module eval_cli_input #(
                 input_update_idx <= 7'd0;
                 state            <= INP_UPDATE_RAM;
               end else begin
-                btn_trigger <= 1'b1; // Trigger toolbar button
+                btn_trigger <= 1'b1;  // Trigger toolbar button
               end
             end
           end else begin
@@ -138,10 +138,10 @@ module eval_cli_input #(
                   cmd_buf[i]  <= input_buf_reg[i];
                   echo_buf[i] <= input_buf_reg[i];
                 end
-                cmd_len   <= input_len_reg;
-                cmd_valid <= 1'b1;
-                echo_len  <= input_len_reg + 11'd1; // Include trailing \n
-                echo_req  <= 1'b1;
+                cmd_len        <= input_len_reg;
+                cmd_valid      <= 1'b1;
+                echo_len       <= input_len_reg + 11'd1;  // Include trailing \n
+                echo_req       <= 1'b1;
 
                 // Begin sequential MRU history scan
                 hist_check_idx <= 2'd0;
@@ -212,7 +212,7 @@ module eval_cli_input #(
             end else if (cmd_backspace && input_cursor_reg > 11'd2) begin
               // Backspace deletion
               if (input_cursor_reg == input_len_reg) begin
-                input_buf_reg[input_len_reg[6:0] - 1] <= 8'h00;
+                input_buf_reg[input_len_reg[6:0]-1] <= 8'h00;
               end else begin
                 for (int i = 2; i < CLI_BUF_LEN - 1; i++) begin
                   if (i >= input_cursor_reg - 1) input_buf_reg[i] <= input_buf_reg[i+1];
@@ -262,31 +262,40 @@ module eval_cli_input #(
           if (hist_matched) begin
             // Promote matched entry to index 0
             case (hist_match_idx)
-              2'd0: ; // Already MRU
+              2'd0: ;  // Already MRU
               2'd1: begin
-                history_buf[1] <= history_buf[0]; history_len[1] <= history_len[0];
+                history_buf[1] <= history_buf[0];
+                history_len[1] <= history_len[0];
                 for (int c = 0; c < 64; c++) history_buf[0][c] <= input_buf_reg[c];
                 history_len[0] <= input_len_reg;
               end
               2'd2: begin
-                history_buf[2] <= history_buf[1]; history_len[2] <= history_len[1];
-                history_buf[1] <= history_buf[0]; history_len[1] <= history_len[0];
+                history_buf[2] <= history_buf[1];
+                history_len[2] <= history_len[1];
+                history_buf[1] <= history_buf[0];
+                history_len[1] <= history_len[0];
                 for (int c = 0; c < 64; c++) history_buf[0][c] <= input_buf_reg[c];
                 history_len[0] <= input_len_reg;
               end
               2'd3: begin
-                history_buf[3] <= history_buf[2]; history_len[3] <= history_len[2];
-                history_buf[2] <= history_buf[1]; history_len[2] <= history_len[1];
-                history_buf[1] <= history_buf[0]; history_len[1] <= history_len[0];
+                history_buf[3] <= history_buf[2];
+                history_len[3] <= history_len[2];
+                history_buf[2] <= history_buf[1];
+                history_len[2] <= history_len[1];
+                history_buf[1] <= history_buf[0];
+                history_len[1] <= history_len[0];
                 for (int c = 0; c < 64; c++) history_buf[0][c] <= input_buf_reg[c];
                 history_len[0] <= input_len_reg;
               end
             endcase
           end else begin
             // Shift down and insert new command at index 0
-            history_buf[3] <= history_buf[2]; history_len[3] <= history_len[2];
-            history_buf[2] <= history_buf[1]; history_len[2] <= history_len[1];
-            history_buf[1] <= history_buf[0]; history_len[1] <= history_len[0];
+            history_buf[3] <= history_buf[2];
+            history_len[3] <= history_len[2];
+            history_buf[2] <= history_buf[1];
+            history_len[2] <= history_len[1];
+            history_buf[1] <= history_buf[0];
+            history_len[1] <= history_len[0];
             for (int c = 0; c < 64; c++) history_buf[0][c] <= input_buf_reg[c];
             history_len[0] <= input_len_reg;
             if (history_count < 3'd4) history_count <= history_count + 3'd1;
@@ -318,11 +327,12 @@ module eval_cli_input #(
           if (input_update_idx < input_cursor_reg && input_update_idx < CLI_BUF_LEN) begin
             input_din <= input_buf_reg[input_update_idx[6:0]];
           end else if (input_update_idx == input_cursor_reg) begin
-            if (mode_text) input_din <= 8'h5F; // '_'
-            else if (input_update_idx < input_len_reg && input_update_idx < CLI_BUF_LEN) input_din <= input_buf_reg[input_update_idx[6:0]];
+            if (mode_text) input_din <= 8'h5F;  // '_'
+            else if (input_update_idx < input_len_reg && input_update_idx < CLI_BUF_LEN)
+              input_din <= input_buf_reg[input_update_idx[6:0]];
             else input_din <= 8'h00;
           end else if (input_update_idx <= input_len_reg && input_update_idx < CLI_BUF_LEN) begin
-            if (mode_text) input_din <= input_buf_reg[input_update_idx[6:0] - 1];
+            if (mode_text) input_din <= input_buf_reg[input_update_idx[6:0]-1];
             else input_din <= input_buf_reg[input_update_idx[6:0]];
           end else begin
             input_din <= 8'h00;

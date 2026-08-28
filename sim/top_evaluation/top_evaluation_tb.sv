@@ -215,8 +215,8 @@ module top_evaluation_tb;
     // 2. Execute '/baud 2.5m' command
     type_ps2_command("/baud 2.5m");
     #200000;
-    assert (eval_proto_baud_rate == 4'd2) else $error("Baudrate setting mismatch");
-    $display("[TB] Executed '/baud 2.5m'. Baudrate updated (baud_rate=2).");
+    assert (eval_proto_baud_rate == 4'd3) else $error("Baudrate setting mismatch");
+    $display("[TB] Executed '/baud 2.5m'. Baudrate updated (baud_rate=3).");
 
     // 3. Test sending normal chat message
     type_ps2_command("hello");

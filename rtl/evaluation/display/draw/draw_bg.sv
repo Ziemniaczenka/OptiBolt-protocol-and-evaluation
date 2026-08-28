@@ -11,15 +11,14 @@
 (* use_dsp = "no" *)
 
 module draw_bg (
-    input  logic clk,
-    input  logic rst_n,
+    input logic clk,
+    input logic rst_n,
 
     vga_if.out vga_out,
     vga_if.in  vga_in
 );
 
-  timeunit 1ns;
-  timeprecision 1ps;
+  timeunit 1ns; timeprecision 1ps;
 
   import vga_pkg::*;
 
@@ -47,9 +46,9 @@ module draw_bg (
 
   always_comb begin : bg_comb_blk
     if (vga_in.vblnk || vga_in.hblnk) begin
-      rgb_nxt = 12'h0_0_0; // Blanking
+      rgb_nxt = 12'h0_0_0;  // Blanking
     end else begin
-      rgb_nxt = 12'h1_1_2; // Base workspace background
+      rgb_nxt = 12'h1_1_2;  // Base workspace background
     end
   end
 

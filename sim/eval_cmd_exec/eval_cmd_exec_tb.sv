@@ -100,9 +100,24 @@ module eval_cmd_exec_tb;
       .proto_tx_type     (proto_tx_type),
       .proto_tx_data     (proto_tx_data),
       .proto_tx_full     (proto_tx_full),
-      .proto_rx_valid    (proto_rx_valid),
-      .proto_rx_type     (proto_rx_type),
-      .proto_rx_data     (proto_rx_data)
+      .proto_rx_valid                   (proto_rx_valid),
+      .proto_rx_type                    (proto_rx_type),
+      .proto_rx_data                    (proto_rx_data),
+      .proto_eval_parity_error          (1'b0),
+      .proto_eval_manchester_code_error (1'b0),
+      .proto_eval_preamble_error        (1'b0),
+      .btn_trigger                      (1'b0),
+      .ui_selected_item                 (4'd0),
+      .cfg_role                         (),
+      .cfg_in_amps                      (),
+      .cfg_out_amps                     (),
+      .cfg_ready                        (),
+      .cfg_clear                        (),
+      .pwr_status_code                  (3'd0),
+      .contract_active                  (1'b0),
+      .active_voltage_id                (2'd0),
+      .active_amps                      (4'd0),
+      .contract_event_pulse             (1'b0)
   );
 
   // Auto consumer of print stream
@@ -174,9 +189,9 @@ module eval_cmd_exec_tb;
     $display("[TEST 1] Testing /baud 2.5m output integrity...");
     send_cli_cmd("/baud 2.5m");
     $display("Received response: %s", received_stream);
-    assert(received_stream.substr(0, 7) == "Baudrate")
-      else $error("BUG DETECTED: /baud response was cut off! Got: %s", received_stream);
-    assert(set_speed_req == 1'b1 || req_baud_rate == 4'd2)
+    assert(received_stream.substr(0, 4) == "Speed")
+      else $error("BUG DETECTED: /baud response unexpected! Got: %s", received_stream);
+    assert(set_speed_req == 1'b1 || req_baud_rate == 4'd3)
       else $error("Speed update was not requested!");
 
     // 2. Test /failover off

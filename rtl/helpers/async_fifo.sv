@@ -10,7 +10,7 @@
 
 module async_fifo #(
     parameter int DATA_WIDTH = 11,
-    parameter int ADDR_WIDTH = 4   // Depth = 2^ADDR_WIDTH (e.g. 16 words)
+    parameter int ADDR_WIDTH = 4    // Depth = 2^ADDR_WIDTH (e.g. 16 words)
 ) (
     // Write Domain
     input  logic                  clk_wr,
@@ -57,7 +57,7 @@ module async_fifo #(
   // =========================================================================
   // Write Domain Logic (clk_wr)
   // =========================================================================
-  assign wptr_bin_next  = wptr_bin + (wr_en && !full ? 1'b1 : 1'b0);
+  assign wptr_bin_next = wptr_bin + (wr_en && !full ? 1'b1 : 1'b0);
   assign wptr_gray_next = (wptr_bin_next >> 1) ^ wptr_bin_next;
 
   // Full condition: MSB and 2nd MSB inverted in Gray code, remaining bits equal
@@ -65,17 +65,17 @@ module async_fifo #(
 
   always_ff @(posedge clk_wr or negedge rst_wr_n) begin
     if (!rst_wr_n) begin
-      wptr_bin         <= '0;
-      wptr_gray        <= '0;
-      full             <= 1'b0;
-      rptr_gray_sync0  <= '0;
-      rptr_gray_sync1  <= '0;
+      wptr_bin        <= '0;
+      wptr_gray       <= '0;
+      full            <= 1'b0;
+      rptr_gray_sync0 <= '0;
+      rptr_gray_sync1 <= '0;
     end else begin
-      wptr_bin         <= wptr_bin_next;
-      wptr_gray        <= wptr_gray_next;
-      full             <= is_full;
-      rptr_gray_sync0  <= rptr_gray;
-      rptr_gray_sync1  <= rptr_gray_sync0;
+      wptr_bin        <= wptr_bin_next;
+      wptr_gray       <= wptr_gray_next;
+      full            <= is_full;
+      rptr_gray_sync0 <= rptr_gray;
+      rptr_gray_sync1 <= rptr_gray_sync0;
     end
   end
 
@@ -90,17 +90,17 @@ module async_fifo #(
 
   always_ff @(posedge clk_rd or negedge rst_rd_n) begin
     if (!rst_rd_n) begin
-      rptr_bin         <= '0;
-      rptr_gray        <= '0;
-      empty            <= 1'b1;
-      wptr_gray_sync0  <= '0;
-      wptr_gray_sync1  <= '0;
+      rptr_bin        <= '0;
+      rptr_gray       <= '0;
+      empty           <= 1'b1;
+      wptr_gray_sync0 <= '0;
+      wptr_gray_sync1 <= '0;
     end else begin
-      rptr_bin         <= rptr_bin_next;
-      rptr_gray        <= rptr_gray_next;
-      empty            <= is_empty;
-      wptr_gray_sync0  <= wptr_gray;
-      wptr_gray_sync1  <= wptr_gray_sync0;
+      rptr_bin        <= rptr_bin_next;
+      rptr_gray       <= rptr_gray_next;
+      empty           <= is_empty;
+      wptr_gray_sync0 <= wptr_gray;
+      wptr_gray_sync1 <= wptr_gray_sync0;
     end
   end
 

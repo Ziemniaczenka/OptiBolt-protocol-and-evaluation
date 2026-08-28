@@ -13,7 +13,7 @@
  */
 
 module link_handshake #(
-    parameter int RETRY_TICKS = 5_000_000 // 50ms retry interval while searching for connection
+    parameter int RETRY_TICKS = 5_000_000  // 50ms retry interval while searching for connection
 ) (
     input logic clk,
     input logic rst_n,
@@ -23,10 +23,10 @@ module link_handshake #(
     input logic [2:0] proto_eval_rx_type,
     input logic [7:0] proto_eval_rx_data,
     input logic       proto_eval_preamble_error,
-    input logic       proto_eval_rx_carrier, // Optical light activity on receiver pin
+    input logic       proto_eval_rx_carrier,      // Optical light activity on receiver pin
 
     // Speed update pulse from link manager
-    input logic       speed_updated_pulse,
+    input logic speed_updated_pulse,
 
     // Protocol TX request interface (to evaluation controller / arbiter)
     output logic       hs_tx_req,
@@ -41,15 +41,15 @@ module link_handshake #(
   import protocol_pkg::*;
 
   localparam logic [1:0] LINK_DISCONNECTED = 2'b00;
-  localparam logic [1:0] LINK_CONNECTED    = 2'b01;
-  localparam logic [1:0] LINK_LOOPBACK     = 2'b10;
+  localparam logic [1:0] LINK_CONNECTED = 2'b01;
+  localparam logic [1:0] LINK_LOOPBACK = 2'b10;
 
   // PRNG Instantiation using pixel_prng module (free-running on clk)
   logic [7:0] prng_byte;
   pixel_prng u_hs_prng (
       .clk(clk),
       .rst_n(rst_n),
-      .next_pixel(1'b1), // Advances every clock cycle
+      .next_pixel(1'b1),  // Advances every clock cycle
       .pixel_rgb(),
       .pixel_byte(prng_byte)
   );
@@ -57,14 +57,14 @@ module link_handshake #(
   // Connect retry timer
   logic [$clog2(RETRY_TICKS+1)-1:0] retry_cnt;
 
-  logic [7:0] my_challenge;
-  logic       challenge_latched;
-  logic       pending_challenge_tx;
-  logic       pending_ack_tx;
-  logic [7:0] ack_payload;
-  logic       rx_carrier_d1;
+  logic [                      7:0] my_challenge;
+  logic                             challenge_latched;
+  logic                             pending_challenge_tx;
+  logic                             pending_ack_tx;
+  logic [                      7:0] ack_payload;
+  logic                             rx_carrier_d1;
 
-  wire rx_carrier_rose = proto_eval_rx_carrier && !rx_carrier_d1;
+  wire                              rx_carrier_rose = proto_eval_rx_carrier && !rx_carrier_d1;
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin

@@ -11,17 +11,17 @@ module bram_tdp #(
     parameter DATA_WIDTH = 8,
     parameter ADDR_WIDTH = 10
 ) (
-    input  logic                  clk_a,
-    input  logic                  clk_b,
-    bram_if.memory                port_a,
-    bram_if.memory                port_b
+    input logic          clk_a,
+    input logic          clk_b,
+          bram_if.memory port_a,
+          bram_if.memory port_b
 );
 
   /**
     * Local variables and signals
     */
 
-  logic [DATA_WIDTH-1:0] ram[0:(1<<ADDR_WIDTH)-1]; // bram
+  logic [DATA_WIDTH-1:0] ram[0:(1<<ADDR_WIDTH)-1];  // bram
 
   /**
     * Internal logic

@@ -1,0 +1,4 @@
+# Dedicated Testbench for power_negotiator
+sv work "../../rtl/protocol/protocol_pkg.sv"
+sv work "../../rtl/evaluation/controller/power_negotiator.sv"
+sv work "power_negotiator_tb.sv"

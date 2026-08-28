@@ -37,8 +37,7 @@ module link_handshake_tb;
   always #5 clk = ~clk;
 
   link_handshake #(
-      .HEARTBEAT_TICKS(20),  // 200ns in sim
-      .TIMEOUT_TICKS(60)     // 600ns in sim
+      .RETRY_TICKS(20)
   ) dut (
       .clk(clk),
       .rst_n(rst_n),
@@ -47,6 +46,7 @@ module link_handshake_tb;
       .proto_eval_rx_data(proto_eval_rx_data),
       .proto_eval_preamble_error(proto_eval_preamble_error),
       .proto_eval_rx_carrier(proto_eval_rx_carrier),
+      .speed_updated_pulse(1'b0),
       .hs_tx_req(hs_tx_req),
       .hs_tx_type(hs_tx_type),
       .hs_tx_data(hs_tx_data),

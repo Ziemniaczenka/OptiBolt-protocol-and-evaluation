@@ -15,8 +15,7 @@ import ui_pkg::*;
 import protocol_pkg::*;
 
 module eval_cmd_exec #(
-    parameter int CLI_BUF_LEN      = 128,
-    parameter int SWEEP_STEP_TICKS = 5_000_000
+    parameter int CLI_BUF_LEN = 128
 ) (
     input  logic        clk,
     input  logic        rst_n,
@@ -72,25 +71,10 @@ module eval_cmd_exec #(
     output logic [ 7:0] proto_tx_data,
     input  logic        proto_tx_full,
 
-    // Power Negotiation Configuration
-    output logic [ 1:0] cfg_role,
-    output logic [ 3:0] cfg_in_amps[4],
-    output logic [ 3:0] cfg_out_amps[4],
-    output logic        cfg_ready,
-    output logic        cfg_clear,
-    input  logic [ 2:0] pwr_status_code,
-    input  logic        contract_active,
-    input  logic [ 1:0] active_voltage_id,
-    input  logic [ 3:0] active_amps,
-    input  logic        contract_event_pulse,
-
     // OptiBolt packet RX interface
     input  logic        proto_rx_valid,
     input  logic [ 2:0] proto_rx_type,
-    input  logic [ 7:0] proto_rx_data,
-    input  logic        proto_eval_parity_error,
-    input  logic        proto_eval_manchester_code_error,
-    input  logic        proto_eval_preamble_error
+    input  logic [ 7:0] proto_rx_data
 );
 
   localparam logic [2:0] MSG_REQUEST = 3'b001;
@@ -100,45 +84,18 @@ module eval_cmd_exec #(
   localparam logic [7:0] PING_REPLY  = 8'h5A;
 
   // ROM Messages
-  localparam logic [7:0] HELP_BYTES [0:563] = '{
+  localparam logic [7:0] HELP_BYTES [0:339] = '{
     "/", "h", "e", "l", "p", " ", " ", " ", " ", " ", " ", " ", " ", " ", ":", " ", "S", "h", "o", "w", " ", "h", "e", "l", "p", "\n",
     "/", "s", "t", "a", "t", "u", "s", " ", " ", " ", " ", " ", " ", " ", ":", " ", "L", "i", "n", "k", " ", "h", "e", "a", "l", "t", "h", "\n",
     "/", "p", "i", "n", "g", " ", " ", " ", " ", " ", " ", " ", " ", " ", ":", " ", "T", "e", "s", "t", " ", "R", "T", "T", "\n",
-    "/", "s", "w", "e", "e", "p", " ", " ", " ", " ", " ", " ", " ", " ", ":", " ", "T", "e", "s", "t", " ", "b", "a", "u", "d", " ", "c", "o", "n", "f", "i", "g", "s", "\n",
+    "/", "t", "e", "s", "t", " ", "s", "w", "e", "e", "p", " ", " ", " ", ":", " ", "T", "e", "s", "t", " ", "b", "a", "u", "d", " ", "c", "o", "n", "f", "i", "g", "s", "\n",
     "/", "b", "a", "u", "d", " ", "<", "s", "p", "d", ">", " ", " ", " ", ":", " ", "1", "0", "0", "k", ",", " ", "1", "m", ",", " ", "1", ".", "2", "5", "m", ",", " ", "2", ".", "5", "m", ",", "\n",
     " ", " ", "3", ".", "1", "2", "5", "m", ",", " ", "5", "m", ",", " ", "6", ".", "2", "5", "m", ",", " ", "8", ".", "3", "3", "m", ",", " ", "1", "2", ".", "5", "m", ",", " ", "2", "5", "m", "\n",
-    "/", "o", "s", " ", "<", "8", "x", " ", "|", " ", "1", "6", "x", ">", ":", " ", "S", "e", "t", " ", "o", "v", "e", "r", "s", "a", "m", "p", "l", "i", "n", "g", "\n",
+    "/", "o", "s", " ", "<", "8", "x", "|", "1", "6", "x", ">", " ", " ", ":", " ", "S", "e", "t", " ", "o", "v", "e", "r", "s", "a", "m", "p", "l", "i", "n", "g", "\n",
     "/", "b", "i", "t", "m", "a", "p", " ", "s", "e", "n", "d", " ", " ", ":", " ", "S", "t", "r", "e", "a", "m", " ", "B", "M", "P", "\n",
     "/", "b", "i", "t", "m", "a", "p", " ", "c", "l", "e", "a", "r", " ", ":", " ", "C", "l", "e", "a", "r", " ", "B", "M", "P", "\n",
-    "/", "f", "a", "i", "l", "o", "v", "e", "r", " ", "o", "n", " ", "|", " ", "o", "f", "f", " ", ":", " ", "F", "a", "i", "l", "o", "v", "e", "r", " ", "m", "o", "d", "e", "\n",
-    "/", "c", "l", "e", "a", "r", " ", " ", " ", " ", " ", " ", " ", " ", ":", " ", "C", "l", "e", "a", "r", " ", "c", "o", "n", "s", "o", "l", "e", "\n",
-    "/", "p", "o", "w", "e", "r", " ", "r", "o", "l", "e", " ", "<", "w", "a", "l", "l", " ", "|", " ", "b", "a", "t", "t", "e", "r", "y", " ", "|", " ", "s", "i", "n", "k", ">", "\n",
-    "/", "p", "o", "w", "e", "r", " ", "i", "n", " ", "<", "v", ">", " ", "<", "a", ">", ":", " ", "S", "e", "t", " ", "i", "n", " ", "r", "e", "q", "\n",
-    "/", "p", "o", "w", "e", "r", " ", "o", "u", "t", " ", "<", "v", ">", " ", "<", "a", ">", ":", " ", "S", "e", "t", " ", "o", "u", "t", " ", "c", "a", "p", "\n",
-    "/", "p", "o", "w", "e", "r", " ", "r", "e", "a", "d", "y", " ", " ", ":", " ", "A", "r", "m", " ", "n", "e", "g", "o", "t", "i", "a", "t", "i", "o", "n", "\n",
-    "/", "p", "o", "w", "e", "r", " ", "o", "f", "f", " ", " ", " ", " ", ":", " ", "D", "i", "s", "a", "b", "l", "e", " ", "p", "o", "w", "e", "r", "\n",
-    "/", "p", "o", "w", "e", "r", " ", "c", "l", "e", "a", "r", " ", " ", ":", " ", "R", "e", "s", "e", "t", " ", "t", "a", "b", "l", "e", "s", "\n",
-    "/", "p", "o", "w", "e", "r", " ", "s", "t", "a", "t", "u", "s", " ", ":", " ", "S", "h", "o", "w", " ", "p", "o", "w", "e", "r", " ", "t", "a", "b", "l", "e", "\n"
-  };
-  localparam int HELP_LEN = $size(HELP_BYTES);
-
-  localparam logic [7:0] PWR_OFF_BYTES [0:21] = '{
-    "P", "o", "w", "e", "r", " ", "d", "i", "s", "a", "b", "l", "e", "d", " ", "(", "O", "F", "F", ")", ".", "\n"
-  };
-  localparam logic [7:0] PWR_ROLE_SET_BYTES [0:18] = '{
-    "P", "o", "w", "e", "r", " ", "r", "o", "l", "e", " ", "u", "p", "d", "a", "t", "e", "d", "\n"
-  };
-  localparam logic [7:0] PWR_IN_SET_BYTES [0:23] = '{
-    "P", "o", "w", "e", "r", " ", "i", "n", "p", "u", "t", " ", "r", "e", "q", "u", "i", "r", "e", "m", "e", "n", "t", "\n"
-  };
-  localparam logic [7:0] PWR_OUT_SET_BYTES [0:23] = '{
-    "P", "o", "w", "e", "r", " ", "o", "u", "t", "p", "u", "t", " ", "c", "a", "p", "a", "b", "i", "l", "i", "t", "y", "\n"
-  };
-  localparam logic [7:0] PWR_CLEARED_BYTES [0:20] = '{
-    "P", "o", "w", "e", "r", " ", "t", "a", "b", "l", "e", "s", " ", "c", "l", "e", "a", "r", "e", "d", "\n"
-  };
-  localparam logic [7:0] PWR_READY_BYTES [0:24] = '{
-    "P", "o", "w", "e", "r", " ", "n", "e", "g", "o", "t", "i", "a", "t", "i", "o", "n", " ", "a", "r", "m", "e", "d", ".", "\n"
+    "/", "f", "a", "i", "l", "o", "v", "e", "r", " ", "o", "n", "|", "o", "f", "f", " ", ":", " ", "F", "a", "i", "l", "o", "v", "e", "r", " ", "m", "o", "d", "e", "\n",
+    "/", "c", "l", "e", "a", "r", " ", " ", " ", " ", " ", " ", " ", " ", ":", " ", "C", "l", "e", "a", "r", " ", "c", "o", "n", "s", "o", "l", "e", "\n"
   };
 
   localparam logic [7:0] STATUS_DISCONN_BYTES [0:22] = '{
@@ -243,14 +200,7 @@ module eval_cmd_exec #(
     SRC_SWEEP_START,
     SRC_SWEEP_PASS,
     SRC_SWEEP_FAIL,
-    SRC_SWEEP_DONE,
-    SRC_PWR_ROLE_SET,
-    SRC_PWR_IN_SET,
-    SRC_PWR_OUT_SET,
-    SRC_PWR_CLEARED,
-    SRC_PWR_READY,
-    SRC_PWR_OFF,
-    SRC_PWR_STATUS
+    SRC_SWEEP_DONE
   } msg_src_t;
 
   typedef enum logic [3:0] {
@@ -314,16 +264,10 @@ module eval_cmd_exec #(
   logic        fmt_lead_zero;
 
   // Sweep registers
-  logic [ 4:0] sweep_step;
-  logic [ 4:0] sweep_print_step;
+  logic [ 3:0] sweep_step;
   logic [31:0] sweep_timer;
+  logic        sweep_step_passed;
   logic        sweep_active;
-  logic [ 3:0] sweep_tx_count;
-  logic [ 3:0] sweep_rx_count;
-  logic        sweep_had_error;
-
-  // Power status message buffer
-  logic [ 7:0] pwr_msg_buf [0:63];
 
   // Message multiplexer
   always_comb begin
@@ -342,16 +286,9 @@ module eval_cmd_exec #(
       SRC_PING_START:     current_msg_char = PING_START_BYTES[msg_idx];
       SRC_PING_MSG:       current_msg_char = ping_msg_buf[msg_idx];
       SRC_SWEEP_START:    current_msg_char = SWEEP_START_BYTES[msg_idx];
-      SRC_SWEEP_PASS:     current_msg_char = SWEEP_PASS_STR[sweep_print_step][msg_idx];
-      SRC_SWEEP_FAIL:     current_msg_char = SWEEP_FAIL_STR[sweep_print_step][msg_idx];
+      SRC_SWEEP_PASS:     current_msg_char = SWEEP_PASS_STR[sweep_step][msg_idx];
+      SRC_SWEEP_FAIL:     current_msg_char = SWEEP_FAIL_STR[sweep_step][msg_idx];
       SRC_SWEEP_DONE:     current_msg_char = SWEEP_DONE_BYTES[msg_idx];
-      SRC_PWR_ROLE_SET:   current_msg_char = PWR_ROLE_SET_BYTES[msg_idx];
-      SRC_PWR_IN_SET:     current_msg_char = PWR_IN_SET_BYTES[msg_idx];
-      SRC_PWR_OUT_SET:    current_msg_char = PWR_OUT_SET_BYTES[msg_idx];
-      SRC_PWR_CLEARED:    current_msg_char = PWR_CLEARED_BYTES[msg_idx];
-      SRC_PWR_READY:      current_msg_char = PWR_READY_BYTES[msg_idx];
-      SRC_PWR_OFF:        current_msg_char = PWR_OFF_BYTES[msg_idx];
-      SRC_PWR_STATUS:     current_msg_char = pwr_msg_buf[msg_idx];
       default:            current_msg_char = 8'h00;
     endcase
   end
@@ -401,19 +338,9 @@ module eval_cmd_exec #(
       fmt_text_idx      <= '0;
       fmt_lead_zero     <= 1'b1;
       sweep_step        <= '0;
-      sweep_print_step  <= '0;
       sweep_timer       <= '0;
+      sweep_step_passed <= 1'b0;
       sweep_active      <= 1'b0;
-      sweep_tx_count    <= '0;
-      sweep_rx_count    <= '0;
-      sweep_had_error   <= 1'b0;
-      cfg_role          <= 2'd0;
-      cfg_ready         <= 1'b0;
-      cfg_clear         <= 1'b0;
-      for (int i = 0; i < 4; i++) begin
-        cfg_in_amps[i]  <= 4'd0;
-        cfg_out_amps[i] <= 4'd0;
-      end
       for (int i = 0; i < 8; i++) bcd_d[i] <= 4'd0;
       for (int i = 0; i < 64; i++) ping_msg_buf[i] <= 8'h00;
     end else begin
@@ -477,7 +404,7 @@ module eval_cmd_exec #(
           end else if (btn_trigger) begin
             case (ui_selected_item)
               ITEM_HELP_BTN: begin
-                msg_src <= SRC_HELP; msg_len <= 11'(HELP_LEN); msg_idx <= '0; state <= E_STREAM_MSG;
+                msg_src <= SRC_HELP; msg_len <= 11'd340; msg_idx <= '0; state <= E_STREAM_MSG;
               end
               ITEM_PING_BTN: begin
                 if (link_status == 2'b00) begin
@@ -489,13 +416,10 @@ module eval_cmd_exec #(
                 end
               end
               ITEM_SWEEP_BTN: begin
-                sweep_step        <= 5'd0;
-                sweep_print_step  <= 5'd0;
+                sweep_step        <= 4'd0;
                 sweep_timer       <= '0;
                 sweep_active      <= 1'b1;
-                sweep_tx_count    <= 4'd0;
-                sweep_rx_count    <= 4'd0;
-                sweep_had_error   <= 1'b0;
+                sweep_step_passed <= 1'b0;
                 show_popup        <= 1'b1;
                 popup_mode        <= POPUP_PROGRESS;
                 progress_val      <= 8'd0;
@@ -557,7 +481,7 @@ module eval_cmd_exec #(
             valid_rate = 1'b0;  valid_os = 1'b0;
 
             if (cmd_len >= 5 && cmd_buf[3]=="h" && cmd_buf[4]=="e") begin
-              msg_src <= SRC_HELP; msg_len <= 11'(HELP_LEN); state <= E_STREAM_MSG;
+              msg_src <= SRC_HELP; msg_len <= 11'd340; state <= E_STREAM_MSG;
             end else if (cmd_len >= 7 && cmd_buf[3]=="c" && cmd_buf[4]=="l" && cmd_buf[5]=="e" && cmd_buf[6]=="a") begin
               clear_console_req <= 1'b1;
               state <= E_IDLE;
@@ -653,72 +577,16 @@ module eval_cmd_exec #(
             end else if (cmd_len >= 15 && cmd_buf[3]=="b" && cmd_buf[4]=="i" && cmd_buf[5]=="t" && cmd_buf[10]=="c" && cmd_buf[11]=="l") begin
               clear_bmp_idx <= 14'd0;
               state         <= E_CLEAR_BITMAP;
-            end else if (cmd_len >= 6 && cmd_buf[3]=="s" && cmd_buf[4]=="w" && cmd_buf[5]=="e") begin
-              sweep_step        <= 5'd0;
-              sweep_print_step  <= 5'd0;
+            end else if (cmd_len >= 12 && cmd_buf[3]=="t" && cmd_buf[4]=="e" && cmd_buf[5]=="s" && cmd_buf[8]=="s" && cmd_buf[9]=="w") begin
+              sweep_step        <= 4'd0;
               sweep_timer       <= '0;
               sweep_active      <= 1'b1;
-              sweep_tx_count    <= 4'd0;
-              sweep_rx_count    <= 4'd0;
-              sweep_had_error   <= 1'b0;
+              sweep_step_passed <= 1'b0;
               show_popup        <= 1'b1;
               show_progress     <= 1'b1;
               popup_mode        <= POPUP_PROGRESS;
               progress_val      <= 8'd0;
               msg_src <= SRC_SWEEP_START; msg_len <= 11'd27; state <= E_STREAM_MSG;
-            end else if (cmd_len >= 8 && cmd_buf[3]=="p" && cmd_buf[4]=="o" && cmd_buf[5]=="w" && cmd_buf[6]=="e" && cmd_buf[7]=="r") begin
-              if (cmd_len >= 14 && cmd_buf[9]=="r" && cmd_buf[10]=="o" && cmd_buf[11]=="l" && cmd_buf[12]=="e") begin
-                if (cmd_buf[14] == "w" || cmd_buf[14] == "W")      cfg_role <= 2'd1; // WALL
-                else if (cmd_buf[14] == "b" || cmd_buf[14] == "B") cfg_role <= 2'd2; // BATTERY
-                else if (cmd_buf[14] == "s" || cmd_buf[14] == "S") cfg_role <= 2'd3; // SINK
-                msg_src <= SRC_PWR_ROLE_SET; msg_len <= 11'd19; state <= E_STREAM_MSG;
-              end else if (cmd_len >= 12 && cmd_buf[9]=="i" && cmd_buf[10]=="n") begin
-                // /power in <5|9|12|20> <amps>
-                if (cmd_buf[12] == "5")        cfg_in_amps[0] <= cmd_buf[14][3:0];
-                else if (cmd_buf[12] == "9")   cfg_in_amps[1] <= cmd_buf[14][3:0];
-                else if (cmd_buf[12] == "1")   cfg_in_amps[2] <= cmd_buf[15][3:0];
-                else if (cmd_buf[12] == "2")   cfg_in_amps[3] <= cmd_buf[15][3:0];
-                msg_src <= SRC_PWR_IN_SET; msg_len <= 11'd24; state <= E_STREAM_MSG;
-              end else if (cmd_len >= 13 && cmd_buf[9]=="o" && cmd_buf[10]=="u" && cmd_buf[11]=="t") begin
-                // /power out <5|9|12|20> <amps>
-                if (cmd_buf[13] == "5")        cfg_out_amps[0] <= cmd_buf[15][3:0];
-                else if (cmd_buf[13] == "9")   cfg_out_amps[1] <= cmd_buf[15][3:0];
-                else if (cmd_buf[13] == "1")   cfg_out_amps[2] <= cmd_buf[16][3:0];
-                else if (cmd_buf[13] == "2")   cfg_out_amps[3] <= cmd_buf[16][3:0];
-                msg_src <= SRC_PWR_OUT_SET; msg_len <= 11'd24; state <= E_STREAM_MSG;
-              end else if (cmd_len >= 14 && cmd_buf[9]=="c" && cmd_buf[10]=="l" && cmd_buf[11]=="e") begin
-                cfg_role  <= 2'd0;
-                cfg_ready <= 1'b0;
-                cfg_clear <= 1'b1;
-                for (int i = 0; i < 4; i++) begin
-                  cfg_in_amps[i]  <= 4'd0;
-                  cfg_out_amps[i] <= 4'd0;
-                end
-                msg_src <= SRC_PWR_CLEARED; msg_len <= 11'd21; state <= E_STREAM_MSG;
-              end else if (cmd_len >= 14 && cmd_buf[9]=="r" && cmd_buf[10]=="e" && cmd_buf[11]=="a") begin
-                cfg_ready <= 1'b1;
-                msg_src   <= SRC_PWR_READY; msg_len <= 11'd25; state <= E_STREAM_MSG;
-              end else if (cmd_len >= 12 && cmd_buf[9]=="o" && cmd_buf[10]=="f" && cmd_buf[11]=="f") begin
-                cfg_ready      <= 1'b0;
-                proto_tx_valid <= 1'b1;
-                proto_tx_type  <= MSG_POWER;
-                proto_tx_data  <= 8'hFE;
-                msg_src <= SRC_PWR_OFF; msg_len <= 11'd22; state <= E_STREAM_MSG;
-              end else if (cmd_len >= 15 && cmd_buf[9]=="s" && cmd_buf[10]=="t" && cmd_buf[11]=="a") begin
-                // /power status : Show power table
-                pwr_msg_buf[0]  <= "R"; pwr_msg_buf[1]  <= "o"; pwr_msg_buf[2]  <= "l"; pwr_msg_buf[3]  <= "e"; pwr_msg_buf[4]  <= ":"; pwr_msg_buf[5]  <= " ";
-                pwr_msg_buf[6]  <= (cfg_role == 2'd1) ? "W" : (cfg_role == 2'd2) ? "B" : (cfg_role == 2'd3) ? "S" : "-";
-                pwr_msg_buf[7]  <= " "; pwr_msg_buf[8]  <= "|"; pwr_msg_buf[9]  <= " ";
-                pwr_msg_buf[10] <= "I"; pwr_msg_buf[11] <= "n"; pwr_msg_buf[12] <= ":";
-                pwr_msg_buf[13] <= "5"; pwr_msg_buf[14] <= "V"; pwr_msg_buf[15] <= "="; pwr_msg_buf[16] <= {4'h3, cfg_in_amps[0]}; pwr_msg_buf[17] <= "A"; pwr_msg_buf[18] <= " ";
-                pwr_msg_buf[19] <= "9"; pwr_msg_buf[20] <= "V"; pwr_msg_buf[21] <= "="; pwr_msg_buf[22] <= {4'h3, cfg_in_amps[1]}; pwr_msg_buf[23] <= "A"; pwr_msg_buf[24] <= " ";
-                pwr_msg_buf[25] <= "1"; pwr_msg_buf[26] <= "2"; pwr_msg_buf[27] <= "V"; pwr_msg_buf[28] <= "="; pwr_msg_buf[29] <= {4'h3, cfg_in_amps[2]}; pwr_msg_buf[30] <= "A"; pwr_msg_buf[31] <= " ";
-                pwr_msg_buf[32] <= "2"; pwr_msg_buf[33] <= "0"; pwr_msg_buf[34] <= "V"; pwr_msg_buf[35] <= "="; pwr_msg_buf[36] <= {4'h3, cfg_in_amps[3]}; pwr_msg_buf[37] <= "A";
-                pwr_msg_buf[38] <= "\n";
-                msg_src <= SRC_PWR_STATUS; msg_len <= 11'd39; state <= E_STREAM_MSG;
-              end else begin
-                msg_src <= SRC_UNKNOWN; msg_len <= 11'd16; state <= E_STREAM_MSG;
-              end
             end else begin
               msg_src <= SRC_UNKNOWN; msg_len <= 11'd16; state <= E_STREAM_MSG;
             end
@@ -904,69 +772,52 @@ module eval_cmd_exec #(
         // Baudrate Sweep FSM (11 combos)
         // -------------------------------------------------------------------
         E_SWEEP_STEP: begin
-          if (sweep_step < 5'd16) begin
-            req_baud_rate    <= SWEEP_BAUD[sweep_step];
-            req_oversampling <= SWEEP_OS[sweep_step];
-            set_speed_req    <= 1'b1;
-            sweep_timer      <= '0;
-            sweep_tx_count   <= 4'd0;
-            sweep_rx_count   <= 4'd0;
-            sweep_had_error  <= 1'b0;
-            progress_val     <= 8'((255 * (sweep_step + 1)) / 16);
-            state            <= E_SWEEP_WAIT;
-          end else begin
-            // Sweep complete: restore default 1.0 Mbps 8x
-            req_baud_rate    <= 4'd1;
-            req_oversampling <= 4'd0;
-            set_speed_req    <= 1'b1;
-            sweep_active     <= 1'b0;
-            show_popup       <= 1'b0;
-            show_progress    <= 1'b0;
-            popup_mode       <= POPUP_NONE;
-            msg_src          <= SRC_SWEEP_DONE;
-            msg_len          <= 11'd21;
-            msg_idx          <= '0;
-            state            <= E_STREAM_MSG;
-          end
+          req_baud_rate     <= SWEEP_BAUD[sweep_step];
+          req_oversampling  <= SWEEP_OS[sweep_step];
+          set_speed_req     <= 1'b1;
+          sweep_timer       <= '0;
+          sweep_step_passed <= 1'b0;
+          progress_val      <= 8'((255 * (sweep_step + 1)) / 16);
+          state             <= E_SWEEP_WAIT;
         end
 
         E_SWEEP_WAIT: begin
-          sweep_timer <= sweep_timer + 32'd1;
-
-          // Latch any protocol errors occurring during this baudrate test step
-          if (proto_eval_parity_error || proto_eval_manchester_code_error || proto_eval_preamble_error) begin
-            sweep_had_error <= 1'b1;
-          end
-
-          // Transmit 8 test request packets spaced out across the step duration
-          if (sweep_timer[15:0] == 16'h0080 && sweep_tx_count < 4'd8 && !proto_tx_full) begin
+          // Hold proto_tx_valid until accepted by TX FIFO
+          if (!sweep_step_passed && !proto_tx_valid &&
+              (sweep_timer == 32'd200_000 ||
+               sweep_timer == 32'd500_000 ||
+               sweep_timer == 32'd800_000 ||
+               sweep_timer == 32'd1_100_000)) begin
             proto_tx_valid <= 1'b1;
             proto_tx_type  <= MSG_REQUEST;
-            proto_tx_data  <= {4'hA, sweep_tx_count};
-            sweep_tx_count <= sweep_tx_count + 4'd1;
+            proto_tx_data  <= PING_TOKEN;
           end else if (proto_tx_valid && !proto_tx_full) begin
             proto_tx_valid <= 1'b0;
           end
 
-          // Count received test packets
-          if (proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data[7:4] == 4'hA) begin
-            sweep_rx_count <= sweep_rx_count + 4'd1;
+          if (proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data == PING_TOKEN) begin
+            sweep_step_passed <= 1'b1;
           end
 
-          // Dwell for SWEEP_STEP_TICKS to evaluate link performance under this speed
-          if (sweep_timer >= SWEEP_STEP_TICKS) begin
-            proto_tx_valid   <= 1'b0;
-            sweep_print_step <= sweep_step;
-            sweep_step       <= sweep_step + 5'd1;
-            msg_idx          <= '0;
-            if (sweep_rx_count >= 4'd3 && !sweep_had_error && rx_carrier && link_status != 2'b00) begin
-              msg_src <= SRC_SWEEP_PASS;
-              msg_len <= 11'd21;
+          if (sweep_timer >= 32'd1_500_000) begin
+            proto_tx_valid <= 1'b0;
+            msg_idx <= '0;
+            if (sweep_step_passed && link_status != 2'b00) begin
+              msg_src <= SRC_SWEEP_PASS; msg_len <= 11'd21;
             end else begin
-              msg_src <= SRC_SWEEP_FAIL;
-              msg_len <= 11'd24;
+              msg_src <= SRC_SWEEP_FAIL; msg_len <= 11'd24;
+            end
+            if (sweep_step == 4'd15) begin
+              sweep_active  <= 1'b0;
+              show_popup    <= 1'b0;
+              show_progress <= 1'b0;
+              popup_mode    <= POPUP_NONE;
+            end else begin
+              sweep_step <= sweep_step + 4'd1;
             end
             state <= E_STREAM_MSG;
+          end else begin
+            sweep_timer <= sweep_timer + 32'd1;
           end
         end
 

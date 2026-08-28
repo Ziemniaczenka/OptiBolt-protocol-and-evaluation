@@ -13,14 +13,14 @@
 module eval_diagnostics #(
     parameter int WINDOW_CYCLES = 50_000_000
 ) (
-    input  logic        clk,
-    input  logic        rst_n,
+    input logic clk,
+    input logic rst_n,
 
     // Error strobe inputs from receiver
-    input  logic        proto_eval_manchester_code_error,
-    input  logic        proto_eval_preamble_error,
-    input  logic        proto_eval_parity_error,
-    input  logic [ 1:0] link_status,
+    input logic       proto_eval_manchester_code_error,
+    input logic       proto_eval_preamble_error,
+    input logic       proto_eval_parity_error,
+    input logic [1:0] link_status,
 
     // Output telemetry to display
     output logic [15:0] err_man_cnt,
@@ -94,37 +94,38 @@ module eval_diagnostics #(
 
   // Synthesizable Log-Scale Mapping Function for Real-Time Error Progress Bars
   function automatic logic [7:0] log_scale_progress(input [15:0] cnt);
-    if (cnt == 16'd0)        return 8'd0;
-    else if (cnt < 16'd5)    return 8'd25;
-    else if (cnt < 16'd20)   return 8'd60;
-    else if (cnt < 16'd100)  return 8'd120;
-    else if (cnt < 16'd500)  return 8'd180;
+    if (cnt == 16'd0) return 8'd0;
+    else if (cnt < 16'd5) return 8'd25;
+    else if (cnt < 16'd20) return 8'd60;
+    else if (cnt < 16'd100) return 8'd120;
+    else if (cnt < 16'd500) return 8'd180;
     else if (cnt < 16'd2000) return 8'd220;
-    else                     return 8'd255;
+    else return 8'd255;
   endfunction
 
   // Synthesizable 4-Color Gradient Function based on Error Severity
   function automatic logic [11:0] error_color(input [7:0] prog);
-    if (prog < 8'd40)        return 12'h3C5; // Green
-    else if (prog < 8'd120)  return 12'hEE3; // Yellow
-    else if (prog < 8'd200)  return 12'hFA2; // Orange
-    else                     return 12'hF33; // Red
+    if (prog < 8'd40) return 12'h3C5;  // Green
+    else if (prog < 8'd120) return 12'hEE3;  // Yellow
+    else if (prog < 8'd200) return 12'hFA2;  // Orange
+    else return 12'hF33;  // Red
   endfunction
 
   // Dynamic Health Rating Calculator (100% minus aggregate error penalties)
-  function automatic logic [7:0] calc_health(input [15:0] man, input [15:0] pre, input [15:0] par, input [1:0] link);
+  function automatic logic [7:0] calc_health(input [15:0] man, input [15:0] pre, input [15:0] par,
+                                             input [1:0] link);
     logic [17:0] penalty;
-    if (link == 2'b00) return 8'd0; // Disconnected = 0% health
+    if (link == 2'b00) return 8'd0;  // Disconnected = 0% health
     penalty = (man * 18'd5) + (pre * 18'd3) + (par * 18'd8);
-    if (penalty >= 18'd255) return 8'd10; // Floor at 10 (critical)
+    if (penalty >= 18'd255) return 8'd10;  // Floor at 10 (critical)
     else return 8'(18'd255 - penalty);
   endfunction
 
   function automatic logic [11:0] health_color(input [7:0] hlt);
-    if (hlt >= 8'd200)       return 12'h3C5; // Green
-    else if (hlt >= 8'd140)  return 12'hEE3; // Yellow
-    else if (hlt >= 8'd70)   return 12'hFA2; // Orange
-    else                     return 12'hF33; // Red
+    if (hlt >= 8'd200) return 12'h3C5;  // Green
+    else if (hlt >= 8'd140) return 12'hEE3;  // Yellow
+    else if (hlt >= 8'd70) return 12'hFA2;  // Orange
+    else return 12'hF33;  // Red
   endfunction
 
   assign prog_man  = log_scale_progress(err_man_cnt);

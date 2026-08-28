@@ -16,33 +16,33 @@ module eval_console_buffer #(
     parameter int MAX_LINES = 40,
     parameter int LINE_WRAP_COLS = 95
 ) (
-    input  logic                                           clk,
-    input  logic                                           rst_n,
+    input logic clk,
+    input logic rst_n,
 
     // Block RAM interface to Console memory
     output logic [$clog2(string_pkg::CONSOLE_MAX_LEN)-1:0] console_addr,
     output logic                                           console_we,
-    output logic [7:0]                                     console_din,
-    input  logic [7:0]                                     console_dout,
+    output logic [                                    7:0] console_din,
+    input  logic [                                    7:0] console_dout,
 
     // High-priority print streaming interface (CLI echo, commands, ping, sweep)
-    input  logic                                           print_valid,
-    input  logic [7:0]                                     print_char,
-    input  logic                                           print_last,
-    output logic                                           print_ready,
+    input  logic       print_valid,
+    input  logic [7:0] print_char,
+    input  logic       print_last,
+    output logic       print_ready,
 
     // OptiBolt direct incoming RX text character interface
-    input  logic                                           rx_char_valid,
-    input  logic [7:0]                                     rx_char_data,
-    output logic                                           rx_char_ready,
+    input  logic       rx_char_valid,
+    input  logic [7:0] rx_char_data,
+    output logic       rx_char_ready,
 
     // Clear console control
-    input  logic                                           clear_req,
-    output logic                                           clear_ack,
+    input  logic clear_req,
+    output logic clear_ack,
 
     // Status outputs
-    output logic [5:0]                                     line_count,
-    output logic                                           console_busy
+    output logic [5:0] line_count,
+    output logic       console_busy
 );
 
   typedef enum logic [3:0] {
@@ -59,24 +59,24 @@ module eval_console_buffer #(
     C_CLEAR_CONSOLE
   } console_state_t;
 
-  console_state_t state;
-  console_state_t state_after_scroll;
+  console_state_t       state;
+  console_state_t       state_after_scroll;
 
-  logic [9:0] write_ptr;
-  logic [5:0] line_cnt;
-  logic [6:0] col_cnt;
+  logic           [9:0] write_ptr;
+  logic           [5:0] line_cnt;
+  logic           [6:0] col_cnt;
 
   // Active character being processed
-  logic [7:0] char_to_write;
-  logic       char_is_last;
+  logic           [7:0] char_to_write;
+  logic                 char_is_last;
 
   // Clear & scroll counters
-  logic [9:0] scan_idx;
-  logic [9:0] nl_len;
-  logic [9:0] scroll_src;
-  logic [9:0] scroll_dst;
-  logic [9:0] clear_src;
-  logic [9:0] clear_idx;
+  logic           [9:0] scan_idx;
+  logic           [9:0] nl_len;
+  logic           [9:0] scroll_src;
+  logic           [9:0] scroll_dst;
+  logic           [9:0] clear_src;
+  logic           [9:0] clear_idx;
 
   assign line_count   = line_cnt;
   assign console_busy = (state != C_IDLE);
@@ -136,7 +136,7 @@ module eval_console_buffer #(
           end else if (print_valid) begin
             char_to_write <= print_char;
             char_is_last  <= print_last;
-            print_ready   <= 1'b1; // Accept character
+            print_ready   <= 1'b1;  // Accept character
 
             // Check if scroll is needed BEFORE writing
             if (line_cnt >= MAX_LINES || write_ptr >= (string_pkg::CONSOLE_MAX_LEN - 64)) begin
@@ -149,7 +149,7 @@ module eval_console_buffer #(
           end else if (rx_char_valid) begin
             char_to_write <= rx_char_data;
             char_is_last  <= 1'b1;
-            rx_char_ready <= 1'b1; // Accept RX character
+            rx_char_ready <= 1'b1;  // Accept RX character
 
             if (line_cnt >= MAX_LINES || write_ptr >= (string_pkg::CONSOLE_MAX_LEN - 64)) begin
               scan_idx           <= 10'd0;
@@ -175,7 +175,7 @@ module eval_console_buffer #(
             end
 
             // Line & column calculation
-            if (char_to_write == 8'h0A) begin // Newline
+            if (char_to_write == 8'h0A) begin  // Newline
               line_cnt <= line_cnt + 6'd1;
               col_cnt  <= 7'd0;
             end else begin

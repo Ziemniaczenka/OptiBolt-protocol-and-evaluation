@@ -31,6 +31,12 @@ module top_display (
     input logic [11:0] color_par,
     input logic [11:0] color_hlt,
 
+    // Power Negotiation
+    input logic [2:0] pwr_status_code,
+    input logic [1:0] active_voltage_id,
+    input logic [3:0] active_amps,
+    input logic       contract_active,
+
     output logic vs,
     output logic hs,
     output logic [3:0] r,
@@ -104,6 +110,10 @@ module top_display (
       .color_pre(color_pre),
       .color_par(color_par),
       .color_hlt(color_hlt),
+      .pwr_status_code(pwr_status_code),
+      .active_voltage_id(active_voltage_id),
+      .active_amps(active_amps),
+      .contract_active(contract_active),
       .console_bram(console_bram),
       .input_bram(input_bram),
       .dyn_bmp_bram(dyn_bmp_bram),

@@ -11,7 +11,10 @@ import string_pkg::*;
 import ui_pkg::*;
 import protocol_pkg::*;
 
-module top_evaluation (
+module top_evaluation #(
+    parameter int SWEEP_STEP_TICKS = 5_000_000,
+    parameter int PWR_RETRY_TICKS  = 10_000_000
+) (
     input logic clk100,
     input logic clk74p25,
     input logic rst_n,
@@ -33,18 +36,18 @@ module top_evaluation (
     input  logic       proto_eval_tx_empty,
 
     // RX Interface
-    input  logic       proto_eval_rx_valid,
-    input  logic [2:0] proto_eval_rx_type,
-    input  logic [7:0] proto_eval_rx_data,
-    input  logic       proto_eval_parity_error,
-    input  logic       proto_eval_manchester_code_error,
-    input  logic       proto_eval_preamble_error,
-    input  logic       proto_eval_rx_carrier,
+    input logic       proto_eval_rx_valid,
+    input logic [2:0] proto_eval_rx_type,
+    input logic [7:0] proto_eval_rx_data,
+    input logic       proto_eval_parity_error,
+    input logic       proto_eval_manchester_code_error,
+    input logic       proto_eval_preamble_error,
+    input logic       proto_eval_rx_carrier,
 
     // Telemetry / Status
-    input  logic        proto_eval_link_status,
-    input  logic [31:0] proto_eval_ber_count,
-    input  logic [15:0] proto_eval_err_count,
+    input logic        proto_eval_link_status,
+    input logic [31:0] proto_eval_ber_count,
+    input logic [15:0] proto_eval_err_count,
 
     // VGA Output
     output logic       vs,
@@ -85,7 +88,7 @@ module top_evaluation (
 
   // Error and Diagnostics Metrics
   logic [15:0] err_man_cnt, err_pre_cnt, err_par_cnt;
-  logic [ 7:0] prog_man, prog_pre, prog_par, prog_hlt;
+  logic [7:0] prog_man, prog_pre, prog_par, prog_hlt;
   logic [11:0] color_man, color_pre, color_par, color_hlt;
 
   // RAM Write Signals from Evaluation Controller
@@ -93,58 +96,98 @@ module top_evaluation (
   logic [$clog2(string_pkg::CONSOLE_MAX_LEN)-1:0] console_addr_w;
   logic [                                    7:0] console_din;
 
-  logic                                         input_we;
-  logic [$clog2(string_pkg::INPUT_MAX_LEN)-1:0] input_addr_w;
-  logic [                                  7:0] input_din;
+  logic                                           input_we;
+  logic [  $clog2(string_pkg::INPUT_MAX_LEN)-1:0] input_addr_w;
+  logic [                                    7:0] input_din;
 
-  logic        bmp_we;
-  logic [13:0] bmp_addr_w;
-  logic [11:0] bmp_din;
+  logic                                           bmp_we;
+  logic [                                   13:0] bmp_addr_w;
+  logic [                                   11:0] bmp_din;
 
   // Handshake signals
-  logic       hs_tx_req;
-  logic [2:0] hs_tx_type;
-  logic [7:0] hs_tx_data;
-  logic       hs_tx_ack;
-  logic [1:0] link_status;
-  logic       speed_updated_pulse;
+  logic                                           hs_tx_req;
+  logic [                                    2:0] hs_tx_type;
+  logic [                                    7:0] hs_tx_data;
+  logic                                           hs_tx_ack;
+  logic [                                    1:0] link_status;
+  logic                                           speed_updated_pulse;
 
   // CDC UI Navigation & Telemetry
-  logic [3:0]  ui_selected_item_clk74;
-  logic        mode_text_clk74;
-  logic        show_popup_clk74;
-  logic        show_progress_clk74;
-  logic [7:0]  progress_val_clk74;
-  logic [1:0]  popup_mode_clk74;
-  logic        rx_carrier_clk74;
-  logic [1:0]  link_status_clk74;
-  logic [3:0]  baud_rate_clk74;
-  logic [3:0]  oversampling_clk74;
-  logic [7:0]  prog_man_clk74, prog_pre_clk74, prog_par_clk74, prog_hlt_clk74;
+  logic [                                    3:0] ui_selected_item_clk74;
+  logic                                           mode_text_clk74;
+  logic                                           show_popup_clk74;
+  logic                                           show_progress_clk74;
+  logic [                                    7:0] progress_val_clk74;
+  logic [                                    1:0] popup_mode_clk74;
+  logic                                           rx_carrier_clk74;
+  logic [                                    1:0] link_status_clk74;
+  logic [                                    3:0] baud_rate_clk74;
+  logic [                                    3:0] oversampling_clk74;
+  logic [7:0] prog_man_clk74, prog_pre_clk74, prog_par_clk74, prog_hlt_clk74;
   logic [11:0] color_man_clk74, color_pre_clk74, color_par_clk74, color_hlt_clk74;
-  logic        eval_failover_en;
-  logic        failover_en_clk74;
+  logic eval_failover_en;
+  logic failover_en_clk74;
+
+  // Power Negotiation signals
+  logic [2:0] pwr_status_code, pwr_status_code_clk74;
+  logic [1:0] active_voltage_id, active_voltage_id_clk74;
+  logic [3:0] active_amps, active_amps_clk74;
+  logic contract_active, contract_active_clk74;
 
   cdc_sync #(
-      .WIDTH(109)
+      .WIDTH(119)
   ) u_cdc_ui_sync (
       .clk_dst(clk74p25),
       .rst_n(rst_n),
       .d_in({
         eval_failover_en,
         proto_eval_rx_carrier,
-        mode_text, ui_selected_item, show_popup, show_progress, progress_val, popup_mode,
-        link_status, eval_proto_baud_rate, eval_proto_oversampling,
-        prog_man, prog_pre, prog_par, prog_hlt,
-        color_man, color_pre, color_par, color_hlt
+        mode_text,
+        ui_selected_item,
+        show_popup,
+        show_progress,
+        progress_val,
+        popup_mode,
+        link_status,
+        eval_proto_baud_rate,
+        eval_proto_oversampling,
+        prog_man,
+        prog_pre,
+        prog_par,
+        prog_hlt,
+        color_man,
+        color_pre,
+        color_par,
+        color_hlt,
+        pwr_status_code,
+        active_voltage_id,
+        active_amps,
+        contract_active
       }),
       .d_out({
         failover_en_clk74,
         rx_carrier_clk74,
-        mode_text_clk74, ui_selected_item_clk74, show_popup_clk74, show_progress_clk74, progress_val_clk74, popup_mode_clk74,
-        link_status_clk74, baud_rate_clk74, oversampling_clk74,
-        prog_man_clk74, prog_pre_clk74, prog_par_clk74, prog_hlt_clk74,
-        color_man_clk74, color_pre_clk74, color_par_clk74, color_hlt_clk74
+        mode_text_clk74,
+        ui_selected_item_clk74,
+        show_popup_clk74,
+        show_progress_clk74,
+        progress_val_clk74,
+        popup_mode_clk74,
+        link_status_clk74,
+        baud_rate_clk74,
+        oversampling_clk74,
+        prog_man_clk74,
+        prog_pre_clk74,
+        prog_par_clk74,
+        prog_hlt_clk74,
+        color_man_clk74,
+        color_pre_clk74,
+        color_par_clk74,
+        color_hlt_clk74,
+        pwr_status_code_clk74,
+        active_voltage_id_clk74,
+        active_amps_clk74,
+        contract_active_clk74
       })
   );
 
@@ -276,7 +319,10 @@ module top_evaluation (
       .key_code(key_code)
   );
 
-  evaluation_controller u_eval_ctrl (
+  evaluation_controller #(
+      .SWEEP_STEP_TICKS(SWEEP_STEP_TICKS),
+      .PWR_RETRY_TICKS (PWR_RETRY_TICKS)
+  ) u_eval_ctrl (
       .clk(clk100),
       .rst_n(rst_n),
       .cmd_up(cmd_up),
@@ -317,12 +363,16 @@ module top_evaluation (
       .color_pre(color_pre),
       .color_par(color_par),
       .color_hlt(color_hlt),
+      .pwr_status_code(pwr_status_code),
+      .active_voltage_id(active_voltage_id),
+      .active_amps(active_amps),
+      .contract_active(contract_active),
 
       // Handshake Interface
-      .hs_tx_req(hs_tx_req),
-      .hs_tx_type(hs_tx_type),
-      .hs_tx_data(hs_tx_data),
-      .hs_tx_ack(hs_tx_ack),
+      .hs_tx_req  (hs_tx_req),
+      .hs_tx_type (hs_tx_type),
+      .hs_tx_data (hs_tx_data),
+      .hs_tx_ack  (hs_tx_ack),
       .link_status(link_status),
 
       // OptiBolt Protocol Interface
@@ -371,6 +421,10 @@ module top_evaluation (
       .color_pre(color_pre_clk74),
       .color_par(color_par_clk74),
       .color_hlt(color_hlt_clk74),
+      .pwr_status_code(pwr_status_code_clk74),
+      .active_voltage_id(active_voltage_id_clk74),
+      .active_amps(active_amps_clk74),
+      .contract_active(contract_active_clk74),
 
       .console_bram(console_if_b),
       .input_bram(input_if_b),
@@ -390,7 +444,7 @@ module top_evaluation (
     if (!rst_n) display_data <= 16'h0000;
     else begin
       if (cmd_up || cmd_down || cmd_left || cmd_right || cmd_enter || cmd_esc || cmd_backspace || char_valid) begin
-        display_data[15:8] <= key_code[7:0]; // Left half shows PS/2 scancodes
+        display_data[15:8] <= key_code[7:0];  // Left half shows PS/2 scancodes
       end
       if (char_valid) begin
         display_data[7:0] <= char_ascii;
@@ -415,7 +469,9 @@ module top_evaluation (
       .an   (an),
       .sseg (sseg_out)
   );
-  assign seg = {sseg_out[0], sseg_out[1], sseg_out[2], sseg_out[3], sseg_out[4], sseg_out[5], sseg_out[6]};
-  assign dp  = sseg_out[7];
+  assign seg = {
+    sseg_out[0], sseg_out[1], sseg_out[2], sseg_out[3], sseg_out[4], sseg_out[5], sseg_out[6]
+  };
+  assign dp = sseg_out[7];
 
 endmodule
