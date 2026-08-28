@@ -62,14 +62,21 @@ package string_pkg;
 
     // STATUS: OVERSAMPLING
     localparam logic [11:0] COLOR_STATUS_OS = 12'hF_F_8;
-    localparam STATUS_OS_VAL_8X  = "Oversampling: 8x          ";
-    localparam STATUS_OS_VAL_16X = "Oversampling: 16x         ";
+    localparam STATUS_OS_VAL_8X  = "Oversample  : 8x          ";
+    localparam STATUS_OS_VAL_16X = "Oversample  : 16x         ";
     localparam int STATUS_OS_LEN = $bits(STATUS_OS_VAL_8X) / 8;
 
     // STATUS: POWER
     localparam logic [11:0] COLOR_STATUS_PWR = 12'hF_8_8;
     localparam STATUS_PWR_VAL = "Power Neg.  : 5.0V / 1.0A ";
     localparam int STATUS_PWR_LEN = $bits(STATUS_PWR_VAL) / 8;
+
+    // STATUS: FAILOVER
+    localparam logic [11:0] COLOR_STATUS_FAILOVER_ON  = 12'h8_F_8;
+    localparam logic [11:0] COLOR_STATUS_FAILOVER_OFF = 12'h8_8_8;
+    localparam STATUS_FAILOVER_VAL_ON  = "Failover    : ENABLED     ";
+    localparam STATUS_FAILOVER_VAL_OFF = "Failover    : DISABLED    ";
+    localparam int STATUS_FAILOVER_LEN = $bits(STATUS_FAILOVER_VAL_ON) / 8;
 
     // CONSOLE
     localparam logic [11:0] COLOR_CONSOLE = 12'hC_C_C;

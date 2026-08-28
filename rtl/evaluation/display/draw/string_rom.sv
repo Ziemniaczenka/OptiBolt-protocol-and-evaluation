@@ -25,6 +25,8 @@ module string_rom (
     interface baud_bram,
     interface os_bram,
     interface pwr_bram,
+    input logic failover_en,
+    interface failover_bram,
 
     // Toolbar buttons
     interface help_btn_bram,
@@ -109,6 +111,12 @@ module string_rom (
   logic [7:0] pwr_str[0:STATUS_PWR_LEN];
   `INIT_UNPACKED_STR(pwr_str, STATUS_PWR_VAL, STATUS_PWR_LEN, STATUS_PWR_LEN + 1)
 
+  // STATUS: Failover
+  logic [7:0] failover_str_on[0:STATUS_FAILOVER_LEN];
+  logic [7:0] failover_str_off[0:STATUS_FAILOVER_LEN];
+  `INIT_UNPACKED_STR(failover_str_on, STATUS_FAILOVER_VAL_ON, STATUS_FAILOVER_LEN, STATUS_FAILOVER_LEN + 1)
+  `INIT_UNPACKED_STR(failover_str_off, STATUS_FAILOVER_VAL_OFF, STATUS_FAILOVER_LEN, STATUS_FAILOVER_LEN + 1)
+
   // TOOLBAR BUTTONS
   logic [7:0] btn_help_str[0:BTN_HELP_LEN];
   logic [7:0] btn_ping_str[0:BTN_PING_LEN];
@@ -188,13 +196,14 @@ module string_rom (
       case (baud_rate)
         4'd0:    baud_bram.dout <= baud_str_100k[baud_bram.addr];
         4'd1:    baud_bram.dout <= baud_str_1m[baud_bram.addr];
-        4'd2:    baud_bram.dout <= baud_str_2dot5m[baud_bram.addr];
-        4'd3:    baud_bram.dout <= baud_str_3dot125m[baud_bram.addr];
-        4'd4:    baud_bram.dout <= baud_str_5m[baud_bram.addr];
-        4'd5:    baud_bram.dout <= baud_str_6dot25m[baud_bram.addr];
-        4'd6:    baud_bram.dout <= baud_str_8dot33m[baud_bram.addr];
-        4'd7:    baud_bram.dout <= baud_str_12dot5m[baud_bram.addr];
-        4'd8:    baud_bram.dout <= baud_str_25m[baud_bram.addr];
+        4'd2:    baud_bram.dout <= baud_str_1dot25m[baud_bram.addr];
+        4'd3:    baud_bram.dout <= baud_str_2dot5m[baud_bram.addr];
+        4'd4:    baud_bram.dout <= baud_str_3dot125m[baud_bram.addr];
+        4'd5:    baud_bram.dout <= baud_str_5m[baud_bram.addr];
+        4'd6:    baud_bram.dout <= baud_str_6dot25m[baud_bram.addr];
+        4'd7:    baud_bram.dout <= baud_str_8dot33m[baud_bram.addr];
+        4'd8:    baud_bram.dout <= baud_str_12dot5m[baud_bram.addr];
+        4'd9:    baud_bram.dout <= baud_str_25m[baud_bram.addr];
         default: baud_bram.dout <= baud_str_1m[baud_bram.addr];
       endcase
     end
@@ -206,6 +215,11 @@ module string_rom (
 
     // Line 5: Power Negotiation
     if (pwr_bram.en) pwr_bram.dout <= pwr_str[pwr_bram.addr];
+
+    // Line 6: Failover
+    if (failover_bram.en) begin
+      failover_bram.dout <= failover_en ? failover_str_on[failover_bram.addr] : failover_str_off[failover_bram.addr];
+    end
 
     // Toolbar Buttons
     if (help_btn_bram.en)   help_btn_bram.dout   <= btn_help_str[help_btn_bram.addr];

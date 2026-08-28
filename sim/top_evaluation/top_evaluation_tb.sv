@@ -213,10 +213,22 @@ module top_evaluation_tb;
     $display("[TB] Executed '/help' command. Help menu streamed to Console BRAM.");
 
     // 2. Execute '/baud 2.5m' command
+    type_ps2_command("/baud 2.5m");
+    #200000;
     assert (eval_proto_baud_rate == 4'd2) else $error("Baudrate setting mismatch");
     $display("[TB] Executed '/baud 2.5m'. Baudrate updated (baud_rate=2).");
 
+    // 3. Test sending normal chat message
+    type_ps2_command("hello");
+    #200000;
+    $display("[TB] Executed text message 'hello'. Streamed over protocol as MSG_TEXT.");
+
     // Frame 1: Capture rendered screen with console output and updated baudrate
+    wait_frames(1);
     $display("[TB] Frame 1: Rendered console and status header.");
 
     $display("=== top_evaluation testbench completed successfully! ===");
+    $finish;
+  end
+
+endmodule

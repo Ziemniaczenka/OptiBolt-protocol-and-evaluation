@@ -224,9 +224,9 @@ module top_display_tb;
     u_writer_input.write_string("> _");
 
     // Verify popup position: Top-Right of console
-    assert (dut.u_top_draw.u_draw_popup.xstart == 11'd485 && dut.u_top_draw.u_draw_popup.ystart == 11'd150)
-      else $error("Popup coordinates mismatch (expected x=485, y=150)");
-    $display("[PASS] Popup top-right placement verified at (x=485, y=150).");
+    assert (dut.u_top_draw.u_draw_popup.xstart == 11'd485 && dut.u_top_draw.u_draw_popup.ystart == 11'd175)
+      else $error("Popup coordinates mismatch (expected x=485, y=175)");
+    $display("[PASS] Popup top-right placement verified at (x=485, y=175).");
 
     // Verify 5 separate status lines & title
     assert (dut.u_top_draw.u_string_rom.os_str_16x[14] == "1" && dut.u_top_draw.u_string_rom.os_str_16x[15] == "6")
@@ -237,12 +237,11 @@ module top_display_tb;
       else $error("Light detect string mismatch in string ROM");
     assert (dut.u_top_draw.u_draw_status_lbl.start_y == 12'd135)
       else $error("Status box title placement mismatch");
-    $display("[PASS] 5 status lines (Link, Light, Baud, OS, Power) and Status Title verified.");
-
-    // Verify shorter diagnostics box with title label above the box
-    assert (dut.u_top_draw.u_draw_diag_frame.ystart == 11'd325 && dut.u_top_draw.u_draw_diag_title.start_y == 12'd305)
+    assert (dut.u_top_draw.u_string_rom.failover_str_on[14] == "E" && dut.u_top_draw.u_string_rom.failover_str_off[14] == "D")
+      else $error("Failover string mismatch in string ROM");
+    assert (dut.u_top_draw.u_draw_diag_frame.ystart == 11'd375 && dut.u_top_draw.u_draw_diag_title.start_y == 12'd355)
       else $error("Diagnostics frame/title layout mismatch");
-    $display("[PASS] Diagnostics title above shorter box (title_y=305, frame_y=325) verified.");
+    $display("[PASS] Diagnostics title above lowered box (title_y=355, frame_y=375) and 6 status lines verified.");
 
     // Generate dynamic bitmap simple pattern
     for (int i = 0; i < BITMAP_DYN_64x64.WIDTH * BITMAP_DYN_64x64.HEIGHT; i++) begin

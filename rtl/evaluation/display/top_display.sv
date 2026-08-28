@@ -20,6 +20,7 @@ module top_display (
     input logic       show_progress,
     input logic [7:0] progress_val,
     input logic [1:0] popup_mode,
+    input logic       failover_en = 1'b1,
 
     input logic [ 7:0] prog_man,
     input logic [ 7:0] prog_pre,
@@ -88,6 +89,7 @@ module top_display (
       .link_status(link_status),
       .baud_rate(baud_rate),
       .oversampling(oversampling),
+      .failover_en(failover_en),
       .ui_selected_item(ui_selected_item),
       .mode_text(mode_text),
       .show_popup(show_popup),

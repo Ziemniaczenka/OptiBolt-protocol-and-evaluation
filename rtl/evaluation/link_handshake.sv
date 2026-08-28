@@ -8,11 +8,12 @@
  * Latches challenge token from free-running PRNG upon detecting light signal on receiver,
  * automatically differentiating between DISCONNECTED, CONNECTED (remote board),
  * and LOOPBACK (own TX connected to RX).
+ * Handshake packets are ONLY transmitted upon initial connection detection and
+ * when changing speeds, keeping the link completely free during steady streaming.
  */
 
 module link_handshake #(
-    parameter int HEARTBEAT_TICKS = 2_500_000, // 25ms at 100MHz
-    parameter int TIMEOUT_TICKS   = 7_500_000  // 75ms at 100MHz (3 missed heartbeats)
+    parameter int RETRY_TICKS = 5_000_000 // 50ms retry interval while searching for connection
 ) (
     input logic clk,
     input logic rst_n,
@@ -23,6 +24,9 @@ module link_handshake #(
     input logic [7:0] proto_eval_rx_data,
     input logic       proto_eval_preamble_error,
     input logic       proto_eval_rx_carrier, // Optical light activity on receiver pin
+
+    // Speed update pulse from link manager
+    input logic       speed_updated_pulse,
 
     // Protocol TX request interface (to evaluation controller / arbiter)
     output logic       hs_tx_req,
@@ -50,9 +54,8 @@ module link_handshake #(
       .pixel_byte(prng_byte)
   );
 
-  // Heartbeat & Timeout Timers
-  logic [$clog2(HEARTBEAT_TICKS+1)-1:0] heartbeat_cnt;
-  logic [$clog2(TIMEOUT_TICKS+1)-1:0]   timeout_cnt;
+  // Connect retry timer
+  logic [$clog2(RETRY_TICKS+1)-1:0] retry_cnt;
 
   logic [7:0] my_challenge;
   logic       challenge_latched;
@@ -66,8 +69,7 @@ module link_handshake #(
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
       link_status          <= LINK_DISCONNECTED;
-      heartbeat_cnt        <= '0;
-      timeout_cnt          <= '0;
+      retry_cnt            <= '0;
       my_challenge         <= 8'hA5;
       challenge_latched    <= 1'b0;
       pending_challenge_tx <= 1'b0;
@@ -81,30 +83,43 @@ module link_handshake #(
       rx_carrier_d1 <= proto_eval_rx_carrier;
 
       // ---------------------------------------------------------------------
-      // Latch challenge from PRNG upon detecting light signal on the receiver
+      // 1. Connection Startup: latch new token and send challenge packet
       // ---------------------------------------------------------------------
       if (rx_carrier_rose || (!challenge_latched && proto_eval_rx_carrier)) begin
         my_challenge         <= (prng_byte == 8'h00) ? 8'h5A : prng_byte;
         challenge_latched    <= 1'b1;
-        pending_challenge_tx <= 1'b1; // Immediately transmit challenge packet
-        heartbeat_cnt        <= '0;
+        pending_challenge_tx <= 1'b1;
+        retry_cnt            <= '0;
       end else if (!proto_eval_rx_carrier) begin
         challenge_latched <= 1'b0;
       end
 
-      // Heartbeat pulse generation (every 25ms while link has optical carrier)
-      if (proto_eval_rx_carrier) begin
-        if (heartbeat_cnt >= HEARTBEAT_TICKS - 1) begin
-          heartbeat_cnt        <= '0;
-          pending_challenge_tx <= 1'b1;
-        end else begin
-          heartbeat_cnt <= heartbeat_cnt + 1;
-        end
-      end else begin
-        heartbeat_cnt <= '0;
+      // ---------------------------------------------------------------------
+      // 2. Speed Change: re-challenge to verify link at new rate
+      // ---------------------------------------------------------------------
+      if (speed_updated_pulse && proto_eval_rx_carrier) begin
+        my_challenge         <= (prng_byte == 8'h00) ? 8'h5A : prng_byte;
+        pending_challenge_tx <= 1'b1;
+        retry_cnt            <= '0;
       end
 
-      // TX Request Arbiter outputs
+      // ---------------------------------------------------------------------
+      // 3. Retry challenge ONLY while disconnected and optical carrier present
+      // ---------------------------------------------------------------------
+      if (proto_eval_rx_carrier && link_status == LINK_DISCONNECTED) begin
+        if (retry_cnt >= RETRY_TICKS - 1) begin
+          retry_cnt            <= '0;
+          pending_challenge_tx <= 1'b1;
+        end else begin
+          retry_cnt <= retry_cnt + 1;
+        end
+      end else begin
+        retry_cnt <= '0;
+      end
+
+      // ---------------------------------------------------------------------
+      // 4. TX Request Arbiter Handshake
+      // ---------------------------------------------------------------------
       if (hs_tx_ack) begin
         if (pending_ack_tx) begin
           pending_ack_tx <= 1'b0;
@@ -124,9 +139,14 @@ module link_handshake #(
         hs_tx_req <= 1'b0;
       end
 
-      // RX Packet Processing & Classification
-      if (proto_eval_rx_valid) begin
-        timeout_cnt <= '0; // Reset watchdog timer on any valid packet
+      // ---------------------------------------------------------------------
+      // 5. RX Packet Processing & Status Latching
+      // ---------------------------------------------------------------------
+      if (!proto_eval_rx_carrier) begin
+        // Optical signal physically lost -> immediate disconnect
+        link_status    <= LINK_DISCONNECTED;
+        pending_ack_tx <= 1'b0;
+      end else if (proto_eval_rx_valid) begin
         if (proto_eval_rx_type == MSG_CAPABILITIES) begin
           if (proto_eval_rx_data == my_challenge) begin
             // Own token received back -> rock-solid LOOPBACK
@@ -143,15 +163,6 @@ module link_handshake #(
           if (link_status != LINK_LOOPBACK) begin
             link_status <= LINK_CONNECTED;
           end
-        end
-      end else begin
-        // Timeout / Disconnect tracking
-        if (!proto_eval_rx_carrier) begin
-          timeout_cnt <= TIMEOUT_TICKS;
-        end else if (timeout_cnt >= TIMEOUT_TICKS - 1) begin
-          link_status <= LINK_DISCONNECTED;
-        end else begin
-          timeout_cnt <= timeout_cnt + 1;
         end
       end
     end

@@ -24,19 +24,28 @@ always_ff @(posedge clk200 or negedge rst_n) begin
         current_M <= M_8X_100K;
     end
     else begin
-        case ({oversampling, bit_rate})
-            8'b0000_0000: current_M <= M_8X_100K;
-            8'b0000_0001: current_M <= M_8X_1M;
-            8'b0000_0010: current_M <= M_8X_2dot5M;
-            8'b0000_0011: current_M <= M_8X_3dot125M;
-            8'b0000_0100: current_M <= M_8X_5M;
-            8'b0000_0101: current_M <= M_8X_8dot33M;
-            8'b0000_0110: current_M <= M_8X_12dot5M;
-            8'b0000_0111: current_M <= M_8X_25M;
-            8'b0001_0001: current_M <= M_16X_1dot25M;
-            8'b0001_0011: current_M <= M_16X_3dot125M;
-            8'b0001_0101: current_M <= M_16X_6dot25M; 
-            default: current_M <= M_8X_100K;
+        case ({oversampling[0], bit_rate})
+            // 8x oversampling (oversampling == 4'b0000)
+            {1'b0, 4'd0}: current_M <= M_8X_100K;
+            {1'b0, 4'd1}: current_M <= M_8X_1M;
+            {1'b0, 4'd2}: current_M <= M_8X_1dot25M;
+            {1'b0, 4'd3}: current_M <= M_8X_2dot5M;
+            {1'b0, 4'd4}: current_M <= M_8X_3dot125M;
+            {1'b0, 4'd5}: current_M <= M_8X_5M;
+            {1'b0, 4'd6}: current_M <= M_8X_6dot25M;
+            {1'b0, 4'd7}: current_M <= M_8X_8dot33M;
+            {1'b0, 4'd8}: current_M <= M_8X_12dot5M;
+            {1'b0, 4'd9}: current_M <= M_8X_25M;
+
+            // 16x oversampling (oversampling == 4'b0001)
+            {1'b1, 4'd0}: current_M <= M_16X_100K;
+            {1'b1, 4'd2}: current_M <= M_16X_1dot25M;
+            {1'b1, 4'd3}: current_M <= M_16X_2dot5M;
+            {1'b1, 4'd4}: current_M <= M_16X_3dot125M;
+            {1'b1, 4'd6}: current_M <= M_16X_6dot25M;
+            {1'b1, 4'd8}: current_M <= M_16X_12dot5M;
+
+            default: current_M <= M_8X_1M;
         endcase
     end
 end

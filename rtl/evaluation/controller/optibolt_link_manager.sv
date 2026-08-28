@@ -69,6 +69,7 @@ module optibolt_link_manager #(
   // 100ms sliding error monitoring window (10,000,000 cycles at 100MHz)
   logic [23:0] err_monitor_timer;
   logic [15:0] window_error_count;
+  logic [19:0] carrier_loss_timer;
   logic        man_d1, pre_d1, par_d1;
 
   always_ff @(posedge clk or negedge rst_n) begin
@@ -83,6 +84,7 @@ module optibolt_link_manager #(
       nego_tx_type           <= 3'b000;
       nego_tx_data           <= 8'h00;
       err_monitor_timer      <= '0;
+      carrier_loss_timer     <= '0;
       window_error_count     <= '0;
       man_d1                 <= 1'b0;
       pre_d1                 <= 1'b0;
@@ -115,19 +117,19 @@ module optibolt_link_manager #(
       // ---------------------------------------------------------------------
       // Automatic Link Failover
       // ---------------------------------------------------------------------
+      if (!rx_carrier || link_status == 2'b00) begin
+        if (carrier_loss_timer < 20'd1_000_000) carrier_loss_timer <= carrier_loss_timer + 20'd1;
+      end else begin
+        carrier_loss_timer <= '0;
+      end
+
       if (failover_en && (current_baud != DEFAULT_BAUD_RATE || current_os != DEFAULT_OVERSAMPLING)) begin
-        // If error count in 100ms exceeds 200 errors (severe failure at high speed):
-        if (window_error_count >= 16'd200) begin
+        // If error count in 100ms exceeds 200 errors, or carrier lost for 10ms:
+        if (window_error_count >= 16'd200 || carrier_loss_timer >= 20'd1_000_000) begin
           current_baud       <= DEFAULT_BAUD_RATE;
           current_os         <= DEFAULT_OVERSAMPLING;
           window_error_count <= '0;
-          failover_triggered <= 1'b1;
-        end
-        // If carrier completely lost while connected:
-        if (link_status == 2'b00 && !rx_carrier && err_monitor_timer == 24'd10_000_000) begin
-          current_baud       <= DEFAULT_BAUD_RATE;
-          current_os         <= DEFAULT_OVERSAMPLING;
-          window_error_count <= '0;
+          carrier_loss_timer <= '0;
           failover_triggered <= 1'b1;
         end
       end
@@ -153,17 +155,21 @@ module optibolt_link_manager #(
       end
 
       // ---------------------------------------------------------------------
-      // Incoming Speed Negotiation Packets
+      // Incoming Speed Negotiation Packets (Only from remote partner, NOT loopback)
       // ---------------------------------------------------------------------
-      if (proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data[7:4] != 4'hA && proto_rx_data[7:4] != 4'h5) begin
-        // Remote requested speed change: apply and acknowledge
-        current_baud           <= proto_rx_data[3:0];
-        current_os             <= proto_rx_data[7:4];
-        speed_updated_pulse    <= 1'b1;
-        speed_nego_in_progress <= 1'b0;
-        nego_tx_valid          <= 1'b1;
-        nego_tx_type           <= MSG_ACCEPT;
-        nego_tx_data           <= NEGO_ACK_HEADER;
+      if (link_status == 2'b01) begin
+        if (proto_rx_valid && proto_rx_type == MSG_REQUEST && 
+            proto_rx_data[7:4] != 4'hA && proto_rx_data[7:4] != 4'h5 &&
+            proto_rx_data[7:4] <= 4'd1 && proto_rx_data[3:0] <= 4'd7) begin
+          // Remote requested speed change: apply and acknowledge
+          current_baud           <= proto_rx_data[3:0];
+          current_os             <= proto_rx_data[7:4];
+          speed_updated_pulse    <= 1'b1;
+          speed_nego_in_progress <= 1'b0;
+          nego_tx_valid          <= 1'b1;
+          nego_tx_type           <= MSG_ACCEPT;
+          nego_tx_data           <= NEGO_ACK_HEADER;
+        end
       end
     end
   end

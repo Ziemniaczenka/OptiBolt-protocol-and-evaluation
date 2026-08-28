@@ -30,6 +30,7 @@ module eval_cli_input #(
     // UI navigation state
     input  logic [3:0]                                   ui_selected_item,
     output logic                                         mode_text,
+    output logic                                         btn_trigger,
 
     // Input BRAM interface (for VGA display rendering)
     output logic [$clog2(string_pkg::INPUT_MAX_LEN)-1:0] input_addr,
@@ -108,35 +109,39 @@ module eval_cli_input #(
         for (int c = 0; c < 64; c++) history_buf[h][c] <= 8'h00;
       end
     end else begin
-      cmd_valid <= 1'b0; // 1-cycle strobe
-      input_we  <= 1'b0;
+      cmd_valid   <= 1'b0; // 1-cycle strobe
+      btn_trigger <= 1'b0; // 1-cycle strobe
+      if (echo_ack) echo_req <= 1'b0;
 
       case (state)
         INP_IDLE: begin
           // 1. Navigation mode vs text mode toggle
           if (!mode_text) begin
-            if (cmd_enter && ui_selected_item == ITEM_INPUT) begin
-              mode_text        <= 1'b1;
-              input_update_idx <= 7'd0;
-              state            <= INP_UPDATE_RAM;
+            if (cmd_enter) begin
+              if (ui_selected_item == ITEM_INPUT) begin
+                mode_text        <= 1'b1;
+                input_update_idx <= 7'd0;
+                state            <= INP_UPDATE_RAM;
+              end else begin
+                btn_trigger <= 1'b1; // Trigger toolbar button
+              end
             end
           end else begin
-            // In text mode:
+            // In text mode
             if (cmd_esc) begin
               mode_text        <= 1'b0;
               input_update_idx <= 7'd0;
               state            <= INP_UPDATE_RAM;
             end else if (cmd_enter) begin
               if (input_len_reg > 11'd2) begin
-                // Save to command output buffer
-                for (int i = 0; i < CLI_BUF_LEN; i++) cmd_buf[i] <= input_buf_reg[i];
+                for (int i = 0; i < CLI_BUF_LEN; i++) begin
+                  cmd_buf[i]  <= input_buf_reg[i];
+                  echo_buf[i] <= input_buf_reg[i];
+                end
                 cmd_len   <= input_len_reg;
                 cmd_valid <= 1'b1;
-
-                // Setup echo to console
-                for (int i = 0; i < CLI_BUF_LEN; i++) echo_buf[i] <= input_buf_reg[i];
-                echo_len <= input_len_reg + 11'd1; // Include trailing \n
-                echo_req <= 1'b1;
+                echo_len  <= input_len_reg + 11'd1; // Include trailing \n
+                echo_req  <= 1'b1;
 
                 // Begin sequential MRU history scan
                 hist_check_idx <= 2'd0;
@@ -298,7 +303,7 @@ module eval_cli_input #(
         end
 
         INP_WAIT_ECHO: begin
-          if (echo_ack) begin
+          if (!echo_req || echo_ack) begin
             echo_req <= 1'b0;
             state    <= INP_UPDATE_RAM;
           end

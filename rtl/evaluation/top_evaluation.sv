@@ -107,6 +107,7 @@ module top_evaluation (
   logic [7:0] hs_tx_data;
   logic       hs_tx_ack;
   logic [1:0] link_status;
+  logic       speed_updated_pulse;
 
   // CDC UI Navigation & Telemetry
   logic [3:0]  ui_selected_item_clk74;
@@ -121,13 +122,16 @@ module top_evaluation (
   logic [3:0]  oversampling_clk74;
   logic [7:0]  prog_man_clk74, prog_pre_clk74, prog_par_clk74, prog_hlt_clk74;
   logic [11:0] color_man_clk74, color_pre_clk74, color_par_clk74, color_hlt_clk74;
+  logic        eval_failover_en;
+  logic        failover_en_clk74;
 
   cdc_sync #(
-      .WIDTH(108)
+      .WIDTH(109)
   ) u_cdc_ui_sync (
       .clk_dst(clk74p25),
       .rst_n(rst_n),
       .d_in({
+        eval_failover_en,
         proto_eval_rx_carrier,
         mode_text, ui_selected_item, show_popup, show_progress, progress_val, popup_mode,
         link_status, eval_proto_baud_rate, eval_proto_oversampling,
@@ -135,6 +139,7 @@ module top_evaluation (
         color_man, color_pre, color_par, color_hlt
       }),
       .d_out({
+        failover_en_clk74,
         rx_carrier_clk74,
         mode_text_clk74, ui_selected_item_clk74, show_popup_clk74, show_progress_clk74, progress_val_clk74, popup_mode_clk74,
         link_status_clk74, baud_rate_clk74, oversampling_clk74,
@@ -234,6 +239,7 @@ module top_evaluation (
       .proto_eval_rx_data(proto_eval_rx_data),
       .proto_eval_preamble_error(proto_eval_preamble_error),
       .proto_eval_rx_carrier(proto_eval_rx_carrier),
+      .speed_updated_pulse(speed_updated_pulse),
       .hs_tx_req(hs_tx_req),
       .hs_tx_type(hs_tx_type),
       .hs_tx_data(hs_tx_data),
@@ -323,6 +329,8 @@ module top_evaluation (
       .eval_proto_baud_rate(eval_proto_baud_rate),
       .eval_proto_oversampling(eval_proto_oversampling),
       .eval_proto_loopback_en(eval_proto_loopback_en),
+      .eval_failover_en(eval_failover_en),
+      .speed_updated_pulse(speed_updated_pulse),
       .eval_proto_tx_valid(eval_proto_tx_valid),
       .eval_proto_tx_type(eval_proto_tx_type),
       .eval_proto_tx_data(eval_proto_tx_data),
@@ -334,6 +342,7 @@ module top_evaluation (
       .proto_eval_parity_error(proto_eval_parity_error),
       .proto_eval_manchester_code_error(proto_eval_manchester_code_error),
       .proto_eval_preamble_error(proto_eval_preamble_error),
+      .proto_eval_rx_carrier(proto_eval_rx_carrier),
       .proto_eval_link_status(proto_eval_link_status),
       .proto_eval_ber_count(proto_eval_ber_count),
       .proto_eval_err_count(proto_eval_err_count)
@@ -346,6 +355,7 @@ module top_evaluation (
       .link_status(link_status_clk74),
       .baud_rate(baud_rate_clk74),
       .oversampling(oversampling_clk74),
+      .failover_en(failover_en_clk74),
       .ui_selected_item(ui_selected_item_clk74),
       .mode_text(mode_text_clk74),
       .show_popup(show_popup_clk74),

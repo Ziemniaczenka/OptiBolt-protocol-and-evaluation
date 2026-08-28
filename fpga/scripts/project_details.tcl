@@ -73,7 +73,7 @@ set sv_files {
     ../rtl/evaluation/display/draw/draw_popup.sv
     ../rtl/evaluation/display/draw/top_draw.sv
     ../rtl/evaluation/display/top_display.sv
-    ../rtl/protocol/optibolt_link_manager.sv
+    ../rtl/evaluation/controller/optibolt_link_manager.sv
     ../rtl/evaluation/controller/eval_diagnostics.sv
     ../rtl/evaluation/controller/eval_cli_input.sv
     ../rtl/evaluation/controller/eval_console_buffer.sv

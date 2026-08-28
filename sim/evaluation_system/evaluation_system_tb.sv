@@ -72,6 +72,7 @@ module evaluation_system_tb;
   logic [7:0] hs_tx_data;
   logic       hs_tx_ack;
   logic [1:0] link_status;
+  logic       speed_updated_pulse;
 
   // BRAM Interfaces
   bram_if #(
@@ -120,8 +121,7 @@ module evaluation_system_tb;
 
   // Link Handshake Engine
   link_handshake #(
-      .HEARTBEAT_TICKS(200),
-      .TIMEOUT_TICKS  (20_000_000)
+      .RETRY_TICKS(200)
   ) u_link_hs (
       .clk(clk100),
       .rst_n(rst_n),
@@ -130,6 +130,7 @@ module evaluation_system_tb;
       .proto_eval_rx_data(proto_eval_rx_data),
       .proto_eval_preamble_error(1'b0),
       .proto_eval_rx_carrier(proto_eval_rx_carrier),
+      .speed_updated_pulse(speed_updated_pulse),
       .hs_tx_req(hs_tx_req),
       .hs_tx_type(hs_tx_type),
       .hs_tx_data(hs_tx_data),
@@ -220,6 +221,8 @@ module evaluation_system_tb;
       .eval_proto_baud_rate(eval_proto_baud_rate),
       .eval_proto_oversampling(eval_proto_oversampling),
       .eval_proto_loopback_en(eval_proto_loopback_en),
+      .eval_failover_en(),
+      .speed_updated_pulse(speed_updated_pulse),
       .eval_proto_tx_valid(eval_proto_tx_valid),
       .eval_proto_tx_type(eval_proto_tx_type),
       .eval_proto_tx_data(eval_proto_tx_data),
@@ -232,6 +235,7 @@ module evaluation_system_tb;
       .proto_eval_parity_error(1'b0),
       .proto_eval_manchester_code_error(1'b0),
       .proto_eval_preamble_error(1'b0),
+      .proto_eval_rx_carrier(proto_eval_rx_carrier),
       .proto_eval_link_status(1'b1),
       .proto_eval_ber_count(32'd0),
       .proto_eval_err_count(16'd0)
@@ -320,10 +324,13 @@ module evaluation_system_tb;
         "t": type_ps2_key(8'h2C);
         "u": type_ps2_key(8'h3C);
         "w": type_ps2_key(8'h1D);
+        "x": type_ps2_key(8'h22);
         "0": type_ps2_key(8'h45);
         "1": type_ps2_key(8'h16);
         "2": type_ps2_key(8'h1E);
         "5": type_ps2_key(8'h2E);
+        "6": type_ps2_key(8'h36);
+        "8": type_ps2_key(8'h3E);
         " ": type_ps2_key(8'h29);
         ".": type_ps2_key(8'h49);
         default: ;
@@ -371,9 +378,39 @@ module evaluation_system_tb;
     // Execute '/baud 2.5m' command
     type_ps2_command("/baud 2.5m");
     #50000;
-    assert (eval_proto_baud_rate == 4'd2)
+    assert (eval_proto_baud_rate == 4'd3)
     else $error("Baudrate setting mismatch");
-    $display("[PASS] Step 4: Executed '/baud 2.5m'. Baudrate updated (baud_rate=2).");
+    $display("[PASS] Step 4: Executed '/baud 2.5m'. Baudrate updated (baud_rate=3).");
+
+    // Execute '/os 16x' command
+    type_ps2_command("/os 16x");
+    #50000;
+    assert (eval_proto_oversampling == 4'd1)
+    else $error("/os 16x failed to set oversampling=1 (16x)");
+    $display("[PASS] Step 4a: Executed '/os 16x'. Oversampling set to 16x (os=1).");
+
+    // Execute '/os 8x' command
+    type_ps2_command("/os 8x");
+    #50000;
+    assert (eval_proto_oversampling == 4'd0)
+    else $error("/os 8x failed to set oversampling=0 (8x)");
+    $display("[PASS] Step 4b: Executed '/os 8x'. Oversampling set to 8x (os=0).");
+
+    // Execute invalid '/os 1' command
+    type_ps2_command("/os 1");
+    #50000;
+    assert (eval_proto_oversampling == 4'd0)
+    else $error("Invalid /os 1 command altered oversampling");
+    $display("[PASS] Step 4c: Executed invalid '/os 1'. Rejected without altering oversampling.");
+
+    // Physical disconnect test: drop optical carrier
+    proto_eval_rx_carrier = 1'b0;
+    #50000;
+    assert (link_status == 2'b00)
+    else $error("Carrier loss failed to transition link_status to DISCONNECTED");
+    $display("[PASS] Step 4d: Carrier lost -> link_status immediately transitioned to DISCONNECTED (0).");
+    proto_eval_rx_carrier = 1'b1;
+    #50000;
 
     // History recall via Up Arrow
     send_ps2_extended(8'h75);  // Up Arrow

@@ -1,5 +1,5 @@
 # Dedicated Testbench for optibolt_link_manager
 sv work "../../rtl/protocol/protocol_pkg.sv"
-sv work "../../rtl/protocol/optibolt_link_manager.sv"
+sv work "../../rtl/evaluation/controller/optibolt_link_manager.sv"
 sv work "optibolt_link_manager_tb.sv"
 

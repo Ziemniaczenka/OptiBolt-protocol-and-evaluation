@@ -80,6 +80,8 @@ module evaluation_controller (
     output logic [3:0] eval_proto_baud_rate,
     output logic [3:0] eval_proto_oversampling,
     output logic       eval_proto_loopback_en,
+    output logic       eval_failover_en,
+    output logic       speed_updated_pulse,
 
     // TX Interface
     output logic       eval_proto_tx_valid,
@@ -95,6 +97,7 @@ module evaluation_controller (
     input  logic       proto_eval_parity_error,
     input  logic       proto_eval_manchester_code_error,
     input  logic       proto_eval_preamble_error,
+    input  logic       proto_eval_rx_carrier,
 
     // Telemetry / Status
     input  logic        proto_eval_link_status,
@@ -109,6 +112,7 @@ module evaluation_controller (
   logic        cli_cmd_valid;
   logic [7:0]  cli_cmd_buf [0:CLI_BUF_LEN-1];
   logic [10:0] cli_cmd_len;
+  logic        btn_trigger;
 
   logic        echo_req;
   logic [7:0]  echo_buf [0:CLI_BUF_LEN-1];
@@ -144,11 +148,18 @@ module evaluation_controller (
   logic        cmd_bmp_we;
   logic [11:0] cmd_bmp_din;
   logic [13:0] rx_pixel_ptr;
+  logic        rx_bmp_has_b0;
+  logic [ 7:0] rx_pixel_rg;
+  logic [27:0] rx_bmp_idle_cnt;
 
   always_comb begin
-    if (proto_eval_rx_valid && proto_eval_rx_type == MSG_BITMAP) begin
+    if (proto_eval_rx_valid && proto_eval_rx_type == MSG_BITMAP && 
+        proto_eval_rx_data[7] == 1'b1 && rx_bmp_has_b0) begin
       bmp_addr = rx_pixel_ptr;
-      bmp_din  = {proto_eval_rx_data[7:4], proto_eval_rx_data[7:4], proto_eval_rx_data[3:0]};
+      // Reconstruct 12-bit RGB:
+      // Byte 0: {1'b0, R[3:0], G[3:1]}
+      // Byte 1: {1'b1, G[0], B[3:0], 2'b00}
+      bmp_din  = {rx_pixel_rg[6:3], rx_pixel_rg[2:0], proto_eval_rx_data[6], proto_eval_rx_data[5:2]};
       bmp_we   = 1'b1;
     end else begin
       bmp_addr = cmd_bmp_addr;
@@ -159,11 +170,31 @@ module evaluation_controller (
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-      rx_pixel_ptr <= 14'd0;
+      rx_pixel_ptr    <= 14'd0;
+      rx_bmp_has_b0   <= 1'b0;
+      rx_pixel_rg     <= 8'h00;
+      rx_bmp_idle_cnt <= '0;
     end else begin
       if (proto_eval_rx_valid && proto_eval_rx_type == MSG_BITMAP) begin
-        if (rx_pixel_ptr == 14'd16383) rx_pixel_ptr <= 14'd0;
-        else rx_pixel_ptr <= rx_pixel_ptr + 14'd1;
+        rx_bmp_idle_cnt <= '0;
+        if (proto_eval_rx_data[7] == 1'b0) begin
+          // Guaranteed Byte 0
+          rx_pixel_rg   <= proto_eval_rx_data;
+          rx_bmp_has_b0 <= 1'b1;
+        end else if (proto_eval_rx_data[7] == 1'b1 && rx_bmp_has_b0) begin
+          // Guaranteed Byte 1 matching Byte 0
+          rx_bmp_has_b0 <= 1'b0;
+          if (rx_pixel_ptr == 14'd16383) rx_pixel_ptr <= 14'd0;
+          else rx_pixel_ptr <= rx_pixel_ptr + 14'd1;
+        end
+      end else begin
+        // Reset pixel pointer if link idle for > 2.0s (200,000,000 cycles at 100MHz)
+        if (rx_bmp_idle_cnt < 28'd200_000_000) begin
+          rx_bmp_idle_cnt <= rx_bmp_idle_cnt + 28'd1;
+        end else begin
+          rx_pixel_ptr  <= 14'd0;
+          rx_bmp_has_b0 <= 1'b0;
+        end
       end
     end
   end
@@ -208,6 +239,7 @@ module evaluation_controller (
       .cmd_backspace    (cmd_backspace),
       .ui_selected_item (ui_selected_item),
       .mode_text        (mode_text),
+      .btn_trigger      (btn_trigger),
       .input_addr       (input_addr),
       .input_we         (input_we),
       .input_din        (input_din),
@@ -223,11 +255,75 @@ module evaluation_controller (
   // =========================================================================
   // 3. Dedicated Console BRAM Buffer & Line-by-Line Scroller Submodule
   // =========================================================================
-  logic rx_data_char_valid;
+  logic       rx_console_char_ready;
+  logic       rx_bol;
+  logic [1:0] rx_prefix_phase;
+  logic [7:0] rx_held_byte;
+  logic       rx_data_char_valid;
   logic [7:0] rx_data_char_byte;
 
-  assign rx_data_char_valid = proto_eval_rx_valid && (proto_eval_rx_type == MSG_TEXT);
-  assign rx_data_char_byte  = proto_eval_rx_data;
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) begin
+      rx_bol             <= 1'b1;
+      rx_prefix_phase    <= 2'd0;
+      rx_held_byte       <= 8'h00;
+      rx_data_char_valid <= 1'b0;
+      rx_data_char_byte  <= 8'h00;
+    end else begin
+      case (rx_prefix_phase)
+        2'd0: begin
+          rx_data_char_valid <= 1'b0;
+          if (proto_eval_rx_valid && proto_eval_rx_type == MSG_TEXT) begin
+            if (rx_bol && proto_eval_rx_data != 8'h0A) begin
+              // At beginning of incoming message line: inject '<'
+              rx_held_byte       <= proto_eval_rx_data;
+              rx_data_char_byte  <= 8'h3C; // '<'
+              rx_data_char_valid <= 1'b1;
+              rx_prefix_phase    <= 2'd1;
+              rx_bol             <= 1'b0;
+            end else begin
+              // Continuation character or bare newline
+              rx_data_char_byte  <= proto_eval_rx_data;
+              rx_data_char_valid <= 1'b1;
+              if (proto_eval_rx_data == 8'h0A) rx_bol <= 1'b1;
+            end
+          end
+        end
+
+        2'd1: begin
+          if (rx_console_char_ready) begin
+            rx_data_char_byte  <= 8'h20; // ' '
+            rx_data_char_valid <= 1'b1;
+            rx_prefix_phase    <= 2'd2;
+          end else begin
+            rx_data_char_valid <= 1'b1;
+          end
+        end
+
+        2'd2: begin
+          if (rx_console_char_ready) begin
+            rx_data_char_byte  <= rx_held_byte;
+            rx_data_char_valid <= 1'b1;
+            rx_prefix_phase    <= 2'd3;
+          end else begin
+            rx_data_char_valid <= 1'b1;
+          end
+        end
+
+        2'd3: begin
+          if (rx_console_char_ready) begin
+            rx_data_char_valid <= 1'b0;
+            rx_prefix_phase    <= 2'd0;
+            if (rx_held_byte == 8'h0A) rx_bol <= 1'b1;
+          end else begin
+            rx_data_char_valid <= 1'b1;
+          end
+        end
+
+        default: rx_prefix_phase <= 2'd0;
+      endcase
+    end
+  end
 
   eval_console_buffer #(
       .MAX_LINES(40),
@@ -245,7 +341,7 @@ module evaluation_controller (
       .print_ready    (print_ready),
       .rx_char_valid  (rx_data_char_valid),
       .rx_char_data   (rx_data_char_byte),
-      .rx_char_ready  (),
+      .rx_char_ready  (rx_console_char_ready),
       .clear_req      (clear_console_req),
       .clear_ack      (clear_console_ack),
       .line_count     (),
@@ -255,6 +351,8 @@ module evaluation_controller (
   // =========================================================================
   // 4. OptiBolt Protocol Link Manager & Speed Failover Submodule (Layer 2)
   // =========================================================================
+  assign eval_failover_en = failover_en;
+
   optibolt_link_manager #(
       .DEFAULT_BAUD_RATE    (4'd1), // 1.0 Mbps
       .DEFAULT_OVERSAMPLING (4'd0)  // 16x OS
@@ -262,7 +360,7 @@ module evaluation_controller (
       .clk                              (clk),
       .rst_n                            (rst_n),
       .link_status                      (link_status),
-      .rx_carrier                       (proto_eval_link_status),
+      .rx_carrier                       (proto_eval_rx_carrier),
       .proto_eval_parity_error          (proto_eval_parity_error),
       .proto_eval_manchester_code_error (proto_eval_manchester_code_error),
       .proto_eval_preamble_error        (proto_eval_preamble_error),
@@ -283,7 +381,7 @@ module evaluation_controller (
       .active_loopback_en               (eval_proto_loopback_en),
       .failover_triggered               (failover_triggered),
       .speed_nego_in_progress           (),
-      .speed_updated_pulse              ()
+      .speed_updated_pulse              (speed_updated_pulse)
   );
 
   // =========================================================================
@@ -297,6 +395,8 @@ module evaluation_controller (
       .cmd_valid          (cli_cmd_valid),
       .cmd_buf            (cli_cmd_buf),
       .cmd_len            (cli_cmd_len),
+      .btn_trigger        (btn_trigger),
+      .ui_selected_item   (ui_selected_item),
       .echo_req           (echo_req),
       .echo_buf           (echo_buf),
       .echo_len           (echo_len),
@@ -320,7 +420,7 @@ module evaluation_controller (
       .failover_en        (failover_en),
       .failover_triggered (failover_triggered),
       .link_status        (link_status),
-      .rx_carrier         (proto_eval_link_status),
+      .rx_carrier         (proto_eval_rx_carrier),
       .proto_tx_valid     (cmd_tx_valid),
       .proto_tx_type      (cmd_tx_type),
       .proto_tx_data      (cmd_tx_data),
@@ -331,24 +431,24 @@ module evaluation_controller (
   );
 
   // =========================================================================
-  // Protocol TX Multiplexer (Handshake > Speed Nego > Cmd Exec)
+  // Protocol TX Multiplexer (Cmd Exec > Speed Nego > Handshake)
   // =========================================================================
   always_comb begin
-    if (hs_tx_req) begin
+    if (cmd_tx_valid) begin
       eval_proto_tx_valid = 1'b1;
-      eval_proto_tx_type  = hs_tx_type;
-      eval_proto_tx_data  = hs_tx_data;
-      hs_tx_ack           = !proto_eval_tx_full;
+      eval_proto_tx_type  = cmd_tx_type;
+      eval_proto_tx_data  = cmd_tx_data;
+      hs_tx_ack           = 1'b0;
     end else if (nego_tx_valid) begin
       eval_proto_tx_valid = 1'b1;
       eval_proto_tx_type  = nego_tx_type;
       eval_proto_tx_data  = nego_tx_data;
       hs_tx_ack           = 1'b0;
-    end else if (cmd_tx_valid) begin
+    end else if (hs_tx_req) begin
       eval_proto_tx_valid = 1'b1;
-      eval_proto_tx_type  = cmd_tx_type;
-      eval_proto_tx_data  = cmd_tx_data;
-      hs_tx_ack           = 1'b0;
+      eval_proto_tx_type  = hs_tx_type;
+      eval_proto_tx_data  = hs_tx_data;
+      hs_tx_ack           = !proto_eval_tx_full;
     end else begin
       eval_proto_tx_valid = 1'b0;
       eval_proto_tx_type  = 3'b000;
