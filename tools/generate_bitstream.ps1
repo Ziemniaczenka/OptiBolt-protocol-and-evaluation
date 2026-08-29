@@ -23,7 +23,7 @@ git clean -fXd fpga
 
 # Run Vivado and generate bitstream
 Set-Location fpga
-vivado.bat -mode tcl -source scripts/generate_bitstream.tcl
+vivado.bat -mode batch -notrace -source scripts/generate_bitstream.tcl
 Set-Location $env:ROOT_DIR
 
 # Ensure results directory exists

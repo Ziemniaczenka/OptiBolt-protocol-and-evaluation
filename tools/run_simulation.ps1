@@ -19,6 +19,10 @@ param (
     [string]$t
 )
 
+if (-not $env:ROOT_DIR) {
+    $env:ROOT_DIR = (Resolve-Path "$PSScriptRoot/..").Path
+}
+
 # ------------------------------------------------------------------------------
 # Functions
 # ------------------------------------------------------------------------------
@@ -45,6 +49,16 @@ function Get-AvailableTests {
 function Execute-Test {
     param([string]$test_path)
 
+    # --------------------------------------------------------------------------
+    # Modification Note:
+    # 1. Path Normalization:
+    #    When users use PowerShell tab-completion (e.g., -t .\top_evaluation\),
+    #    the path string contains leading '.\' and trailing '\'.
+    #    We normalize this to avoid generating broken project paths like:
+    #    sim/.\top_evaluation\//.\top_evaluation\.prj
+    # --------------------------------------------------------------------------
+    $test_path = $test_path.Trim().TrimEnd('/\')
+    $test_path = $test_path -replace '^\.[\/\\]', ''
     $test_name = Split-Path $test_path -Leaf
 
     # Remove untracked files
@@ -70,16 +84,26 @@ function Execute-Test {
     if ($compile_glbl) { $xelab_opts += $compile_glbl }
     $xelab_opts += @("-snapshot", "${test_name}_tb", "-prj", $prj_posix, "-timescale", "1ns/1ps", "-L", "unisims_ver")
 
-    # Run simulation
+    # --------------------------------------------------------------------------
+    # Modification Note:
+    # 2. Two-Stage Execution (xelab -> xsim -runall):
+    #    Originally, the script invoked 'xelab -standalone -runall'.
+    #    On Windows Vivado installations, '-standalone' often produces a fatal
+    #    Boost filesystem file-locking error during temporary C file cleanup:
+    #    "boost::filesystem::remove: The process cannot access the file..."
+    #    which aborts the simulation prematurely.
+    #    Splitting into xelab snapshot elaboration followed by native 'xsim -runall'
+    #    completely eliminates this file lock collision, while also streaming
+    #    all simulation $display outputs live to the terminal.
+    # --------------------------------------------------------------------------
     if ($g) {
         & xelab.bat $xelab_opts -debug typical
         & xsim.bat "${test_name}_tb" -gui -t $sim_cmd_posix
     } else {
-        $output = & xelab.bat $xelab_opts -standalone -runall 2>&1
-        $output | ForEach-Object {
-            Write-Host $_
+        & xelab.bat $xelab_opts
+        if ($LASTEXITCODE -eq 0 -or (Test-Path "xsim.dir/${test_name}_tb/xsimk.exe")) {
+            & xsim.bat "${test_name}_tb" -runall
         }
-        return $output
     }
 
     Set-Location ..
