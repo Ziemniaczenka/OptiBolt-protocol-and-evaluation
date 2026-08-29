@@ -51,6 +51,14 @@ module top #(
   logic       proto_eval_manchester_code_error;
   logic       proto_eval_preamble_error;
   logic       proto_eval_rx_carrier;
+  logic       proto_eval_tx_empty;
+  logic       tx_idle_200;
+  logic [1:0] link_status;
+  logic       contract_active;
+  logic [1:0] active_voltage_id;
+  logic [3:0] active_amps;
+  logic       active_is_source;
+  logic [2:0] pwr_status_code;
 
   /* OptiBolt domain signals (200 MHz) */
   logic [3:0] baud_rate_200;
@@ -90,6 +98,7 @@ module top #(
       .eval_proto_tx_type              (eval_proto_tx_type),
       .eval_proto_tx_data              (eval_proto_tx_data),
       .proto_eval_tx_full              (proto_eval_tx_full),
+      .proto_eval_tx_empty             (proto_eval_tx_empty),
       .proto_eval_rx_valid             (proto_eval_rx_valid),
       .proto_eval_rx_type              (proto_eval_rx_type),
       .proto_eval_rx_data              (proto_eval_rx_data),
@@ -102,6 +111,7 @@ module top #(
       .baud_rate_200                   (baud_rate_200),
       .oversampling_200                (oversampling_200),
       .tx_full_200                     (tx_full_200),
+      .tx_idle_200                     (tx_idle_200),
       .tx_enable_200                   (tx_enable_200),
       .tx_type_200                     (tx_type_200),
       .tx_data_200                     (tx_data_200),
@@ -136,7 +146,7 @@ module top #(
       .eval_proto_tx_type              (eval_proto_tx_type),
       .eval_proto_tx_data              (eval_proto_tx_data),
       .proto_eval_tx_full              (proto_eval_tx_full),
-      .proto_eval_tx_empty             (1'b0),
+      .proto_eval_tx_empty             (proto_eval_tx_empty),
       .proto_eval_rx_valid             (proto_eval_rx_valid),
       .proto_eval_rx_type              (proto_eval_rx_type),
       .proto_eval_rx_data              (proto_eval_rx_data),
@@ -160,6 +170,7 @@ module top #(
       .tx_manchester        (OptiBolt_tx),
       .tx_empty             (tx_empty_200),
       .tx_full              (tx_full_200),
+      .tx_idle              (tx_idle_200),
       .rx_empty             (rx_empty_200),
       .rx_full              (rx_full_200),
       .msg_type_out         (rx_type_200),

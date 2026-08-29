@@ -144,7 +144,7 @@ module power_negotiator #(
       // Remote peer sent Power OFF / Disconnect:
       if (proto_rx_valid && proto_rx_type == MSG_POWER && proto_rx_data == 8'hFE) begin
         state                <= S_IDLE;
-        pwr_status_code      <= STAT_READY;
+        pwr_status_code      <= cfg_ready ? STAT_READY : STAT_NOT_READY;
         contract_active      <= 1'b0;
         contract_error       <= 1'b0;
         active_voltage_id    <= 2'd0;
@@ -161,11 +161,14 @@ module power_negotiator #(
         tx_req          <= 1'b0;
       end else if (link_status == 2'b00) begin
         // Disconnected
-        state           <= S_IDLE;
-        pwr_status_code <= cfg_ready ? STAT_READY : STAT_NOT_READY;
-        contract_active <= 1'b0;
-        contract_error  <= 1'b0;
-        tx_req          <= 1'b0;
+        state                <= S_IDLE;
+        pwr_status_code      <= cfg_ready ? STAT_READY : STAT_NOT_READY;
+        contract_active      <= 1'b0;
+        contract_error       <= 1'b0;
+        active_voltage_id    <= 2'd0;
+        active_amps          <= 4'd0;
+        active_is_source     <= 1'b0;
+        tx_req               <= 1'b0;
       end else begin
         // Connected (duplex between 2 devices)
         case (state)
@@ -181,7 +184,7 @@ module power_negotiator #(
 
           // Send Role Advertisement: 0x0_ | cfg_role
           S_DISCOVER_SEND: begin
-            pwr_status_code <= STAT_SENDING;
+            pwr_status_code <= STAT_READY;
             if (!tx_req) begin
               tx_req  <= 1'b1;
               tx_byte <= {4'h0, 2'b00, cfg_role};
@@ -191,11 +194,11 @@ module power_negotiator #(
           end
 
           S_DISCOVER_WAIT: begin
-            pwr_status_code <= STAT_RECEIVING;
+            pwr_status_code <= STAT_READY;
             timer <= timer + 32'd1;
 
             // Check if peer role packet arrived
-            if (proto_rx_valid && proto_rx_type == MSG_POWER && proto_rx_data[7:4] == 4'h0) begin
+            if (proto_rx_valid && proto_rx_type == MSG_POWER && proto_rx_data[7:4] == 4'h0 && proto_rx_data[1:0] != ROLE_NONE) begin
               peer_role <= proto_rx_data[1:0];
 
               // Check for role conflicts
@@ -209,20 +212,24 @@ module power_negotiator #(
                 if (cfg_role == ROLE_WALL) begin
                   active_is_source <= 1'b1;
                   pdo_idx          <= 3'd0;
+                  pwr_status_code  <= STAT_SENDING;
                   state            <= S_SRC_SEND_PDOS;
                 end else if (cfg_role == ROLE_SINK) begin
                   active_is_source <= 1'b0;
                   for (int i = 0; i < 4; i++) peer_out_amps[i] <= 4'd0;
-                  state <= S_SNK_WAIT_PDOS;
+                  pwr_status_code <= STAT_RECEIVING;
+                  state           <= S_SNK_WAIT_PDOS;
                 end else begin
                   // Battery: If peer is WALL, Battery is Sink. If peer is SINK, Battery is Source.
                   if (proto_rx_data[1:0] == ROLE_WALL) begin
                     active_is_source <= 1'b0;
                     for (int i = 0; i < 4; i++) peer_out_amps[i] <= 4'd0;
-                    state <= S_SNK_WAIT_PDOS;
+                    pwr_status_code <= STAT_RECEIVING;
+                    state           <= S_SNK_WAIT_PDOS;
                   end else begin
                     active_is_source <= 1'b1;
                     pdo_idx          <= 3'd0;
+                    pwr_status_code  <= STAT_SENDING;
                     state            <= S_SRC_SEND_PDOS;
                   end
                 end
@@ -231,6 +238,7 @@ module power_negotiator #(
               // Peer already acting as Source and sending PDOs
               peer_role        <= ROLE_WALL;
               active_is_source <= 1'b0;
+              pwr_status_code  <= STAT_RECEIVING;
               for (int i = 0; i < 4; i++) peer_out_amps[i] <= 4'd0;
               if (proto_rx_data != 8'h7F) begin
                 peer_out_amps[proto_rx_data[5:4]] <= proto_rx_data[3:0];

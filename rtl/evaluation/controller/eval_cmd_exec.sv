@@ -82,6 +82,7 @@ module eval_cmd_exec #(
     input  logic        contract_active,
     input  logic [ 1:0] active_voltage_id,
     input  logic [ 3:0] active_amps,
+    input  logic        active_is_source,
     input  logic        contract_event_pulse,
 
     // OptiBolt packet RX interface
@@ -261,6 +262,7 @@ module eval_cmd_exec #(
     E_PING_FMT_STEP,
     E_SWEEP_STEP,
     E_SWEEP_WAIT,
+    E_SWEEP_RESTORE,
     E_BITMAP_SEND,
     E_CLEAR_BITMAP,
     E_TX_CHAT
@@ -324,7 +326,7 @@ module eval_cmd_exec #(
   logic        sweep_had_error;
 
   // Power status message buffer
-  logic [ 7:0] pwr_msg_buf [0:63];
+  logic [ 7:0] pwr_msg_buf [0:127];
 
   // Message multiplexer
   always_comb begin
@@ -427,16 +429,30 @@ module eval_cmd_exec #(
       proto_tx_valid    <= 1'b0;
 
       // Global incoming Ping Request responder (for dual-device and loopback):
-      if (proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data == PING_TOKEN) begin
+      if (proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data == CMD_PING_REQ) begin
         proto_tx_valid <= 1'b1;
         proto_tx_type  <= MSG_REQUEST;
-        proto_tx_data  <= PING_REPLY;
+        proto_tx_data  <= CMD_PING_RESP;
+      end
+
+      // Remote Sweep notification listeners
+      if (proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data == CMD_SWEEP_START) begin
+        sweep_active <= 1'b1;
+      end else if (proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data == CMD_SWEEP_END) begin
+        sweep_active <= 1'b0;
+      end
+
+      // Remote Sweep Test Packet Echo (dual-device mode):
+      if (link_status == 2'b01 && proto_rx_valid && proto_rx_type == MSG_TEST3 && state == E_IDLE) begin
+        proto_tx_valid <= 1'b1;
+        proto_tx_type  <= MSG_TEST3;
+        proto_tx_data  <= proto_rx_data;
       end
 
       // Ping timer & timeout monitor
       if (ping_active) begin
         ping_timer <= ping_timer + 32'd1;
-        if (proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data == PING_REPLY) begin
+        if (proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data == CMD_PING_RESP) begin
           ping_active      <= 1'b0;
           ping_rtt_cycles  <= ping_timer;
           ping_is_loopback <= (link_status == 2'b10);
@@ -488,7 +504,7 @@ module eval_cmd_exec #(
                   msg_src <= SRC_ERR_DISCONN; msg_len <= 11'd25; msg_idx <= '0; state <= E_STREAM_MSG;
                 end else begin
                   ping_active <= 1'b1; ping_timer <= '0;
-                  proto_tx_valid <= 1'b1; proto_tx_type <= MSG_REQUEST; proto_tx_data <= PING_TOKEN;
+                  proto_tx_valid <= 1'b1; proto_tx_type <= MSG_REQUEST; proto_tx_data <= CMD_PING_REQ;
                   msg_src <= SRC_PING_START; msg_len <= 11'd16; msg_idx <= '0; state <= E_STREAM_MSG;
                 end
               end
@@ -503,6 +519,11 @@ module eval_cmd_exec #(
                 sweep_had_error   <= 1'b0;
                 popup_mode        <= POPUP_PROGRESS;
                 progress_val      <= 8'd0;
+                if (link_status == 2'b01) begin
+                  proto_tx_valid <= 1'b1;
+                  proto_tx_type  <= MSG_REQUEST;
+                  proto_tx_data  <= CMD_SWEEP_START;
+                end
                 msg_src <= SRC_SWEEP_START; msg_len <= 11'd27; msg_idx <= '0; state <= E_STREAM_MSG;
               end
               ITEM_SNDBMP_BTN: begin
@@ -575,7 +596,7 @@ module eval_cmd_exec #(
                 msg_src <= SRC_ERR_DISCONN; msg_len <= 11'd25; state <= E_STREAM_MSG;
               end else begin
                 ping_active <= 1'b1; ping_timer <= '0;
-                proto_tx_valid <= 1'b1; proto_tx_type <= MSG_REQUEST; proto_tx_data <= PING_TOKEN;
+                proto_tx_valid <= 1'b1; proto_tx_type <= MSG_REQUEST; proto_tx_data <= CMD_PING_REQ;
                 msg_src <= SRC_PING_START; msg_len <= 11'd16; state <= E_STREAM_MSG;
               end
             end else if (cmd_len >= 6 && cmd_buf[3]=="b" && cmd_buf[4]=="a" && cmd_buf[5]=="u") begin
@@ -670,6 +691,11 @@ module eval_cmd_exec #(
               show_progress     <= 1'b1;
               popup_mode        <= POPUP_PROGRESS;
               progress_val      <= 8'd0;
+              if (link_status == 2'b01) begin
+                proto_tx_valid <= 1'b1;
+                proto_tx_type  <= MSG_REQUEST;
+                proto_tx_data  <= CMD_SWEEP_START;
+              end
               msg_src <= SRC_SWEEP_START; msg_len <= 11'd27; state <= E_STREAM_MSG;
             end else if (cmd_len >= 8 && cmd_buf[3]=="p" && cmd_buf[4]=="o" && cmd_buf[5]=="w" && cmd_buf[6]=="e" && cmd_buf[7]=="r") begin
               if (cmd_len >= 14 && cmd_buf[9]=="r" && cmd_buf[10]=="o" && cmd_buf[11]=="l" && cmd_buf[12]=="e") begin
@@ -711,17 +737,48 @@ module eval_cmd_exec #(
                 proto_tx_data  <= 8'hFE;
                 msg_src <= SRC_PWR_OFF; msg_len <= 11'd22; state <= E_STREAM_MSG;
               end else if (cmd_len >= 15 && cmd_buf[9]=="s" && cmd_buf[10]=="t" && cmd_buf[11]=="a") begin
-                // /power status : Show power table
-                pwr_msg_buf[0]  <= "R"; pwr_msg_buf[1]  <= "o"; pwr_msg_buf[2]  <= "l"; pwr_msg_buf[3]  <= "e"; pwr_msg_buf[4]  <= ":"; pwr_msg_buf[5]  <= " ";
-                pwr_msg_buf[6]  <= (cfg_role == 2'd1) ? "W" : (cfg_role == 2'd2) ? "B" : (cfg_role == 2'd3) ? "S" : "-";
-                pwr_msg_buf[7]  <= " "; pwr_msg_buf[8]  <= "|"; pwr_msg_buf[9]  <= " ";
-                pwr_msg_buf[10] <= "I"; pwr_msg_buf[11] <= "n"; pwr_msg_buf[12] <= ":";
-                pwr_msg_buf[13] <= "5"; pwr_msg_buf[14] <= "V"; pwr_msg_buf[15] <= "="; pwr_msg_buf[16] <= {4'h3, cfg_in_amps[0]}; pwr_msg_buf[17] <= "A"; pwr_msg_buf[18] <= " ";
-                pwr_msg_buf[19] <= "9"; pwr_msg_buf[20] <= "V"; pwr_msg_buf[21] <= "="; pwr_msg_buf[22] <= {4'h3, cfg_in_amps[1]}; pwr_msg_buf[23] <= "A"; pwr_msg_buf[24] <= " ";
-                pwr_msg_buf[25] <= "1"; pwr_msg_buf[26] <= "2"; pwr_msg_buf[27] <= "V"; pwr_msg_buf[28] <= "="; pwr_msg_buf[29] <= {4'h3, cfg_in_amps[2]}; pwr_msg_buf[30] <= "A"; pwr_msg_buf[31] <= " ";
-                pwr_msg_buf[32] <= "2"; pwr_msg_buf[33] <= "0"; pwr_msg_buf[34] <= "V"; pwr_msg_buf[35] <= "="; pwr_msg_buf[36] <= {4'h3, cfg_in_amps[3]}; pwr_msg_buf[37] <= "A";
-                pwr_msg_buf[38] <= "\n";
-                msg_src <= SRC_PWR_STATUS; msg_len <= 11'd39; state <= E_STREAM_MSG;
+                // /power status : Show full power table (In, Out, Active status)
+                pwr_msg_buf[0]  <= "I"; pwr_msg_buf[1]  <= "n"; pwr_msg_buf[2]  <= " "; pwr_msg_buf[3]  <= ":"; pwr_msg_buf[4]  <= " ";
+                pwr_msg_buf[5]  <= "5"; pwr_msg_buf[6]  <= "V"; pwr_msg_buf[7]  <= "="; pwr_msg_buf[8]  <= {4'h3, cfg_in_amps[0]}; pwr_msg_buf[9]  <= "A"; pwr_msg_buf[10] <= " ";
+                pwr_msg_buf[11] <= "9"; pwr_msg_buf[12] <= "V"; pwr_msg_buf[13] <= "="; pwr_msg_buf[14] <= {4'h3, cfg_in_amps[1]}; pwr_msg_buf[15] <= "A"; pwr_msg_buf[16] <= " ";
+                pwr_msg_buf[17] <= "1"; pwr_msg_buf[18] <= "2"; pwr_msg_buf[19] <= "V"; pwr_msg_buf[20] <= "="; pwr_msg_buf[21] <= {4'h3, cfg_in_amps[2]}; pwr_msg_buf[22] <= "A"; pwr_msg_buf[23] <= " ";
+                pwr_msg_buf[24] <= "2"; pwr_msg_buf[25] <= "0"; pwr_msg_buf[26] <= "V"; pwr_msg_buf[27] <= "="; pwr_msg_buf[28] <= {4'h3, cfg_in_amps[3]}; pwr_msg_buf[29] <= "A";
+                pwr_msg_buf[30] <= "\n";
+
+                pwr_msg_buf[31] <= "O"; pwr_msg_buf[32] <= "u"; pwr_msg_buf[33] <= "t"; pwr_msg_buf[34] <= ":"; pwr_msg_buf[35] <= " ";
+                pwr_msg_buf[36] <= "5"; pwr_msg_buf[37] <= "V"; pwr_msg_buf[38] <= "="; pwr_msg_buf[39] <= {4'h3, cfg_out_amps[0]}; pwr_msg_buf[40] <= "A"; pwr_msg_buf[41] <= " ";
+                pwr_msg_buf[42] <= "9"; pwr_msg_buf[43] <= "V"; pwr_msg_buf[44] <= "="; pwr_msg_buf[45] <= {4'h3, cfg_out_amps[1]}; pwr_msg_buf[46] <= "A"; pwr_msg_buf[47] <= " ";
+                pwr_msg_buf[48] <= "1"; pwr_msg_buf[49] <= "2"; pwr_msg_buf[50] <= "V"; pwr_msg_buf[51] <= "="; pwr_msg_buf[52] <= {4'h3, cfg_out_amps[2]}; pwr_msg_buf[53] <= "A"; pwr_msg_buf[54] <= " ";
+                pwr_msg_buf[55] <= "2"; pwr_msg_buf[56] <= "0"; pwr_msg_buf[57] <= "V"; pwr_msg_buf[58] <= "="; pwr_msg_buf[59] <= {4'h3, cfg_out_amps[3]}; pwr_msg_buf[60] <= "A";
+                pwr_msg_buf[61] <= "\n";
+
+                if (contract_active) begin
+                  pwr_msg_buf[62] <= "A"; pwr_msg_buf[63] <= "c"; pwr_msg_buf[64] <= "t"; pwr_msg_buf[65] <= "i"; pwr_msg_buf[66] <= "v"; pwr_msg_buf[67] <= "e"; pwr_msg_buf[68] <= ":"; pwr_msg_buf[69] <= " ";
+                  if (active_is_source) begin
+                    pwr_msg_buf[70] <= "S"; pwr_msg_buf[71] <= "O"; pwr_msg_buf[72] <= "U"; pwr_msg_buf[73] <= "R"; pwr_msg_buf[74] <= "C"; pwr_msg_buf[75] <= "E"; pwr_msg_buf[76] <= " ";
+                    if (active_voltage_id == 2'd3) begin pwr_msg_buf[77] <= "2"; pwr_msg_buf[78] <= "0"; end
+                    else if (active_voltage_id == 2'd2) begin pwr_msg_buf[77] <= "1"; pwr_msg_buf[78] <= "2"; end
+                    else if (active_voltage_id == 2'd1) begin pwr_msg_buf[77] <= " "; pwr_msg_buf[78] <= "9"; end
+                    else begin pwr_msg_buf[77] <= " "; pwr_msg_buf[78] <= "5"; end
+                    pwr_msg_buf[79] <= "V"; pwr_msg_buf[80] <= " "; pwr_msg_buf[81] <= "@"; pwr_msg_buf[82] <= " ";
+                    pwr_msg_buf[83] <= {4'h3, active_amps}; pwr_msg_buf[84] <= "A"; pwr_msg_buf[85] <= "\n";
+                    msg_len <= 11'd86;
+                  end else begin
+                    pwr_msg_buf[70] <= "S"; pwr_msg_buf[71] <= "I"; pwr_msg_buf[72] <= "N"; pwr_msg_buf[73] <= "K"; pwr_msg_buf[74] <= " ";
+                    if (active_voltage_id == 2'd3) begin pwr_msg_buf[75] <= "2"; pwr_msg_buf[76] <= "0"; end
+                    else if (active_voltage_id == 2'd2) begin pwr_msg_buf[75] <= "1"; pwr_msg_buf[76] <= "2"; end
+                    else if (active_voltage_id == 2'd1) begin pwr_msg_buf[75] <= " "; pwr_msg_buf[76] <= "9"; end
+                    else begin pwr_msg_buf[75] <= " "; pwr_msg_buf[76] <= "5"; end
+                    pwr_msg_buf[77] <= "V"; pwr_msg_buf[78] <= " "; pwr_msg_buf[79] <= "@"; pwr_msg_buf[80] <= " ";
+                    pwr_msg_buf[81] <= {4'h3, active_amps}; pwr_msg_buf[82] <= "A"; pwr_msg_buf[83] <= "\n";
+                    msg_len <= 11'd84;
+                  end
+                end else begin
+                  pwr_msg_buf[62] <= "A"; pwr_msg_buf[63] <= "c"; pwr_msg_buf[64] <= "t"; pwr_msg_buf[65] <= "i"; pwr_msg_buf[66] <= "v"; pwr_msg_buf[67] <= "e"; pwr_msg_buf[68] <= ":"; pwr_msg_buf[69] <= " ";
+                  pwr_msg_buf[70] <= "N"; pwr_msg_buf[71] <= "O"; pwr_msg_buf[72] <= "N"; pwr_msg_buf[73] <= "E"; pwr_msg_buf[74] <= "\n";
+                  msg_len <= 11'd75;
+                end
+                msg_src <= SRC_PWR_STATUS; state <= E_STREAM_MSG;
               end else begin
                 msg_src <= SRC_UNKNOWN; msg_len <= 11'd16; state <= E_STREAM_MSG;
               end
@@ -907,7 +964,7 @@ module eval_cmd_exec #(
         end
 
         // -------------------------------------------------------------------
-        // Baudrate Sweep FSM (11 combos)
+        // Baudrate Sweep FSM (16 combos)
         // -------------------------------------------------------------------
         E_SWEEP_STEP: begin
           if (sweep_step < 5'd16) begin
@@ -922,7 +979,12 @@ module eval_cmd_exec #(
             progress_val     <= 8'((255 * (sweep_step + 1)) / 16);
             state            <= E_SWEEP_WAIT;
           end else begin
-            // Sweep complete: restore default 1.0 Mbps 8x
+            // Sweep complete: notify remote peer, restore default 1.0 Mbps 8x
+            if (link_status == 2'b01) begin
+              proto_tx_valid <= 1'b1;
+              proto_tx_type  <= MSG_REQUEST;
+              proto_tx_data  <= CMD_SWEEP_END;
+            end
             req_baud_rate    <= 4'd1;
             req_oversampling <= 4'd0;
             set_speed_req    <= 1'b1;
@@ -975,7 +1037,6 @@ module eval_cmd_exec #(
             proto_tx_valid   <= 1'b0;
             sweep_print_step <= sweep_step;
             sweep_step       <= sweep_step + 5'd1;
-            msg_idx          <= '0;
             if (sweep_rx_count == 5'd16 && !sweep_had_error && rx_carrier && link_status != 2'b00) begin
               msg_src <= SRC_SWEEP_PASS;
               msg_len <= 11'd21;
@@ -983,7 +1044,20 @@ module eval_cmd_exec #(
               msg_src <= SRC_SWEEP_FAIL;
               msg_len <= 11'd24;
             end
-            state <= E_STREAM_MSG;
+            // Always return to default speed (1.0 Mbps) so next step can negotiate cleanly
+            req_baud_rate    <= 4'd1;
+            req_oversampling <= 4'd0;
+            set_speed_req    <= 1'b1;
+            sweep_timer      <= '0;
+            state            <= E_SWEEP_RESTORE;
+          end
+        end
+
+        E_SWEEP_RESTORE: begin
+          sweep_timer <= sweep_timer + 32'd1;
+          if (sweep_timer >= (SWEEP_STEP_TICKS >> 3)) begin
+            msg_idx <= '0;
+            state   <= E_STREAM_MSG;
           end
         end
 

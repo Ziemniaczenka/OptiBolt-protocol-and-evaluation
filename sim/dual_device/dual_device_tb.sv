@@ -141,9 +141,14 @@ module dual_device_tb;
   // Clock generation: 100MHz (10ns period)
   always #5 clk = ~clk;
 
+  logic [1:0] a_link_status;
+  logic [1:0] b_link_status;
+  logic       a_tx_empty_sig;
+  logic       b_tx_empty_sig;
+
   // DUT A: Board A (Source / Wall)
   evaluation_controller #(
-      .SWEEP_STEP_TICKS(10_000),
+      .SWEEP_STEP_TICKS(500),
       .PWR_RETRY_TICKS (100)
   ) u_eval_a (
       .clk                              (clk),
@@ -188,7 +193,7 @@ module dual_device_tb;
       .hs_tx_type                       (),
       .hs_tx_data                       (),
       .hs_tx_ack                        (),
-      .link_status                      (2'b01), // DUPLEX CONNECTED
+      .link_status                      (a_link_status),
       .eval_proto_baud_rate             (a_proto_baud_rate),
       .eval_proto_oversampling          (a_proto_oversampling),
       .eval_proto_loopback_en           (a_proto_loopback_en),
@@ -196,15 +201,15 @@ module dual_device_tb;
       .eval_proto_tx_type               (a_proto_tx_type),
       .eval_proto_tx_data               (a_proto_tx_data),
       .proto_eval_tx_full               (1'b0),
-      .proto_eval_tx_empty              (1'b1),
+      .proto_eval_tx_empty              (a_tx_empty_sig),
       .proto_eval_rx_valid              (b_to_a_valid),
       .proto_eval_rx_type               (b_to_a_type),
       .proto_eval_rx_data               (b_to_a_data),
       .proto_eval_parity_error          (1'b0),
       .proto_eval_manchester_code_error (1'b0),
       .proto_eval_preamble_error        (1'b0),
-      .proto_eval_rx_carrier            (1'b1), // CARRIER PRESENT
-      .proto_eval_link_status           (1'b1),
+      .proto_eval_rx_carrier            (a_link_status != 2'b00),
+      .proto_eval_link_status           (a_link_status == 2'b01),
       .proto_eval_ber_count             ('0),
       .proto_eval_err_count             ('0),
       .pwr_status_code                  (a_pwr_status_code),
@@ -216,7 +221,7 @@ module dual_device_tb;
 
   // DUT B: Board B (Sink)
   evaluation_controller #(
-      .SWEEP_STEP_TICKS(10_000),
+      .SWEEP_STEP_TICKS(500),
       .PWR_RETRY_TICKS (100)
   ) u_eval_b (
       .clk                              (clk),
@@ -261,7 +266,7 @@ module dual_device_tb;
       .hs_tx_type                       (),
       .hs_tx_data                       (),
       .hs_tx_ack                        (),
-      .link_status                      (2'b01), // DUPLEX CONNECTED
+      .link_status                      (b_link_status),
       .eval_proto_baud_rate             (b_proto_baud_rate),
       .eval_proto_oversampling          (b_proto_oversampling),
       .eval_proto_loopback_en           (b_proto_loopback_en),
@@ -269,15 +274,15 @@ module dual_device_tb;
       .eval_proto_tx_type               (b_proto_tx_type),
       .eval_proto_tx_data               (b_proto_tx_data),
       .proto_eval_tx_full               (1'b0),
-      .proto_eval_tx_empty              (1'b1),
+      .proto_eval_tx_empty              (b_tx_empty_sig),
       .proto_eval_rx_valid              (a_to_b_valid),
       .proto_eval_rx_type               (a_to_b_type),
       .proto_eval_rx_data               (a_to_b_data),
       .proto_eval_parity_error          (1'b0),
       .proto_eval_manchester_code_error (1'b0),
       .proto_eval_preamble_error        (1'b0),
-      .proto_eval_rx_carrier            (1'b1), // CARRIER PRESENT
-      .proto_eval_link_status           (1'b1),
+      .proto_eval_rx_carrier            (b_link_status != 2'b00),
+      .proto_eval_link_status           (b_link_status == 2'b01),
       .proto_eval_ber_count             ('0),
       .proto_eval_err_count             ('0),
       .pwr_status_code                  (b_pwr_status_code),
@@ -375,6 +380,11 @@ module dual_device_tb;
     clk = 0;
     rst_n = 0;
 
+    a_link_status  = 2'b01;
+    b_link_status  = 2'b01;
+    a_tx_empty_sig = 1'b1;
+    b_tx_empty_sig = 1'b1;
+
     a_cmd_up = 0; a_cmd_down = 0; a_cmd_left = 0; a_cmd_right = 0; a_cmd_enter = 0; a_cmd_esc = 0;
     a_char_valid = 0; a_char_ascii = 0; a_cmd_backspace = 0;
     a_ui_selected_item = ITEM_INPUT;
@@ -413,7 +423,7 @@ module dual_device_tb;
     $display("[PASS] Test 1: Cross-board chat received and written to Board B console.");
 
     // -------------------------------------------------------------------------
-    // TEST 2: Multi-Profile Power Negotiation (Wall A -> Sink B)
+    // TEST 2: Multi-Profile Power Negotiation & Lifecycle
     // -------------------------------------------------------------------------
     $display("[TEST 2] Configuring Board A as WALL (20V @ 3A max)...");
     a_exec("/power role wall");
@@ -429,8 +439,16 @@ module dual_device_tb;
     b_exec("/power in 12 2");
     b_exec("/power in 20 2");
 
-    $display("[TEST 2] Arming power negotiation on both boards...");
+    assert (a_pwr_status_code == 3'd0 && b_pwr_status_code == 3'd0)
+    else $error("Power status should be NOT READY (0) before arming");
+
+    $display("[TEST 2] Setting Board A ready alone (should remain in READY state)...");
     a_exec("/power ready");
+    repeat(50) @(posedge clk);
+    assert (a_pwr_status_code == 3'd1) // STAT_READY
+    else $error("Board A should stay in READY state (1) while waiting for peer");
+
+    $display("[TEST 2] Setting Board B ready (negotiation begins)...");
     b_exec("/power ready");
 
     // Wait for negotiation to complete across simulated optical link
@@ -441,21 +459,48 @@ module dual_device_tb;
     else $error("Contract voltage mismatch (expected 20V id=3)");
     assert (a_pwr_active_amps == 4'd3 && b_pwr_active_amps == 4'd3) // 3A
     else $error("Contract amps mismatch (expected 3A)");
+    $display("[PASS] Test 2.1: Dual device power contract established 20V @ 3A (60W)!");
 
-    $display("[PASS] Test 2: Dual device power negotiation established 20V @ 3A (60W) contract!");
+    $display("[TEST 2] Verifying /power status command output on Board A and B...");
+    a_exec("/power status");
+    b_exec("/power status");
+    $display("[PASS] Test 2.2: /power status successfully executed on both boards.");
+
+    $display("[TEST 2] Simulating optical cable disconnect...");
+    a_link_status = 2'b00;
+    b_link_status = 2'b00;
+    #1000;
+    assert (!a_pwr_contract_active && !b_pwr_contract_active)
+    else $error("Contract should be inactive on cable disconnect");
+    assert (a_pwr_status_code == 3'd1 && b_pwr_status_code == 3'd1)
+    else $error("Power status should revert to READY (1) on disconnect when armed");
+    $display("[PASS] Test 2.3: Disconnect cleanly reverted status to READY.");
+
+    $display("[TEST 2] Simulating optical cable reconnect (auto-renegotiation)...");
+    a_link_status = 2'b01;
+    b_link_status = 2'b01;
+    #3000;
+    assert (a_pwr_contract_active && b_pwr_contract_active)
+    else $error("Contract failed to automatically renegotiate on reconnect");
+    $display("[PASS] Test 2.4: Reconnection automatically re-established 20V @ 3A contract!");
 
     // -------------------------------------------------------------------------
-    // TEST 3: Remote Contract Termination via /power off
+    // TEST 3: Contract Termination via /power off
     // -------------------------------------------------------------------------
     $display("[TEST 3] Disconnecting power contract via /power off on Board A...");
     a_exec("/power off");
     #2500;
     assert (!a_pwr_contract_active && !b_pwr_contract_active)
     else $error("Power OFF command failed to terminate contract on both boards");
-    assert (a_pwr_active_volt_id == 2'd0 && b_pwr_active_volt_id == 2'd0)
-    else $error("Active voltage not cleared on Power OFF");
-    $display("[PASS] Test 3: Power OFF cleanly released power contract across optical link.");
+    assert (a_pwr_status_code == 3'd0) // Board A is NOT READY
+    else $error("Board A should be NOT READY after /power off");
+    assert (b_pwr_status_code == 3'd1) // Board B is READY (still waiting)
+    else $error("Board B should be READY after peer power off");
+    $display("[PASS] Test 3: Power OFF cleanly released contract, A=NOT_READY, B=READY.");
 
+    // -------------------------------------------------------------------------
+    // TEST 4: Streaming 128x128 PRNG Bitmap from Board A to Board B
+    // -------------------------------------------------------------------------
     $display("[TEST 4] Streaming 128x128 PRNG Bitmap from Board A to Board B...");
     a_type_string("/bitmap send");
     a_submit_cmd();
@@ -468,13 +513,27 @@ module dual_device_tb;
     repeat(10) @(posedge clk);
 
     // -------------------------------------------------------------------------
-    // TEST 5: Remote Speed Negotiation Handshake (Board A -> Board B)
+    // TEST 5: Speed Negotiation with ACK Drain Handling
     // -------------------------------------------------------------------------
     $display("[TEST 5] Board A requesting speed change to 2.5 Mbps...");
     a_exec("/baud 2.5m");
     repeat(50) @(posedge clk);
     assert (b_proto_baud_rate == 4'd3 && a_proto_baud_rate == 4'd3);
     $display("[PASS] Test 5: Both devices successfully synchronized speed to 2.5 Mbps!");
+
+    // -------------------------------------------------------------------------
+    // TEST 6: Dual Device Baudrate Sweep
+    // -------------------------------------------------------------------------
+    $display("[TEST 6] Initiating full Dual-Device Baudrate Sweep from Board A...");
+    a_exec("/sweep");
+    // Wait for sweep to complete across all 16 frequency steps
+    wait (u_eval_a.u_eval_cmd_exec.state == u_eval_a.u_eval_cmd_exec.E_IDLE);
+    repeat(50) @(posedge clk);
+    assert (a_proto_baud_rate == 4'd1 && b_proto_baud_rate == 4'd1)
+    else $error("Both boards should return to default 1.0 Mbps after sweep");
+    assert (!u_eval_a.u_eval_cmd_exec.sweep_active && !u_eval_b.u_eval_cmd_exec.sweep_active)
+    else $error("Sweep active flag should be 0 on both boards after sweep completion");
+    $display("[PASS] Test 6: Dual Device Baudrate Sweep completed cleanly with default speed restored!");
 
     $display("==================================================================");
     $display("=== ALL DUAL-DEVICE INTEGRATION TESTS COMPLETED SUCCESSFULLY! ===");

@@ -13,7 +13,8 @@
  */
 
 module link_handshake #(
-    parameter int RETRY_TICKS = 500_000  // 5ms retry interval while searching for connection
+    parameter int RETRY_TICKS     = 500_000,    // 5ms retry interval while searching for connection
+    parameter int HEARTBEAT_TICKS = 50_000_000  // 500ms periodic link testing interval while connected
 ) (
     input logic clk,
     input logic rst_n,
@@ -55,8 +56,9 @@ module link_handshake #(
       .pixel_byte(prng_byte)
   );
 
-  // Connect retry timer
-  logic [$clog2(RETRY_TICKS+1)-1:0] retry_cnt;
+  // Connect retry timer & connected heartbeat timer
+  logic [$clog2(RETRY_TICKS+1)-1:0]     retry_cnt;
+  logic [$clog2(HEARTBEAT_TICKS+1)-1:0] heartbeat_cnt;
 
   logic [                      7:0] my_challenge;
   logic                             challenge_latched;
@@ -72,6 +74,7 @@ module link_handshake #(
     if (!rst_n) begin
       link_status          <= LINK_DISCONNECTED;
       retry_cnt            <= '0;
+      heartbeat_cnt        <= '0;
       my_challenge         <= 8'hA5;
       challenge_latched    <= 1'b0;
       pending_challenge_tx <= 1'b0;
@@ -93,6 +96,7 @@ module link_handshake #(
         challenge_latched    <= 1'b1;
         pending_challenge_tx <= 1'b1;
         retry_cnt            <= '0;
+        heartbeat_cnt        <= '0;
         man_err_burst_cnt    <= 16'd0;
       end else if (!proto_eval_rx_carrier) begin
         challenge_latched <= 1'b0;
@@ -105,23 +109,34 @@ module link_handshake #(
         my_challenge         <= (prng_byte == 8'h00) ? 8'h5A : prng_byte;
         pending_challenge_tx <= 1'b1;
         retry_cnt            <= '0;
+        heartbeat_cnt        <= '0;
         link_status          <= LINK_DISCONNECTED;
         pending_ack_tx       <= 1'b0;
         man_err_burst_cnt    <= 16'd0;
       end
 
       // ---------------------------------------------------------------------
-      // 3. Retry challenge ONLY while disconnected and optical carrier present
+      // 3. Retry challenge while disconnected; Periodic Heartbeat while connected
       // ---------------------------------------------------------------------
       if (proto_eval_rx_carrier && link_status == LINK_DISCONNECTED) begin
+        heartbeat_cnt <= '0;
         if (retry_cnt >= RETRY_TICKS - 1) begin
           retry_cnt            <= '0;
           pending_challenge_tx <= 1'b1;
         end else begin
           retry_cnt <= retry_cnt + 1;
         end
-      end else begin
+      end else if (proto_eval_rx_carrier && link_status != LINK_DISCONNECTED) begin
         retry_cnt <= '0;
+        if (heartbeat_cnt >= HEARTBEAT_TICKS - 1) begin
+          heartbeat_cnt        <= '0;
+          pending_challenge_tx <= 1'b1;
+        end else begin
+          heartbeat_cnt <= heartbeat_cnt + 1;
+        end
+      end else begin
+        retry_cnt     <= '0;
+        heartbeat_cnt <= '0;
       end
 
       // ---------------------------------------------------------------------

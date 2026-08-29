@@ -19,6 +19,7 @@ module optibolt_cdc_bridge (
     input  logic [2:0] eval_proto_tx_type,
     input  logic [7:0] eval_proto_tx_data,
     output logic       proto_eval_tx_full,
+    output logic       proto_eval_tx_empty,
     output logic       proto_eval_rx_valid,
     output logic [2:0] proto_eval_rx_type,
     output logic [7:0] proto_eval_rx_data,
@@ -31,6 +32,7 @@ module optibolt_cdc_bridge (
     output logic [3:0] baud_rate_200,
     output logic [3:0] oversampling_200,
     input  logic       tx_full_200,
+    input  logic       tx_idle_200,
     output logic       tx_enable_200,
     output logic [2:0] tx_type_200,
     output logic [7:0] tx_data_200,
@@ -56,10 +58,23 @@ module optibolt_cdc_bridge (
   /* 2. Transmit Asynchronous FIFO (clk100 -> clk200, depth 32) */
   logic [10:0] tx_async_dout_200;
   logic        tx_async_empty_200;
+  logic        tx_async_empty_100;
+  logic        tx_idle_100;
 
   assign tx_enable_200 = !tx_async_empty_200 && !tx_full_200;
   assign tx_type_200   = tx_async_dout_200[10:8];
   assign tx_data_200   = tx_async_dout_200[7:0];
+
+  cdc_sync #(
+      .WIDTH(1)
+  ) u_cdc_tx_idle (
+      .clk_dst(clk100),
+      .rst_n  (rst_n),
+      .d_in   (tx_idle_200),
+      .d_out  (tx_idle_100)
+  );
+
+  assign proto_eval_tx_empty = tx_async_empty_100 && tx_idle_100;
 
   async_fifo #(
       .DATA_WIDTH(11),
@@ -70,6 +85,7 @@ module optibolt_cdc_bridge (
       .wr_en   (eval_proto_tx_valid),
       .din     ({eval_proto_tx_type, eval_proto_tx_data}),
       .full    (proto_eval_tx_full),
+      .empty_wr(tx_async_empty_100),
 
       .clk_rd  (clk200),
       .rst_rd_n(rst_n),

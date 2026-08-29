@@ -13,7 +13,8 @@ import protocol_pkg::*;
 
 module optibolt_link_manager #(
     parameter logic [3:0] DEFAULT_BAUD_RATE    = 4'd1,
-    parameter logic [3:0] DEFAULT_OVERSAMPLING = 4'd0
+    parameter logic [3:0] DEFAULT_OVERSAMPLING = 4'd0,
+    parameter int         SWEEP_WATCHDOG_TICKS = 10_000_000
 ) (
     input logic clk,
     input logic rst_n,
@@ -24,6 +25,7 @@ module optibolt_link_manager #(
     input logic       proto_eval_parity_error,
     input logic       proto_eval_manchester_code_error,
     input logic       proto_eval_preamble_error,
+    input logic       proto_eval_tx_empty,
 
     // User configuration & commands
     input logic       failover_en,
@@ -61,6 +63,12 @@ module optibolt_link_manager #(
   logic [3:0] current_os;
   logic       current_loopback;
 
+  logic [3:0] pending_baud;
+  logic [3:0] pending_os;
+  logic       ack_tx_in_progress;
+  logic       ack_tx_started;
+  logic [31:0] sweep_watchdog_cnt;
+
   assign active_baud_rate    = current_baud;
   assign active_oversampling = current_os;
   assign active_loopback_en  = current_loopback;
@@ -76,6 +84,11 @@ module optibolt_link_manager #(
       current_baud           <= DEFAULT_BAUD_RATE;
       current_os             <= DEFAULT_OVERSAMPLING;
       current_loopback       <= 1'b0;
+      pending_baud           <= DEFAULT_BAUD_RATE;
+      pending_os             <= DEFAULT_OVERSAMPLING;
+      ack_tx_in_progress     <= 1'b0;
+      ack_tx_started         <= 1'b0;
+      sweep_watchdog_cnt     <= '0;
       failover_triggered     <= 1'b0;
       speed_nego_in_progress <= 1'b0;
       speed_updated_pulse    <= 1'b0;
@@ -133,6 +146,22 @@ module optibolt_link_manager #(
       end
 
       // ---------------------------------------------------------------------
+      // Sweep Watchdog: Fallback to default rate if broken test speed hangs
+      // ---------------------------------------------------------------------
+      if (sweep_active && (current_baud != DEFAULT_BAUD_RATE || current_os != DEFAULT_OVERSAMPLING)) begin
+        if (sweep_watchdog_cnt >= SWEEP_WATCHDOG_TICKS) begin
+          current_baud        <= DEFAULT_BAUD_RATE;
+          current_os          <= DEFAULT_OVERSAMPLING;
+          speed_updated_pulse <= 1'b1;
+          sweep_watchdog_cnt  <= '0;
+        end else begin
+          sweep_watchdog_cnt <= sweep_watchdog_cnt + 32'd1;
+        end
+      end else begin
+        sweep_watchdog_cnt <= '0;
+      end
+
+      // ---------------------------------------------------------------------
       // User Speed Setting Request
       // ---------------------------------------------------------------------
       if (set_speed_req) begin
@@ -152,28 +181,47 @@ module optibolt_link_manager #(
         current_loopback <= req_loopback_en;
       end
 
-
       // ---------------------------------------------------------------------
       // Incoming Speed Negotiation Packets (Only from remote partner, NOT loopback)
       // ---------------------------------------------------------------------
       if (link_status == 2'b01) begin
         if (proto_rx_valid && proto_rx_type == MSG_REQUEST &&
             proto_rx_data[7:4] != 4'hA && proto_rx_data[7:4] != 4'h5 &&
+            proto_rx_data != CMD_SWEEP_START && proto_rx_data != CMD_SWEEP_END &&
             proto_rx_data[7:4] <= 4'd1 && proto_rx_data[3:0] <= 4'd9) begin
-          // Remote peer requested speed change: apply and acknowledge
-          current_baud           <= proto_rx_data[3:0];
-          current_os             <= proto_rx_data[7:4];
-          speed_updated_pulse    <= 1'b1;
+          // Remote peer requested speed change:
+          // Send ACK at CURRENT speed, then switch only after ACK is transmitted!
+          pending_baud           <= proto_rx_data[3:0];
+          pending_os             <= proto_rx_data[7:4];
+          ack_tx_in_progress     <= 1'b1;
+          ack_tx_started         <= 1'b0;
           speed_nego_in_progress <= 1'b0;
           nego_tx_valid          <= 1'b1;
           nego_tx_type           <= MSG_ACCEPT;
-          nego_tx_data           <= NEGO_ACK_HEADER;
-        end else if (speed_nego_in_progress && proto_rx_valid && proto_rx_type == MSG_ACCEPT && proto_rx_data == NEGO_ACK_HEADER) begin
+          nego_tx_data           <= CMD_SPEED_ACK;
+        end else if (speed_nego_in_progress && proto_rx_valid && proto_rx_type == MSG_ACCEPT && proto_rx_data == CMD_SPEED_ACK) begin
           // Remote peer accepted our speed change request: apply requested speed
           current_baud           <= req_baud_rate;
           current_os             <= req_oversampling;
           speed_updated_pulse    <= 1'b1;
           speed_nego_in_progress <= 1'b0;
+        end
+      end
+
+      // ---------------------------------------------------------------------
+      // Responder ACK Transmission Complete Detector
+      // ---------------------------------------------------------------------
+      if (ack_tx_in_progress) begin
+        if (!ack_tx_started) begin
+          // Wait 1 cycle for packet to enter CDC FIFO
+          ack_tx_started <= 1'b1;
+        end else if (proto_eval_tx_empty) begin
+          // Transmitter has finished transmitting ACK packet onto optical wire
+          current_baud        <= pending_baud;
+          current_os          <= pending_os;
+          speed_updated_pulse <= 1'b1;
+          ack_tx_in_progress  <= 1'b0;
+          ack_tx_started      <= 1'b0;
         end
       end
     end

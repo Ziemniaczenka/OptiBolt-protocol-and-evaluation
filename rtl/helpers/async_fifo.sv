@@ -18,6 +18,7 @@ module async_fifo #(
     input  logic                  wr_en,
     input  logic [DATA_WIDTH-1:0] din,
     output logic                  full,
+    output logic                  empty_wr,
 
     // Read Domain
     input  logic                  clk_rd,
@@ -57,19 +58,22 @@ module async_fifo #(
   assign wptr_gray_next = (wptr_bin_next >> 1) ^ wptr_bin_next;
 
   /* Full condition: MSB and 2nd MSB inverted in Gray code, remaining bits equal */
-  wire is_full = (wptr_gray_next == {~rptr_gray_sync1[ADDR_WIDTH:ADDR_WIDTH-1], rptr_gray_sync1[ADDR_WIDTH-2:0]});
+  wire is_full     = (wptr_gray_next == {~rptr_gray_sync1[ADDR_WIDTH:ADDR_WIDTH-1], rptr_gray_sync1[ADDR_WIDTH-2:0]});
+  wire is_empty_wr = (wptr_gray_next == rptr_gray_sync1);
 
   always_ff @(posedge clk_wr or negedge rst_wr_n) begin
     if (!rst_wr_n) begin
       wptr_bin        <= '0;
       wptr_gray       <= '0;
       full            <= 1'b0;
+      empty_wr        <= 1'b1;
       rptr_gray_sync0 <= '0;
       rptr_gray_sync1 <= '0;
     end else begin
       wptr_bin        <= wptr_bin_next;
       wptr_gray       <= wptr_gray_next;
       full            <= is_full;
+      empty_wr        <= is_empty_wr;
       rptr_gray_sync0 <= rptr_gray;
       rptr_gray_sync1 <= rptr_gray_sync0;
     end

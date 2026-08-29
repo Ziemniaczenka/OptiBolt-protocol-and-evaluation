@@ -445,7 +445,8 @@ module evaluation_controller #(
       .active_loopback_en              (eval_proto_loopback_en),
       .failover_triggered              (failover_triggered),
       .speed_nego_in_progress          (),
-      .speed_updated_pulse             (speed_updated_pulse)
+      .speed_updated_pulse             (speed_updated_pulse),
+      .proto_eval_tx_empty             (proto_eval_tx_empty)
   );
 
   // =========================================================================
@@ -506,6 +507,7 @@ module evaluation_controller #(
       .contract_active                 (contract_active),
       .active_voltage_id               (active_voltage_id),
       .active_amps                     (active_amps),
+      .active_is_source                (active_is_source),
       .contract_event_pulse            (contract_event_pulse)
   );
 

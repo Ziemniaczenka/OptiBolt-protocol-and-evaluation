@@ -33,8 +33,8 @@ module optibolt_controller (
     input logic [2:0] tx_msg_type,
     input logic [7:0] tx_data,
     output logic tx_empty,
-    output logic tx_full
-
+    output logic tx_full,
+    output logic tx_idle
 );
 
   import protocol_pkg::*;
@@ -137,6 +137,7 @@ module optibolt_controller (
   );
 
   assign transmit_start = ~tx_empty & ~tx_busy;
+  assign tx_idle        = tx_empty & ~tx_busy;
 
   optibolt_transmitter u_optibolt_transmitter (
       .clk200,

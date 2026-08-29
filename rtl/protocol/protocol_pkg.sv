@@ -54,15 +54,23 @@ package protocol_pkg;
 
   //COMMUNICATION//
 
-  //headers
-  localparam logic [2:0] MSG_CAPABILITIES = 3'b000;
-  localparam logic [2:0] MSG_REQUEST = 3'b001;
-  localparam logic [2:0] MSG_ACCEPT = 3'b010;
-  localparam logic [2:0] MSG_DENIED = 3'b011;
-  localparam logic [2:0] MSG_TEXT = 3'b100;
-  localparam logic [2:0] MSG_TEST1 = 3'b101;
-  localparam logic [2:0] MSG_TEST2 = 3'b110;
-  localparam logic [2:0] MSG_POWER = 3'b110;
-  localparam logic [2:0] MSG_TEST3 = 3'b111;
+  // Message Type Headers
+  localparam logic [2:0] MSG_CAPABILITIES = 3'b000; // Link Handshake / Challenge Token exchange
+  localparam logic [2:0] MSG_REQUEST      = 3'b001; // Speed Negotiation Requests, Ping, Sweep Control
+  localparam logic [2:0] MSG_ACCEPT       = 3'b010; // Speed Negotiation ACKs, Handshake ACKs
+  localparam logic [2:0] MSG_DENIED       = 3'b011; // Reserved / Command Rejections
+  localparam logic [2:0] MSG_TEXT         = 3'b100; // Console ASCII Text Messaging
+  localparam logic [2:0] MSG_TEST1        = 3'b101; // Dynamic 128x128 PRNG Bitmap Streaming (MSG_BITMAP)
+  localparam logic [2:0] MSG_BITMAP       = 3'b101; // Alias for MSG_TEST1
+  localparam logic [2:0] MSG_TEST2        = 3'b110; // Multi-profile Power Negotiation (MSG_POWER)
+  localparam logic [2:0] MSG_POWER        = 3'b110; // Alias for MSG_TEST2
+  localparam logic [2:0] MSG_TEST3        = 3'b111; // Baudrate Sweep Link Verification Packets
+
+  // Control Constants for MSG_REQUEST
+  localparam logic [7:0] CMD_PING_REQ    = 8'hA5;
+  localparam logic [7:0] CMD_PING_RESP   = 8'h5A;
+  localparam logic [7:0] CMD_SWEEP_START = 8'hE0;
+  localparam logic [7:0] CMD_SWEEP_END   = 8'hE1;
+  localparam logic [7:0] CMD_SPEED_ACK   = 8'hB1;
 
 endpackage
