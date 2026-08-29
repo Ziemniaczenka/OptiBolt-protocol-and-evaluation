@@ -29,6 +29,7 @@ module optibolt_link_manager #(
 
     // User configuration & commands
     input logic       failover_en,
+    input logic       sweep_active,
     input logic       set_speed_req,
     input logic [3:0] req_baud_rate,
     input logic [3:0] req_oversampling,
@@ -123,8 +124,7 @@ module optibolt_link_manager #(
         carrier_loss_timer <= '0;
       end
 
-      if (failover_en && (current_baud != DEFAULT_BAUD_RATE || current_os != DEFAULT_OVERSAMPLING)) begin
-        // If error count in 100ms exceeds 200 errors, or carrier lost for 10ms:
+      if (failover_en && !sweep_active && (current_baud != DEFAULT_BAUD_RATE || current_os != DEFAULT_OVERSAMPLING)) begin
         if (window_error_count >= 16'd200 || carrier_loss_timer >= 20'd1_000_000) begin
           current_baud       <= DEFAULT_BAUD_RATE;
           current_os         <= DEFAULT_OVERSAMPLING;
@@ -153,6 +153,7 @@ module optibolt_link_manager #(
       if (set_loopback_req) begin
         current_loopback <= req_loopback_en;
       end
+
 
       // ---------------------------------------------------------------------
       // Incoming Speed Negotiation Packets (Only from remote partner, NOT loopback)

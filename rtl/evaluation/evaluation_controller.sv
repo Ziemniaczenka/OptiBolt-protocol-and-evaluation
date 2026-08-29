@@ -151,6 +151,7 @@ module evaluation_controller #(
   logic        cmd_tx_valid;
   logic [ 2:0] cmd_tx_type;
   logic [ 7:0] cmd_tx_data;
+  logic        sweep_active;
 
   // Power Negotiation Signals
   logic [ 1:0] cfg_role;
@@ -258,6 +259,8 @@ module evaluation_controller #(
       .rst_n           (rst_n),
       .cmd_up          (cmd_up),
       .cmd_down        (cmd_down),
+      .cmd_left        (cmd_left),
+      .cmd_right       (cmd_right),
       .cmd_enter       (cmd_enter),
       .cmd_esc         (cmd_esc),
       .char_valid      (char_valid),
@@ -278,75 +281,116 @@ module evaluation_controller #(
       .echo_ack        (echo_ack)
   );
 
-  // =========================================================================
-  // 3. Dedicated Console BRAM Buffer & Line-by-Line Scroller Submodule
-  // =========================================================================
+  /* 3. Dedicated Console BRAM Buffer & Line-by-Line Scroller Submodule */
   logic       rx_console_char_ready;
   logic       rx_bol;
-  logic [1:0] rx_prefix_phase;
-  logic [7:0] rx_held_byte;
   logic       rx_data_char_valid;
   logic [7:0] rx_data_char_byte;
+
+  /* Incoming RX Text FIFO Buffer (prevents dropped characters during prefix '< ' injection and scrolling) */
+  logic       rx_text_fifo_empty;
+  logic       rx_text_fifo_full;
+  logic [7:0] rx_text_fifo_dout;
+  logic       rx_text_fifo_pop;
+
+  fwft_fifo #(
+      .WORD_WIDTH(8),
+      .DEPTH     (64)
+  ) u_rx_text_fifo (
+      .clk   (clk),
+      .rst_n (rst_n),
+      .flush (1'b0),
+      .push  (proto_eval_rx_valid && proto_eval_rx_type == MSG_TEXT),
+      .pop   (rx_text_fifo_pop),
+      .din   (proto_eval_rx_data),
+      .dout  (rx_text_fifo_dout),
+      .empty (rx_text_fifo_empty),
+      .full  (rx_text_fifo_full),
+      .count ()
+  );
+
+  typedef enum logic [2:0] {
+    RX_TEXT_IDLE,
+    RX_TEXT_PREFIX_LT,
+    RX_TEXT_PREFIX_SP,
+    RX_TEXT_WRITE,
+    RX_TEXT_POP_WAIT
+  } rx_text_state_t;
+
+  rx_text_state_t rx_text_state;
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
       rx_bol             <= 1'b1;
-      rx_prefix_phase    <= 2'd0;
-      rx_held_byte       <= 8'h00;
+      rx_text_state      <= RX_TEXT_IDLE;
       rx_data_char_valid <= 1'b0;
       rx_data_char_byte  <= 8'h00;
+      rx_text_fifo_pop   <= 1'b0;
     end else begin
-      case (rx_prefix_phase)
-        2'd0: begin
-          rx_data_char_valid <= 1'b0;
-          if (proto_eval_rx_valid && proto_eval_rx_type == MSG_TEXT) begin
-            if (rx_bol && proto_eval_rx_data != 8'h0A) begin
-              // At beginning of incoming message line: inject '<'
-              rx_held_byte       <= proto_eval_rx_data;
+      rx_text_fifo_pop <= 1'b0;
+
+      case (rx_text_state)
+        RX_TEXT_IDLE: begin
+          if (!rx_text_fifo_empty) begin
+            if (rx_bol && rx_text_fifo_dout != 8'h0A) begin
+              /* Start of line: output '<' */
               rx_data_char_byte  <= 8'h3C;  // '<'
               rx_data_char_valid <= 1'b1;
-              rx_prefix_phase    <= 2'd1;
-              rx_bol             <= 1'b0;
+              rx_text_state      <= RX_TEXT_PREFIX_LT;
             end else begin
-              // Continuation character or bare newline
-              rx_data_char_byte  <= proto_eval_rx_data;
+              /* Normal character or bare newline: present character */
+              rx_data_char_byte  <= rx_text_fifo_dout;
               rx_data_char_valid <= 1'b1;
-              if (proto_eval_rx_data == 8'h0A) rx_bol <= 1'b1;
+              rx_text_state      <= RX_TEXT_WRITE;
             end
-          end
-        end
-
-        2'd1: begin
-          if (rx_console_char_ready) begin
-            rx_data_char_byte  <= 8'h20; // ' '
-            rx_data_char_valid <= 1'b1;
-            rx_prefix_phase    <= 2'd2;
           end else begin
-            rx_data_char_valid <= 1'b1;
-          end
-        end
-
-        2'd2: begin
-          if (rx_console_char_ready) begin
-            rx_data_char_byte  <= rx_held_byte;
-            rx_data_char_valid <= 1'b1;
-            rx_prefix_phase    <= 2'd3;
-          end else begin
-            rx_data_char_valid <= 1'b1;
-          end
-        end
-
-        2'd3: begin
-          if (rx_console_char_ready) begin
             rx_data_char_valid <= 1'b0;
-            rx_prefix_phase    <= 2'd0;
-            if (rx_held_byte == 8'h0A) rx_bol <= 1'b1;
+          end
+        end
+
+        RX_TEXT_PREFIX_LT: begin
+          if (rx_console_char_ready) begin
+            /* '<' accepted: output ' ' */
+            rx_data_char_byte  <= 8'h20;  // ' '
+            rx_data_char_valid <= 1'b1;
+            rx_text_state      <= RX_TEXT_PREFIX_SP;
           end else begin
             rx_data_char_valid <= 1'b1;
           end
         end
 
-        default: rx_prefix_phase <= 2'd0;
+        RX_TEXT_PREFIX_SP: begin
+          if (rx_console_char_ready) begin
+            /* ' ' accepted: output first payload character */
+            rx_data_char_byte  <= rx_text_fifo_dout;
+            rx_data_char_valid <= 1'b1;
+            rx_bol             <= 1'b0;
+            rx_text_state      <= RX_TEXT_WRITE;
+          end else begin
+            rx_data_char_valid <= 1'b1;
+          end
+        end
+
+        RX_TEXT_WRITE: begin
+          if (rx_console_char_ready) begin
+            /* Character accepted by console buffer: pop from FIFO */
+            rx_text_fifo_pop   <= 1'b1;
+            rx_data_char_valid <= 1'b0;
+            if (rx_data_char_byte == 8'h0A) rx_bol <= 1'b1;
+            else rx_bol <= 1'b0;
+            rx_text_state      <= RX_TEXT_POP_WAIT;
+          end else begin
+            rx_data_char_valid <= 1'b1;
+          end
+        end
+
+        RX_TEXT_POP_WAIT: begin
+          /* 1-cycle pause for FWFT FIFO to update pointers and empty flag */
+          rx_data_char_valid <= 1'b0;
+          rx_text_state      <= RX_TEXT_IDLE;
+        end
+
+        default: rx_text_state <= RX_TEXT_IDLE;
       endcase
     end
   end
@@ -391,6 +435,7 @@ module evaluation_controller #(
       .proto_eval_manchester_code_error(proto_eval_manchester_code_error),
       .proto_eval_preamble_error       (proto_eval_preamble_error),
       .failover_en                     (failover_en),
+      .sweep_active                    (sweep_active),
       .set_speed_req                   (set_speed_req),
       .req_baud_rate                   (req_baud_rate),
       .req_oversampling                (req_oversampling),
@@ -445,6 +490,7 @@ module evaluation_controller #(
       .req_baud_rate                   (req_baud_rate),
       .req_oversampling                (req_oversampling),
       .failover_en                     (failover_en),
+      .sweep_active                    (sweep_active),
       .failover_triggered              (failover_triggered),
       .link_status                     (link_status),
       .rx_carrier                      (proto_eval_rx_carrier),
@@ -507,18 +553,18 @@ module evaluation_controller #(
       eval_proto_tx_data  = cmd_tx_data;
       hs_tx_ack           = 1'b0;
       pwr_tx_ready        = 1'b0;
-    end else if (pwr_tx_valid) begin
-      eval_proto_tx_valid = 1'b1;
-      eval_proto_tx_type  = pwr_tx_type;
-      eval_proto_tx_data  = pwr_tx_data;
-      hs_tx_ack           = 1'b0;
-      pwr_tx_ready        = !proto_eval_tx_full;
     end else if (nego_tx_valid) begin
       eval_proto_tx_valid = 1'b1;
       eval_proto_tx_type  = nego_tx_type;
       eval_proto_tx_data  = nego_tx_data;
       hs_tx_ack           = 1'b0;
       pwr_tx_ready        = 1'b0;
+    end else if (pwr_tx_valid) begin
+      eval_proto_tx_valid = 1'b1;
+      eval_proto_tx_type  = pwr_tx_type;
+      eval_proto_tx_data  = pwr_tx_data;
+      hs_tx_ack           = 1'b0;
+      pwr_tx_ready        = !proto_eval_tx_full;
     end else if (hs_tx_req) begin
       eval_proto_tx_valid = 1'b1;
       eval_proto_tx_type  = hs_tx_type;

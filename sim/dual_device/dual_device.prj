@@ -3,6 +3,7 @@ sv work ../../rtl/evaluation/display/draw/string_pkg.sv \
         ../../rtl/protocol/protocol_pkg.sv \
         ../../rtl/helpers/pixel_prng.sv \
         ../../rtl/helpers/counter.sv \
+        ../../rtl/helpers/fwft_fifo.sv \
         ../../rtl/evaluation/controller/optibolt_link_manager.sv \
         ../../rtl/evaluation/controller/eval_diagnostics.sv \
         ../../rtl/evaluation/controller/eval_cli_input.sv \

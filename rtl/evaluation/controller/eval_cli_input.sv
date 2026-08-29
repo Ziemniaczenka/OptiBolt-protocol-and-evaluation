@@ -21,6 +21,8 @@ module eval_cli_input #(
     // Keyboard inputs
     input logic       cmd_up,
     input logic       cmd_down,
+    input logic       cmd_left,
+    input logic       cmd_right,
     input logic       cmd_enter,
     input logic       cmd_esc,
     input logic       char_valid,
@@ -200,7 +202,7 @@ module eval_cli_input #(
               if (input_cursor_reg == input_len_reg) begin
                 input_buf_reg[input_cursor_reg[6:0]] <= char_ascii;
               end else begin
-                for (int i = CLI_BUF_LEN - 1; i > 2; i--) begin
+                for (int i = CLI_BUF_LEN - 1; i >= 2; i--) begin
                   if (i > input_cursor_reg) input_buf_reg[i] <= input_buf_reg[i-1];
                   else if (i == input_cursor_reg) input_buf_reg[i] <= char_ascii;
                 end
@@ -222,13 +224,23 @@ module eval_cli_input #(
               input_cursor_reg <= input_cursor_reg - 11'd1;
               input_update_idx <= 7'd0;
               state            <= INP_UPDATE_RAM;
+            end else if (cmd_left) begin
+              if (input_cursor_reg > 11'd2) begin
+                input_cursor_reg <= input_cursor_reg - 11'd1;
+                input_update_idx <= 7'd0;
+                state            <= INP_UPDATE_RAM;
+              end
+            end else if (cmd_right) begin
+              if (input_cursor_reg < input_len_reg) begin
+                input_cursor_reg <= input_cursor_reg + 11'd1;
+                input_update_idx <= 7'd0;
+                state            <= INP_UPDATE_RAM;
+              end
             end
           end
         end
 
-        // -------------------------------------------------------------------
-        // Sequential 4-Entry MRU History Scan FSM
-        // -------------------------------------------------------------------
+        /* Sequential 4-Entry MRU History Scan FSM */
         INP_HIST_SCAN: begin
           logic match;
           match = 1'b1;
@@ -318,9 +330,7 @@ module eval_cli_input #(
           end
         end
 
-        // -------------------------------------------------------------------
-        // Hardware Input BRAM Update Pipeline
-        // -------------------------------------------------------------------
+        /* Hardware Input BRAM Update Pipeline */
         INP_UPDATE_RAM: begin
           input_addr <= input_update_idx;
           input_we   <= 1'b1;

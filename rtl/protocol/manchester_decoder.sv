@@ -11,7 +11,7 @@ module manchester_decoder (
     input logic clk200,
     input logic rst_n,
     input logic tick,
-    input logic rx_manchester,  //to z kabla
+    input logic rx_manchester,  /* Physical Manchester RX input */
     input logic [3:0] oversampling,
     output logic rx_binary,
     output logic bit_valid,
@@ -97,7 +97,7 @@ module manchester_decoder (
             counter   <= CENTER + 1;
             searching <= 1'b0;
             skip_vote <= 1'b1;
-          end else if (counter >= C1_END && counter <= C2_START) begin
+          end else if ((oversampling == 4'b0000) ? (counter >= 4'd2 && counter <= 4'd6) : (counter >= 4'd4 && counter <= 4'd12)) begin
             counter <= CENTER + 1;
           end
         end

@@ -44,6 +44,7 @@ module link_handshake_tb;
       .proto_eval_rx_valid(proto_eval_rx_valid),
       .proto_eval_rx_type(proto_eval_rx_type),
       .proto_eval_rx_data(proto_eval_rx_data),
+      .proto_eval_manchester_code_error(1'b0),
       .proto_eval_preamble_error(proto_eval_preamble_error),
       .proto_eval_rx_carrier(proto_eval_rx_carrier),
       .speed_updated_pulse(1'b0),

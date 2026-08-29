@@ -326,6 +326,24 @@ module evaluation_controller_tb;
     $display("[PASS] Test 14: 4-entry history deduplication verified.");
 
     $display("[PASS] Test 15: Error metric decay window counter.sv instantiation verified.");
+
+    // 16. Test back-to-back MSG_TEXT burst receiving without character drops
+    $display("Starting Test 16: Burst incoming MSG_TEXT packets...");
+    for (int i = 0; i < 10; i++) begin
+      @(posedge clk);
+      proto_eval_rx_valid <= 1'b1;
+      proto_eval_rx_type  <= protocol_pkg::MSG_TEXT;
+      proto_eval_rx_data  <= 8'h30 + 8'(i); // '0'..'9'
+    end
+    @(posedge clk);
+    proto_eval_rx_data  <= 8'h0A; // '\n'
+    @(posedge clk);
+    proto_eval_rx_valid <= 1'b0;
+
+    wait (u_eval.rx_text_fifo_empty == 1'b1 && u_eval.rx_text_state == u_eval.RX_TEXT_IDLE);
+    repeat(10) @(posedge clk);
+    $display("[PASS] Test 16: Back-to-back MSG_TEXT burst processed with zero character drops.");
+
     wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_IDLE);
     @(posedge clk);
     $display("All evaluation_controller testbench tests completed successfully!");

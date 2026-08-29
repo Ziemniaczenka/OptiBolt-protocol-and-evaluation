@@ -42,25 +42,21 @@ module async_fifo #(
   logic [ADDR_WIDTH:0] rptr_gray, rptr_gray_next;
   (* ASYNC_REG = "TRUE" *) logic [ADDR_WIDTH:0] wptr_gray_sync0, wptr_gray_sync1;
 
-  // =========================================================================
-  // Memory Write & Read
-  // =========================================================================
+  /* Memory Write & Read */
   always_ff @(posedge clk_wr) begin
     if (wr_en && !full) begin
       mem[wptr_bin[ADDR_WIDTH-1:0]] <= din;
     end
   end
 
-  // Combinational read for First-Word-Fall-Through (FWFT)
+  /* Combinational read for First-Word-Fall-Through (FWFT) */
   assign dout = mem[rptr_bin[ADDR_WIDTH-1:0]];
 
-  // =========================================================================
-  // Write Domain Logic (clk_wr)
-  // =========================================================================
+  /* Write Domain Logic (clk_wr) */
   assign wptr_bin_next = wptr_bin + (wr_en && !full ? 1'b1 : 1'b0);
   assign wptr_gray_next = (wptr_bin_next >> 1) ^ wptr_bin_next;
 
-  // Full condition: MSB and 2nd MSB inverted in Gray code, remaining bits equal
+  /* Full condition: MSB and 2nd MSB inverted in Gray code, remaining bits equal */
   wire is_full = (wptr_gray_next == {~rptr_gray_sync1[ADDR_WIDTH:ADDR_WIDTH-1], rptr_gray_sync1[ADDR_WIDTH-2:0]});
 
   always_ff @(posedge clk_wr or negedge rst_wr_n) begin
@@ -79,9 +75,7 @@ module async_fifo #(
     end
   end
 
-  // =========================================================================
-  // Read Domain Logic (clk_rd)
-  // =========================================================================
+  /* Read Domain Logic (clk_rd) */
   assign rptr_bin_next  = rptr_bin + (rd_en && !empty ? 1'b1 : 1'b0);
   assign rptr_gray_next = (rptr_bin_next >> 1) ^ rptr_bin_next;
 

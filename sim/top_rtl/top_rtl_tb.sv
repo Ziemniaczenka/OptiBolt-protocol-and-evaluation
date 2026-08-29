@@ -33,7 +33,9 @@ module top_rtl_tb;
   initial begin clk100   = 1'b0; forever #5.000 clk100   = ~clk100;   end
   initial begin clk200   = 1'b0; forever #2.500 clk200   = ~clk200;   end
 
-  top dut (
+  top #(
+      .CARRIER_HOLD_CYCLES(5_000)
+  ) dut (
       .clk74p25(clk74p25),
       .clk100(clk100),
       .clk200(clk200),
@@ -67,10 +69,10 @@ module top_rtl_tb;
                  $time, dut.u_top_evaluation.link_status, dut.proto_eval_rx_carrier);
       end
       begin
-        #20_000_000; // 20ms
-        $display("[TB-TIMEOUT] After 20ms: link_status=%b, carrier=%b, timer=%0d",
+        #500_000; // 500us timeout
+        $display("[TB-TIMEOUT] After 500us: link_status=%b, carrier=%b, timer=%0d",
                  dut.u_top_evaluation.link_status, dut.proto_eval_rx_carrier,
-                 dut.rx_carrier_timer);
+                 dut.u_optical_carrier_detector.timer);
       end
     join_any
 

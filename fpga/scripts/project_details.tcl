@@ -58,6 +58,8 @@ set sv_files {
     ../rtl/helpers/async_fifo.sv
     ../rtl/helpers/edge_detector.sv
     ../rtl/helpers/cdc_sync.sv
+    ../rtl/helpers/optical_carrier_detector.sv
+    ../rtl/helpers/optibolt_cdc_bridge.sv
     ../rtl/helpers/bram_tdp.sv
     ../rtl/helpers/pixel_prng.sv
     ../rtl/helpers/counter.sv

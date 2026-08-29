@@ -63,6 +63,7 @@ module eval_cmd_exec #(
     output logic [ 3:0] req_oversampling,
     output logic        failover_en,
     input  logic        failover_triggered,
+    output logic        sweep_active,
     input  logic [ 1:0] link_status,
     input  logic        rx_carrier,
 
@@ -280,6 +281,7 @@ module eval_cmd_exec #(
   // Dynamic Bitmap Streaming
   logic [14:0] tx_pixel_cnt;
   logic        tx_pixel_phase;
+  logic [ 5:0] tx_gap_cnt;
   logic [13:0] clear_bmp_idx;
   logic        prng_next_pixel;
   logic [11:0] prng_pixel_rgb;
@@ -317,9 +319,9 @@ module eval_cmd_exec #(
   logic [ 4:0] sweep_step;
   logic [ 4:0] sweep_print_step;
   logic [31:0] sweep_timer;
-  logic        sweep_active;
-  logic [ 3:0] sweep_tx_count;
-  logic [ 3:0] sweep_rx_count;
+  logic [31:0] sweep_pkt_gap;
+  logic [ 4:0] sweep_tx_count;
+  logic [ 4:0] sweep_rx_count;
   logic        sweep_had_error;
 
   // Power status message buffer
@@ -385,7 +387,7 @@ module eval_cmd_exec #(
       bmp_din           <= '0;
       tx_pixel_cnt      <= '0;
       tx_pixel_phase    <= 1'b0;
-      tx_chat_idx       <= '0;
+      tx_gap_cnt        <= '0;
       clear_bmp_idx     <= '0;
       prng_next_pixel   <= 1'b0;
       ping_active       <= 1'b0;
@@ -403,6 +405,7 @@ module eval_cmd_exec #(
       sweep_step        <= '0;
       sweep_print_step  <= '0;
       sweep_timer       <= '0;
+      sweep_pkt_gap     <= '0;
       sweep_active      <= 1'b0;
       sweep_tx_count    <= '0;
       sweep_rx_count    <= '0;
@@ -423,6 +426,13 @@ module eval_cmd_exec #(
       bmp_we            <= 1'b0;
       prng_next_pixel   <= 1'b0;
       proto_tx_valid    <= 1'b0;
+
+      // Global incoming Ping Request responder (for dual-device and loopback):
+      if (proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data == PING_TOKEN) begin
+        proto_tx_valid <= 1'b1;
+        proto_tx_type  <= MSG_REQUEST;
+        proto_tx_data  <= PING_REPLY;
+      end
 
       // Ping timer & timeout monitor
       if (ping_active) begin
@@ -643,6 +653,7 @@ module eval_cmd_exec #(
                 progress_val   <= 8'd0;
                 tx_pixel_cnt   <= '0;
                 tx_pixel_phase <= 1'b0;
+                tx_gap_cnt     <= '0;
                 state          <= E_BITMAP_SEND;
               end
             end else if (cmd_len >= 15 && cmd_buf[3]=="b" && cmd_buf[4]=="i" && cmd_buf[5]=="t" && cmd_buf[10]=="c" && cmd_buf[11]=="l") begin
@@ -695,6 +706,7 @@ module eval_cmd_exec #(
                 msg_src   <= SRC_PWR_READY; msg_len <= 11'd25; state <= E_STREAM_MSG;
               end else if (cmd_len >= 12 && cmd_buf[9]=="o" && cmd_buf[10]=="f" && cmd_buf[11]=="f") begin
                 cfg_ready      <= 1'b0;
+                cfg_clear      <= 1'b1;
                 proto_tx_valid <= 1'b1;
                 proto_tx_type  <= MSG_POWER;
                 proto_tx_data  <= 8'hFE;
@@ -909,6 +921,7 @@ module eval_cmd_exec #(
             sweep_rx_count   <= 4'd0;
             sweep_had_error  <= 1'b0;
             progress_val     <= 8'((255 * (sweep_step + 1)) / 16);
+            state            <= E_SWEEP_WAIT;
           end else begin
             // Sweep complete: restore default 1.0 Mbps 8x
             req_baud_rate    <= 4'd1;
@@ -928,15 +941,24 @@ module eval_cmd_exec #(
         E_SWEEP_WAIT: begin
           sweep_timer <= sweep_timer + 32'd1;
 
-          // Settle guard window (1/8th of step duration, ~6.25ms in hardware):
-          // Allow clock dividers and optical line to stabilize, ignore transition transients
+          /* Settle guard window (1/8th of step duration): ignore switching transients */
           if (sweep_timer < (SWEEP_STEP_TICKS >> 3)) begin
             sweep_had_error <= 1'b0;
             sweep_pkt_gap   <= '0;
           end else begin
-            // Latch any protocol errors occurring during the active measurement window
+            /* Latch protocol errors during active measurement window */
             if (proto_eval_parity_error || proto_eval_manchester_code_error || proto_eval_preamble_error) begin
               sweep_had_error <= 1'b1;
+            end
+
+            /* Pace packet transmissions across active test window */
+            sweep_pkt_gap <= sweep_pkt_gap + 32'd1;
+            if (sweep_pkt_gap >= (SWEEP_STEP_TICKS >> 5) && sweep_tx_count < 5'd16) begin
+              if (!proto_tx_full) begin
+                proto_tx_valid <= 1'b1;
+                proto_tx_type  <= MSG_TEST3;
+                proto_tx_data  <= {sweep_step[3:0], sweep_tx_count[3:0]};
+                sweep_tx_count <= sweep_tx_count + 5'd1;
                 sweep_pkt_gap  <= '0;
               end
             end else if (proto_tx_valid && !proto_tx_full) begin
@@ -944,12 +966,27 @@ module eval_cmd_exec #(
             end
           end
 
-          // Count received test packets tagged specifically for this sweep step
+          /* Count received test packets tagged specifically for this sweep step */
           if (proto_rx_valid && proto_rx_type == MSG_TEST3 && proto_rx_data[7:4] == sweep_step[3:0]) begin
+            sweep_rx_count <= sweep_rx_count + 5'd1;
+          end
+
+          /* Evaluate link performance at end of dwell window */
+          if (sweep_timer >= SWEEP_STEP_TICKS) begin
+            proto_tx_valid   <= 1'b0;
+            sweep_print_step <= sweep_step;
+            sweep_step       <= sweep_step + 5'd1;
+            msg_idx          <= '0;
+            if (sweep_rx_count == 5'd16 && !sweep_had_error && rx_carrier && link_status != 2'b00) begin
+              msg_src <= SRC_SWEEP_PASS;
+              msg_len <= 11'd21;
+            end else begin
               msg_src <= SRC_SWEEP_FAIL;
               msg_len <= 11'd24;
             end
             state <= E_STREAM_MSG;
+          end
+        end
 
         // -------------------------------------------------------------------
         // Dynamic Bitmap Streaming (2 bytes per pixel for 4096 colors)
@@ -958,8 +995,16 @@ module eval_cmd_exec #(
           if (proto_tx_valid && proto_tx_full) begin
             // Hold current byte valid until FIFO accepts it
             proto_tx_valid <= 1'b1;
+          end else if (proto_tx_valid) begin
+            // Byte was consumed by FIFO: enter 200ns recovery gap
+            proto_tx_valid <= 1'b0;
+            tx_gap_cnt     <= 6'd0;
+          end else if (tx_gap_cnt < 6'd20) begin
+            // 20 cycles @ 100MHz = 200ns recovery gap between bytes
+            tx_gap_cnt <= tx_gap_cnt + 6'd1;
           end else begin
-            // Previous byte was consumed (or first byte starting)
+            // Recovery gap elapsed (or first byte starting)
+            if (tx_pixel_cnt < 15'd16384) begin
               proto_tx_valid <= 1'b1;
               proto_tx_type  <= MSG_BITMAP;
               if (!tx_pixel_phase) begin

@@ -100,6 +100,7 @@ module power_negotiator #(
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
+      state                <= S_IDLE;
       pwr_status_code      <= STAT_NOT_READY;
       contract_active      <= 1'b0;
       contract_error       <= 1'b0;
@@ -107,6 +108,24 @@ module power_negotiator #(
       active_amps          <= 4'd0;
       active_is_source     <= 1'b0;
       contract_event_pulse <= 1'b0;
+      peer_role            <= ROLE_NONE;
+      for (int i = 0; i < 4; i++) peer_out_amps[i] <= 4'd0;
+      pdo_idx        <= 3'd0;
+      chosen_volt_id <= 2'd0;
+      chosen_amps    <= 4'd0;
+      chosen_valid   <= 1'b0;
+      timer          <= '0;
+      tx_req         <= 1'b0;
+      tx_byte        <= 8'h00;
+    end else if (cfg_clear || !cfg_ready) begin
+      state                <= S_IDLE;
+      pwr_status_code      <= STAT_NOT_READY;
+      contract_active      <= 1'b0;
+      contract_error       <= 1'b0;
+      active_voltage_id    <= 2'd0;
+      active_amps          <= 4'd0;
+      active_is_source     <= 1'b0;
+      contract_event_pulse <= contract_active;
       peer_role            <= ROLE_NONE;
       for (int i = 0; i < 4; i++) peer_out_amps[i] <= 4'd0;
       pdo_idx        <= 3'd0;

@@ -39,6 +39,7 @@ xcelium.d
 xrun.log
 
 results/*
+!results/top_basys3.bit
 fpga/dfx_runtime.txt
 
 .Xil/

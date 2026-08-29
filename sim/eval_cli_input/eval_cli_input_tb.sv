@@ -22,6 +22,8 @@ module eval_cli_input_tb;
   logic rst_n;
   logic cmd_up;
   logic cmd_down;
+  logic cmd_left;
+  logic cmd_right;
   logic cmd_enter;
   logic cmd_esc;
   logic char_valid;
@@ -57,6 +59,8 @@ module eval_cli_input_tb;
       .rst_n(rst_n),
       .cmd_up(cmd_up),
       .cmd_down(cmd_down),
+      .cmd_left(cmd_left),
+      .cmd_right(cmd_right),
       .cmd_enter(cmd_enter),
       .cmd_esc(cmd_esc),
       .char_valid(char_valid),
@@ -125,10 +129,28 @@ module eval_cli_input_tb;
     repeat(150) @(posedge clk);
   endtask
 
+  task press_left();
+    @(posedge clk);
+    cmd_left <= 1'b1;
+    @(posedge clk);
+    cmd_left <= 1'b0;
+    repeat(150) @(posedge clk);
+  endtask
+
+  task press_right();
+    @(posedge clk);
+    cmd_right <= 1'b1;
+    @(posedge clk);
+    cmd_right <= 1'b0;
+    repeat(150) @(posedge clk);
+  endtask
+
   initial begin
     rst_n = 0;
     cmd_up = 0;
     cmd_down = 0;
+    cmd_left = 0;
+    cmd_right = 0;
     cmd_enter = 0;
     cmd_esc = 0;
     char_valid = 0;
@@ -180,8 +202,24 @@ module eval_cli_input_tb;
     assert(dut.input_buf_reg[2] == "/" && dut.input_buf_reg[3] == "s")
       else $error("Expected '/status' recalled on DOWN arrow!");
 
-    // 7. Exit text mode with Esc
-    $display("[TEST 7] Exiting text mode via Esc...");
+    // 7. Test Cursor Left / Right navigation & character insertion
+    $display("[TEST 7] Testing cursor movement and character insertion...");
+    assert(dut.input_cursor_reg == 11'd9) else $error("Cursor should be at end of '/status'");
+    press_left();
+    press_left();
+    assert(dut.input_cursor_reg == 11'd7) else $error("Cursor should have moved 2 chars left!");
+    press_right();
+    assert(dut.input_cursor_reg == 11'd8) else $error("Cursor should have moved 1 char right!");
+    // Move all the way to the beginning of the text (cursor == 2)
+    repeat(10) press_left();
+    assert(dut.input_cursor_reg == 11'd2) else $error("Cursor should be at index 2 (before first char)!");
+    // Insert 'X' at position 2
+    type_char("X");
+    assert(dut.input_buf_reg[2] == "X" && dut.input_buf_reg[3] == "/")
+      else $error("Inserting before first character failed! Expected 'X/' at start.");
+
+    // 8. Exit text mode with Esc
+    $display("[TEST 8] Exiting text mode via Esc...");
     @(posedge clk);
     cmd_esc <= 1'b1;
     @(posedge clk);

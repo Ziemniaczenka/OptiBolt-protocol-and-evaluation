@@ -13,7 +13,7 @@
  */
 
 module link_handshake #(
-    parameter int RETRY_TICKS = 5_000_000  // 50ms retry interval while searching for connection
+    parameter int RETRY_TICKS = 500_000  // 5ms retry interval while searching for connection
 ) (
     input logic clk,
     input logic rst_n,
@@ -23,6 +23,7 @@ module link_handshake #(
     input logic [2:0] proto_eval_rx_type,
     input logic [7:0] proto_eval_rx_data,
     input logic       proto_eval_preamble_error,
+    input logic       proto_eval_manchester_code_error,
     input logic       proto_eval_rx_carrier,      // Optical light activity on receiver pin
 
     // Speed update pulse from link manager
@@ -63,6 +64,7 @@ module link_handshake #(
   logic                             pending_ack_tx;
   logic [                      7:0] ack_payload;
   logic                             rx_carrier_d1;
+  logic [                     15:0] man_err_burst_cnt;
 
   wire                              rx_carrier_rose = proto_eval_rx_carrier && !rx_carrier_d1;
 
@@ -79,6 +81,7 @@ module link_handshake #(
       hs_tx_type           <= MSG_CAPABILITIES;
       hs_tx_data           <= 8'h00;
       rx_carrier_d1        <= 1'b0;
+      man_err_burst_cnt    <= 16'd0;
     end else begin
       rx_carrier_d1 <= proto_eval_rx_carrier;
 
@@ -90,17 +93,21 @@ module link_handshake #(
         challenge_latched    <= 1'b1;
         pending_challenge_tx <= 1'b1;
         retry_cnt            <= '0;
+        man_err_burst_cnt    <= 16'd0;
       end else if (!proto_eval_rx_carrier) begin
         challenge_latched <= 1'b0;
       end
 
       // ---------------------------------------------------------------------
-      // 2. Speed Change: re-challenge to verify link at new rate
+      // 2. Speed Change: drop link status until link is verified at new rate
       // ---------------------------------------------------------------------
       if (speed_updated_pulse && proto_eval_rx_carrier) begin
         my_challenge         <= (prng_byte == 8'h00) ? 8'h5A : prng_byte;
         pending_challenge_tx <= 1'b1;
         retry_cnt            <= '0;
+        link_status          <= LINK_DISCONNECTED;
+        pending_ack_tx       <= 1'b0;
+        man_err_burst_cnt    <= 16'd0;
       end
 
       // ---------------------------------------------------------------------
@@ -118,7 +125,21 @@ module link_handshake #(
       end
 
       // ---------------------------------------------------------------------
-      // 4. TX Request Arbiter Handshake
+      // 4. Manchester Code Error Burst Monitor: drop link on persistent decode errors
+      // ---------------------------------------------------------------------
+      if (proto_eval_manchester_code_error) begin
+        if (man_err_burst_cnt < 16'd50_000) begin
+          man_err_burst_cnt <= man_err_burst_cnt + 16'd1;
+        end
+        if (man_err_burst_cnt >= 16'd1_000) begin
+          link_status          <= LINK_DISCONNECTED;
+          pending_challenge_tx <= 1'b1;
+          retry_cnt            <= '0;
+        end
+      end
+
+      // ---------------------------------------------------------------------
+      // 5. TX Request Arbiter Handshake
       // ---------------------------------------------------------------------
       if (hs_tx_ack) begin
         if (pending_ack_tx) begin
@@ -140,16 +161,19 @@ module link_handshake #(
       end
 
       // ---------------------------------------------------------------------
-      // 5. RX Packet Processing & Status Latching
+      // 6. RX Packet Processing & Status Latching
       // ---------------------------------------------------------------------
       if (!proto_eval_rx_carrier) begin
         // Optical signal physically lost -> immediate disconnect
-        link_status    <= LINK_DISCONNECTED;
-        pending_ack_tx <= 1'b0;
+        link_status       <= LINK_DISCONNECTED;
+        pending_ack_tx    <= 1'b0;
+        man_err_burst_cnt <= 16'd0;
       end else if (proto_eval_rx_valid) begin
+        man_err_burst_cnt <= 16'd0; // Valid packet clears error burst counter
+
         if (proto_eval_rx_type == MSG_CAPABILITIES) begin
           if (proto_eval_rx_data == my_challenge) begin
-            // Own token received back -> rock-solid LOOPBACK
+            /* Own token received back -> loopback confirmed */
             link_status    <= LINK_LOOPBACK;
             pending_ack_tx <= 1'b0; // Suppress ACK to self in loopback
           end else begin

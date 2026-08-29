@@ -13,11 +13,11 @@ module optibolt_controller (
     input logic [3:0] oversampling,
     input logic [3:0] bit_rate,
 
-    //kable fizyczne
+    /* Physical lines */
     input  logic rx_manchester,
     output logic tx_manchester,
 
-    //rx
+    /* RX FIFO Interface */
     input logic rx_enable,
     output logic rx_empty,
     output logic rx_full,
@@ -28,7 +28,7 @@ module optibolt_controller (
     output logic manchester_code_error,
     output logic preamble_error,
 
-    //tx
+    /* TX FIFO Interface */
     input logic tx_enable,
     input logic [2:0] tx_msg_type,
     input logic [7:0] tx_data,
@@ -41,7 +41,7 @@ module optibolt_controller (
 
   logic tick;
 
-  //rx wires
+  /* Internal RX signals */
   logic decode_error, bit_valid, rx_binary, data_ready, rx_parity;
   logic [7:0] rx_data;
   logic [2:0] rx_msg_type;
@@ -87,6 +87,12 @@ module optibolt_controller (
       .preamble_error
   );
 
+  logic rx_calc_parity;
+  logic rx_parity_err;
+
+  assign rx_calc_parity = ^{rx_msg_type, rx_data};
+  assign rx_parity_err  = data_ready && (rx_parity != rx_calc_parity);
+
   assign rx_fifo_in = {rx_msg_type, rx_data, rx_parity};
 
   fifo #(
@@ -95,7 +101,7 @@ module optibolt_controller (
   ) u_rx_fifo (
       .clk(clk200),
       .reset(!rst_n),
-      .wr(data_ready),
+      .wr(data_ready && !rx_parity_err),
       .w_data(rx_fifo_in),
       .rd(rx_enable),
       .r_data(rx_fifo_out),
@@ -157,6 +163,6 @@ module optibolt_controller (
 
   assign data_out      = fifo_data;
   assign msg_type_out  = fifo_msg_type;
-  assign parity_error  = (fifo_parity != calc_parity);
+  assign parity_error  = rx_parity_err;
 
 endmodule

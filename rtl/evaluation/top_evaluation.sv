@@ -281,6 +281,7 @@ module top_evaluation #(
       .proto_eval_rx_type(proto_eval_rx_type),
       .proto_eval_rx_data(proto_eval_rx_data),
       .proto_eval_preamble_error(proto_eval_preamble_error),
+      .proto_eval_manchester_code_error(proto_eval_manchester_code_error),
       .proto_eval_rx_carrier(proto_eval_rx_carrier),
       .speed_updated_pulse(speed_updated_pulse),
       .hs_tx_req(hs_tx_req),
