@@ -31,7 +31,7 @@ module draw_mux #(
   always_comb begin : mux_comb_blk
     out_rgb_nxt = vga_in.rgb;
 
-    // Priorytetowy multiplekser
+    // Priority multiplexer
     for (int i = INPUT_COUNT - 1; i >= 0; i--) begin
       if (in_draw_en[i]) begin
         out_rgb_nxt = in_rgb[i];

@@ -1,4 +1,12 @@
-// Listing 4.15
+/**
+ * Copyright (C) 2026  AGH University of Science and Technology
+ * MTM UEC2
+ * Author: Unknown (from lab, Listing 4.15)
+ *
+ * Description:
+ * Multiplexes and encodes signals for 4 digit 7segment display.
+ */
+
 module disp_hex_mux
    (
     input wire clk, reset,

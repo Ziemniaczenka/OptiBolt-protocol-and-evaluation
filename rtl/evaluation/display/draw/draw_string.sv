@@ -8,9 +8,7 @@
  * Supports variable-width characters, custom letter/row spacing, text wrapping,
  * and dynamic fetching from ROM/BRAM using a pipelined architecture and a FWFT FIFO.
  * TODO: add registered output (at the cost of increasing delay by one cycle)
- * TODO: separate submodules (FWFT FIFO, etc.)
  * TODO: add fallback if char_width=0 (eg. char not implemented in font file)
- * TODO: add labels to blocks
  */
 
 import font_pkg::*;

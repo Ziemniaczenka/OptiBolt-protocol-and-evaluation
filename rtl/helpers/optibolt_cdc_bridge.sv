@@ -5,8 +5,6 @@
  *
  * Description:
  * Clock Domain Crossing (CDC) Bridge between Evaluation (100 MHz) and OptiBolt (200 MHz).
- * Encapsulates baudrate/oversampling settings synchronization, dual-clock asynchronous FIFOs,
- * transmit/receive flow control, and stretched hardware error status synchronization.
  */
 
 `timescale 1ns / 1ps
@@ -170,9 +168,9 @@ module optibolt_cdc_bridge (
       .WIDTH(3)
   ) u_cdc_rx_err (
       .clk_dst(clk100),
-      .rst_n  (rst_n),
-      .d_in   ({preamble_error_stretched, parity_error_stretched, manchester_error_stretched}),
-      .d_out  ({proto_eval_preamble_error, proto_eval_parity_error, proto_eval_manchester_code_error})
+      .rst_n(rst_n),
+      .d_in({preamble_error_stretched, parity_error_stretched, manchester_error_stretched}),
+      .d_out({proto_eval_preamble_error, proto_eval_parity_error, proto_eval_manchester_code_error})
   );
 
 endmodule

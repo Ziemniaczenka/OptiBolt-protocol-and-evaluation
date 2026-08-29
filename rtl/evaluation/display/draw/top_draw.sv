@@ -4,11 +4,7 @@
  * Author: Tomasz Więcławski & Sebastian Zoń
  *
  * Description:
- * Master Top Draw Compositor module.
- * Instantiates all UI components, 400x102 OptiBolt Logo, toolbar buttons,
- * status text next to dynamic bitmap, dynamic bitmap label, terminal console,
- * real-time diagnostics meters aligned with the input field bottom,
- * and background panels using modular draw_rect instances via draw_mux.
+ * Draw Compositor module, connecting draw submodules, multiplexer and delay. Working as "graphic card" of the evaluation.
  */
 
 module top_draw (
@@ -31,10 +27,10 @@ module top_draw (
     input logic [1:0] popup_mode,
 
     // Power Negotiation
-    input logic [2:0]  pwr_status_code,
-    input logic [1:0]  active_voltage_id,
-    input logic [3:0]  active_amps,
-    input logic        contract_active,
+    input logic [2:0] pwr_status_code,
+    input logic [1:0] active_voltage_id,
+    input logic [3:0] active_amps,
+    input logic       contract_active,
 
     // Error & Diagnostics inputs
     input logic [ 7:0] prog_man,
@@ -255,10 +251,7 @@ module top_draw (
   );
 
   // =========================================================================
-  // Total UI Layer Multiplexing: 39 Layers
-  // Index 0: Popup (Highest Priority)
-  // Indices 1..24: Foreground Content & UI Controls
-  // Indices 25..38: Frames, Borders, and Background Panels (Lower Priority)
+  // Total UI Layer Multiplexing: 45 Layers
   // =========================================================================
   localparam int NUM_DRAW_ELEMENTS = 45;
 
@@ -357,7 +350,7 @@ module top_draw (
   assign draw_rgb[2] = draw_en[2] ? (mode_text ? 12'h0_F_0 : COLOR_INPUT) : 12'h000;
 
   // =========================================================================
-  // [3] DYNAMIC BITMAP (128x128 pixels, located at x=880, y=155)
+  // [3] DYNAMIC BITMAP
   // =========================================================================
   draw_bitmap #(
       .BITMAP (BITMAP_DYN_128x128),
@@ -374,7 +367,7 @@ module top_draw (
   );
 
   // =========================================================================
-  // [4] LOGO BITMAP (OptiBolt 400x102 pixels in top left)
+  // [4] OPTIBOLT LOGO BITMAP
   // =========================================================================
   draw_bitmap #(
       .BITMAP(BITMAP_OPTIBOLT_400x102),
@@ -512,7 +505,7 @@ module top_draw (
   );
 
   // =========================================================================
-  // [12..16] REAL-TIME TELEMETRY STRINGS (5 TIGHTLY PACKED STATUS LINES)
+  // [12..16] TELEMETRY STRINGS
   // =========================================================================
   // Line 1: Link Status (Disconnected / Connected / Loopback)
   draw_string #(
@@ -678,7 +671,7 @@ module top_draw (
   assign draw_rgb[18] = failover_en ? COLOR_STATUS_FAILOVER_ON : COLOR_STATUS_FAILOVER_OFF;
 
   // =========================================================================
-  // [18] STATUS CARD TITLE LABEL (ABOVE STATUS BOX)
+  // [19] STATUS CARD TITLE LABEL
   // =========================================================================
   draw_string #(
       .FONT(FONT_11x7),
@@ -702,7 +695,7 @@ module top_draw (
   );
 
   // =========================================================================
-  // [19] DIAGNOSTICS CARD TITLE LABEL (ABOVE DIAGNOSTICS BOX, LOWERED TO y=355)
+  // [20] DIAGNOSTICS CARD TITLE LABEL
   // =========================================================================
   draw_string #(
       .FONT(FONT_11x7),
@@ -726,7 +719,7 @@ module top_draw (
   );
 
   // =========================================================================
-  // [20..27] DIAGNOSTICS LABELS & METERS (INSIDE LOWERED BOX)
+  // [21..28] DIAGNOSTICS LABELS & METERS
   // =========================================================================
   draw_string #(
       .FONT(FONT_11x7),
@@ -869,9 +862,7 @@ module top_draw (
   );
 
   // =========================================================================
-  // [27] DYNAMIC BITMAP LABEL (ABOVE BITMAP BOX)
-  // =========================================================================
-  // [28] DYNAMIC BITMAP LABEL (ABOVE BITMAP BOX)
+  // [29] DYNAMIC BITMAP LABEL
   // =========================================================================
   draw_string #(
       .FONT(FONT_11x7),
@@ -895,7 +886,7 @@ module top_draw (
   );
 
   // =========================================================================
-  // [29] CONSOLE LABEL (ABOVE CONSOLE BOX, ALIGNED WITH DYNAMIC BITMAP AT y=135)
+  // [30] CONSOLE LABEL
   // =========================================================================
   draw_string #(
       .FONT(FONT_11x7),
@@ -919,7 +910,7 @@ module top_draw (
   );
 
   // =========================================================================
-  // [30] TOOLBAR DIVIDER LINE
+  // [31] TOOLBAR DIVIDER LINE
   // =========================================================================
   draw_rect u_draw_divider (
       .clk(clk),
@@ -937,7 +928,7 @@ module top_draw (
   );
 
   // =========================================================================
-  // [31..32] CONSOLE FRAME & SOLID BACKGROUND
+  // [32..33] CONSOLE FRAME & SOLID BACKGROUND
   // =========================================================================
   draw_rect u_draw_console_frame (
       .clk(clk),
@@ -970,7 +961,7 @@ module top_draw (
   );
 
   // =========================================================================
-  // [33..34] INPUT FRAME & BACKGROUND
+  // [34..35] INPUT FRAME & BACKGROUND
   // =========================================================================
   draw_rect u_draw_input_frame (
       .clk(clk),
@@ -1003,7 +994,7 @@ module top_draw (
   );
 
   // =========================================================================
-  // [35..36] DYNAMIC BITMAP FRAME & CANVAS BACKGROUND
+  // [36..37] DYNAMIC BITMAP FRAME & CANVAS BACKGROUND
   // =========================================================================
   draw_rect u_draw_bmp_frame (
       .clk(clk),
@@ -1036,7 +1027,7 @@ module top_draw (
   );
 
   // =========================================================================
-  // [37..38] STATUS CARD FRAME & BACKGROUND (ENLARGED TO y=153..338)
+  // [38..39] STATUS CARD FRAME & BACKGROUND
   // =========================================================================
   draw_rect u_draw_status_frame (
       .clk(clk),
@@ -1069,7 +1060,7 @@ module top_draw (
   );
 
   // =========================================================================
-  // [39..40] DIAGNOSTICS CARD FRAME & BACKGROUND (LOWERED TO y=375..700)
+  // [40..41] DIAGNOSTICS CARD FRAME & BACKGROUND
   // =========================================================================
   draw_rect u_draw_diag_frame (
       .clk(clk),
@@ -1102,7 +1093,7 @@ module top_draw (
   );
 
   // =========================================================================
-  // [41..42] TOP HEADER BAR BORDER & BACKGROUND
+  // [42..43] TOP HEADER BAR BORDER & BACKGROUND
   // =========================================================================
   draw_rect u_draw_header_border (
       .clk(clk),
@@ -1135,7 +1126,7 @@ module top_draw (
   );
 
   // =========================================================================
-  // [43] SCREEN PERIMETER BORDER
+  // [44] SCREEN PERIMETER BORDER
   // =========================================================================
   draw_rect u_draw_screen_border (
       .clk(clk),

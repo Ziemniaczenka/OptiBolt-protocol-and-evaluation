@@ -6,10 +6,10 @@
  * Description:
  * Link handshake and status detection module.
  * Latches challenge token from free-running PRNG upon detecting light signal on receiver,
- * automatically differentiating between DISCONNECTED, CONNECTED (remote board),
+ * differentiating between DISCONNECTED, CONNECTED (remote board),
  * and LOOPBACK (own TX connected to RX).
  * Handshake packets are ONLY transmitted upon initial connection detection and
- * when changing speeds, keeping the link completely free during steady streaming.
+ * when changing speeds.
  */
 
 module link_handshake #(
@@ -24,7 +24,7 @@ module link_handshake #(
     input logic [7:0] proto_eval_rx_data,
     input logic       proto_eval_preamble_error,
     input logic       proto_eval_manchester_code_error,
-    input logic       proto_eval_rx_carrier,      // Optical light activity on receiver pin
+    input logic       proto_eval_rx_carrier,             // Optical light activity on receiver pin
 
     // Speed update pulse from link manager
     input logic speed_updated_pulse,
@@ -169,7 +169,7 @@ module link_handshake #(
         pending_ack_tx    <= 1'b0;
         man_err_burst_cnt <= 16'd0;
       end else if (proto_eval_rx_valid) begin
-        man_err_burst_cnt <= 16'd0; // Valid packet clears error burst counter
+        man_err_burst_cnt <= 16'd0;  // Valid packet clears error burst counter
 
         if (proto_eval_rx_type == MSG_CAPABILITIES) begin
           if (proto_eval_rx_data == my_challenge) begin

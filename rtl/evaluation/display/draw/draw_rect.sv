@@ -4,7 +4,7 @@
  * Author: Tomasz Więcławski & Sebastian Zoń
  *
  * Description:
- * Draw rectangle.
+ * Rectangle UI Component.
  */
 
 module draw_rect (

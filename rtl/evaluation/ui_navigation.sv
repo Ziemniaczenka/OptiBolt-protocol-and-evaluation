@@ -3,7 +3,7 @@
  * MTM UEC2
  * Author: Tomasz Więcławski & Sebastian Zoń
  *
- * Description: Interface grid navigation submodule.
+ * Description: Interface grid navigation module for handling traversal using arrows.
  */
 
 import ui_pkg::*;

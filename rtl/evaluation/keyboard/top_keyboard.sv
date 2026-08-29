@@ -4,7 +4,7 @@
  * Author: Tomasz Więcławski & Sebastian Zoń
  *
  * Description:
- * Top module for Keyboard logic including Cross Domain Crossing.
+ * Top module for keyboard logic.
  */
 
 module top_keyboard (

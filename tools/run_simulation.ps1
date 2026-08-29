@@ -39,11 +39,11 @@ function Show-Usage {
 
 function Get-AvailableTests {
     Get-ChildItem -Path . -Filter "*.prj" -Recurse | 
-        Where-Object { $_.DirectoryName -notmatch '[\\/](build|common)([\\/]|$)' } | 
-        ForEach-Object {
-            $relPath = (Resolve-Path -Relative $_.DirectoryName) -replace '^\.[\/\\]', ''
-            $relPath -replace '\\', '/'
-        }
+    Where-Object { $_.DirectoryName -notmatch '[\\/](build|common)([\\/]|$)' } | 
+    ForEach-Object {
+        $relPath = (Resolve-Path -Relative $_.DirectoryName) -replace '^\.[\/\\]', ''
+        $relPath -replace '\\', '/'
+    }
 }
 
 function Execute-Test {
@@ -99,7 +99,8 @@ function Execute-Test {
     if ($g) {
         & xelab.bat $xelab_opts -debug typical
         & xsim.bat "${test_name}_tb" -gui -t $sim_cmd_posix
-    } else {
+    }
+    else {
         & xelab.bat $xelab_opts
         if ($LASTEXITCODE -eq 0 -or (Test-Path "xsim.dir/${test_name}_tb/xsimk.exe")) {
             & xsim.bat "${test_name}_tb" -runall
@@ -125,7 +126,7 @@ if ($a) {
     foreach ($test in (Get-AvailableTests)) {
         Write-Host -NoNewline "${test}:`t"
         $output = Execute-Test -test_path $test
-        $err_ctr = ($output | Select-String -Pattern '(?i)error').Count
+        $err_ctr = ($output | Select-String -Pattern '^\s*(Error:|ERROR:)').Count
         if ($err_ctr -eq 0) { Write-Host -ForegroundColor Green " PASSED" } 
         else { Write-Host -ForegroundColor Red " FAILED" }
     }

@@ -4,9 +4,9 @@
  * Author: Tomasz Wieclawski & Sebastian Zon
  *
  * Description:
- * Dedicated CLI Text Input and History Management submodule.
+ * CLI Text Input and History Management module.
  * Handles keyboard typing, cursor positioning, input BRAM streaming,
- * Up/Down arrow recall, and sequential 4-entry MRU history deduplication.
+ * Up/Down arrow recall, and 4-entry history deduplication.
  */
 
 import string_pkg::*;

@@ -4,10 +4,7 @@
  * Author: Tomasz Wieclawski & Sebastian Zon
  *
  * Description:
- * Dedicated diagnostics and error metrics processing module.
- * Tracks hardware Manchester, preamble, and parity errors with edge detection.
- * Updates display counters periodically (0.5s window) and maps counts to
- * logarithmic progress bar levels (0..255) and severity gradient colors.
+ * Diagnostics and error metrics processing module for progress bars.
  */
 
 module eval_diagnostics #(
@@ -36,10 +33,10 @@ module eval_diagnostics #(
     output logic [11:0] color_hlt
 );
 
-  // Periodic 0.5s Error Metric Window Registers
+  // 0.5s Error Metric Window Registers
   logic [15:0] err_man_acc, err_pre_acc, err_par_acc;
 
-  // Periodic window decay timer instantiated using counter.sv
+  // Window decay timer
   logic err_window_tick;
   counter #(
       .VALUE_MAX(WINDOW_CYCLES - 1)

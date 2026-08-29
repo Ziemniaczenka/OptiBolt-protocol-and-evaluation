@@ -4,14 +4,7 @@
  * Author: Tomasz Wieclawski & Sebastian Zon
  *
  * Description:
- * Master Evaluation Controller Top-Level Wrapper.
- * Integrates modular submodules:
- *  - eval_diagnostics: error counters, log progress bars, severity color gradients.
- *  - eval_cli_input: keyboard line typing, cursor BRAM updates, 4-entry MRU history.
- *  - eval_console_buffer: line-by-line scroller (40 lines max, no arbitrary limit),
- *                         column wrapping, dual-source print arbiter.
- *  - optibolt_link_manager: protocol link failover to default 1Mbps, speed negotiation.
- *  - eval_cmd_exec: slash command parser, Ping Double-Dabble RTT, 11-step sweep, PRNG bitmap.
+ * Top module for evaluation logic.
  */
 
 import string_pkg::*;
@@ -178,7 +171,7 @@ module evaluation_controller #(
   logic [27:0] rx_bmp_idle_cnt;
 
   always_comb begin
-    if (proto_eval_rx_valid && proto_eval_rx_type == MSG_BITMAP && 
+    if (proto_eval_rx_valid && proto_eval_rx_type == MSG_BITMAP &&
         proto_eval_rx_data[7] == 1'b1 && rx_bmp_has_b0) begin
       bmp_addr = rx_pixel_ptr;
       // Reconstruct 12-bit RGB:
@@ -297,16 +290,16 @@ module evaluation_controller #(
       .WORD_WIDTH(8),
       .DEPTH     (64)
   ) u_rx_text_fifo (
-      .clk   (clk),
-      .rst_n (rst_n),
-      .flush (1'b0),
-      .push  (proto_eval_rx_valid && proto_eval_rx_type == MSG_TEXT),
-      .pop   (rx_text_fifo_pop),
-      .din   (proto_eval_rx_data),
-      .dout  (rx_text_fifo_dout),
-      .empty (rx_text_fifo_empty),
-      .full  (rx_text_fifo_full),
-      .count ()
+      .clk  (clk),
+      .rst_n(rst_n),
+      .flush(1'b0),
+      .push (proto_eval_rx_valid && proto_eval_rx_type == MSG_TEXT),
+      .pop  (rx_text_fifo_pop),
+      .din  (proto_eval_rx_data),
+      .dout (rx_text_fifo_dout),
+      .empty(rx_text_fifo_empty),
+      .full (rx_text_fifo_full),
+      .count()
   );
 
   typedef enum logic [2:0] {
@@ -378,7 +371,7 @@ module evaluation_controller #(
             rx_data_char_valid <= 1'b0;
             if (rx_data_char_byte == 8'h0A) rx_bol <= 1'b1;
             else rx_bol <= 1'b0;
-            rx_text_state      <= RX_TEXT_POP_WAIT;
+            rx_text_state <= RX_TEXT_POP_WAIT;
           end else begin
             rx_data_char_valid <= 1'b1;
           end

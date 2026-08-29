@@ -4,9 +4,7 @@
  * Author: Tomasz Więcławski & Sebastian Zoń
  *
  * Description:
- * Keyboard scan code decoder. Translates PS/2 scan codes into an array
- * representing the state of all keys.
- * Extended keys (e.g. arrows) are mapped starting at index 256.
+ * Keyboard scan code decoder. Translates PS/2 data into key codes.
  */
 
 module keyboard_decoder (

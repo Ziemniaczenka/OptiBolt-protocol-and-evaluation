@@ -4,10 +4,7 @@
  * Author: Tomasz Więcławski & Sebastian Zoń
  *
  * Description:
- * Converts 512-bit key state array to navigation commands and ASCII characters.
- * Includes edge detection so holding a key doesn't spam commands endlessly.
- * TODO: update decription
- * TODO: add all required ascii (uppercase?)
+ * Converts key code to navigation commands and ASCII characters.
  */
 
 module keyboard_controller (

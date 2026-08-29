@@ -5,9 +5,7 @@
  *
  * Description:
  * Dedicated Console BRAM Controller and Line-Based Auto-Scroller submodule.
- * Manages character writing, automatic line wrapping at 95 columns,
- * tracking visible line count (0..40 lines), and synchronous Block RAM line scrolling.
- * Eliminates arbitrary character limits: scrolling is strictly line-governed.
+ * Manages character writing, tracking visible line count (0..40 lines), and synchronous Block RAM line scrolling.
  */
 
 import string_pkg::*;

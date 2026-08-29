@@ -56,6 +56,7 @@ module optibolt_link_manager_tb;
       .proto_eval_manchester_code_error(man_err),
       .proto_eval_preamble_error       (pre_err),
       .failover_en                     (failover_en),
+      .sweep_active                    (1'b0),
       .set_speed_req                   (set_speed_req),
       .req_baud_rate                   (req_baud_rate),
       .req_oversampling                (req_oversampling),

@@ -4,10 +4,9 @@
  * Author: Tomasz Wieclawski & Sebastian Zon
  *
  * Description:
- * Dedicated Command Parser & Execution Engine submodule.
- * Parses CLI slash commands, controls UI popups & progress, manages 128x128 PRNG
- * dynamic bitmap streaming, executes sequential Ping RTT Double-Dabble formatting,
- * runs the 11-step Baudrate sweep test, and streams formatted text to the console buffer.
+ * Command Parser & Execution Engine module.
+ * Parses CLI slash commands, controls UI popups & progress, manages 128x128 PRNG dynamic bitmap streaming,
+ * executes Ping message formatting, runs Baudrate sweep test, and streams formatted text to the console buffer.
  */
 
 import string_pkg::*;

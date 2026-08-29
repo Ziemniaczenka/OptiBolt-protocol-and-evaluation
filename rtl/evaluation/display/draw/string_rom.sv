@@ -5,7 +5,7 @@
  *
  * Description:
  * Block for storing static and switchable strings.
- * Dynamically switches strings based on link status, baudrate, and oversampling settings.
+ * Dynamically switches strings based on input values.
  */
 
 import string_pkg::*;

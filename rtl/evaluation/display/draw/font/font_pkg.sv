@@ -5,7 +5,7 @@
  * Modified by: Tomasz Więcławski & Sebastian Zoń
  *
  * Description:
- * Package with vga related constants.
+ * Package with font related constants.
  */
 
  package font_pkg;

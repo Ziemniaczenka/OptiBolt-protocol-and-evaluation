@@ -32,4 +32,5 @@ interface bram_if #(
   modport rw(output addr, output din, input dout, output we, output en);
 
   modport memory(input addr, input din, output dout, input we, input en);
+
 endinterface

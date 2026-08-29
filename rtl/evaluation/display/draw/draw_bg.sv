@@ -5,7 +5,7 @@
  * Modified by: Tomasz Więcławski & Sebastian Zoń
  *
  * Description:
- * Modern high-contrast dark theme background generator for OptiBolt evaluation UI.
+ * VGA Background generation with blanking.
  */
 
 (* use_dsp = "no" *)

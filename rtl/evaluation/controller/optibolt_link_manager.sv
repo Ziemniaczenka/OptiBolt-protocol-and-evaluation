@@ -4,18 +4,16 @@
  * Author: Tomasz Wieclawski & Sebastian Zon
  *
  * Description:
- * OptiBolt Protocol Link Management & Speed Negotiation Module (Layer 2).
+ * OptiBolt Protocol Link Management & Speed Negotiation Module.
  * Handles baudrate and oversampling configuration, speed negotiation packets,
- * and automatic link failover. When failover is enabled and excessive errors
- * or carrier dropouts are detected at higher speeds, it automatically falls
- * back to the safe Default Speed (1.0 Mbps, 16x OS).
+ * and automatic link failover.
  */
 
 import protocol_pkg::*;
 
 module optibolt_link_manager #(
-    parameter logic [3:0] DEFAULT_BAUD_RATE    = 4'd1, // 1.0 Mbps
-    parameter logic [3:0] DEFAULT_OVERSAMPLING = 4'd0  // 16x OS
+    parameter logic [3:0] DEFAULT_BAUD_RATE    = 4'd1,
+    parameter logic [3:0] DEFAULT_OVERSAMPLING = 4'd0
 ) (
     input logic clk,
     input logic rst_n,
@@ -159,7 +157,7 @@ module optibolt_link_manager #(
       // Incoming Speed Negotiation Packets (Only from remote partner, NOT loopback)
       // ---------------------------------------------------------------------
       if (link_status == 2'b01) begin
-        if (proto_rx_valid && proto_rx_type == MSG_REQUEST && 
+        if (proto_rx_valid && proto_rx_type == MSG_REQUEST &&
             proto_rx_data[7:4] != 4'hA && proto_rx_data[7:4] != 4'h5 &&
             proto_rx_data[7:4] <= 4'd1 && proto_rx_data[3:0] <= 4'd9) begin
           // Remote peer requested speed change: apply and acknowledge

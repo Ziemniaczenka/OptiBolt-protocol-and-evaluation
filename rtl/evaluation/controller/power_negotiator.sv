@@ -5,9 +5,7 @@
  *
  * Description:
  * Power Negotiation Engine for OptiBolt.
- * Manages power roles (Wall, Battery, Sink) and multi-voltage / multi-current
- * power contracts over the optical channel.
- * In loopback mode, negotiation is inhibited as per system specification.
+ * Manages power roles, values and negotiation.
  */
 
 `timescale 1ns / 1ps

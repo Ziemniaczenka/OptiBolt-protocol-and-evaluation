@@ -65,9 +65,4 @@ package protocol_pkg;
   localparam logic [2:0] MSG_POWER = 3'b110;
   localparam logic [2:0] MSG_TEST3 = 3'b111;
 
-  //power 
-  localparam logic [7:0] PWR_5V_1A = 8'b0000_0001;
-  localparam logic [7:0] PWR_9V_2A = 8'b0000_0010;
-  localparam logic [7:0] PWR_20V_5A = 8'b0000_0100;
-
 endpackage

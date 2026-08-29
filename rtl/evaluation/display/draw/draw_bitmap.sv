@@ -5,7 +5,6 @@
  *
  * Description:
  * Draw bitmap from BRAM/ROM.
- * TODO: remove rom if using ram
  */
 
 import bitmap_pkg::*;
