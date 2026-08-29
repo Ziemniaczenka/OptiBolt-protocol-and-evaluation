@@ -117,20 +117,16 @@ module string_rom (
   logic [7:0] pwr_state_not_ready[0:STATUS_PWR_STATE_LEN];
   logic [7:0] pwr_state_ready[0:STATUS_PWR_STATE_LEN];
   logic [7:0] pwr_state_sending[0:STATUS_PWR_STATE_LEN];
-  logic [7:0] pwr_state_receiving[0:STATUS_PWR_STATE_LEN];
   logic [7:0] pwr_state_src[0:STATUS_PWR_STATE_LEN];
   logic [7:0] pwr_state_rcv[0:STATUS_PWR_STATE_LEN];
-  logic [7:0] pwr_state_active[0:STATUS_PWR_STATE_LEN];
   logic [7:0] pwr_state_error[0:STATUS_PWR_STATE_LEN];
   logic [7:0] pwr_state_loopback[0:STATUS_PWR_STATE_LEN];
 
   `INIT_UNPACKED_STR(pwr_state_not_ready, STATUS_PWR_STATE_VAL_NOT_READY, STATUS_PWR_STATE_LEN, STATUS_PWR_STATE_LEN + 1)
   `INIT_UNPACKED_STR(pwr_state_ready,     STATUS_PWR_STATE_VAL_READY,     STATUS_PWR_STATE_LEN, STATUS_PWR_STATE_LEN + 1)
   `INIT_UNPACKED_STR(pwr_state_sending,   STATUS_PWR_STATE_VAL_SENDING,   STATUS_PWR_STATE_LEN, STATUS_PWR_STATE_LEN + 1)
-  `INIT_UNPACKED_STR(pwr_state_receiving, STATUS_PWR_STATE_VAL_RECEIVING, STATUS_PWR_STATE_LEN, STATUS_PWR_STATE_LEN + 1)
   `INIT_UNPACKED_STR(pwr_state_src,       STATUS_PWR_STATE_VAL_SRC,       STATUS_PWR_STATE_LEN, STATUS_PWR_STATE_LEN + 1)
   `INIT_UNPACKED_STR(pwr_state_rcv,       STATUS_PWR_STATE_VAL_RCV,       STATUS_PWR_STATE_LEN, STATUS_PWR_STATE_LEN + 1)
-  `INIT_UNPACKED_STR(pwr_state_active,    STATUS_PWR_STATE_VAL_ACTIVE,    STATUS_PWR_STATE_LEN, STATUS_PWR_STATE_LEN + 1)
   `INIT_UNPACKED_STR(pwr_state_error,     STATUS_PWR_STATE_VAL_ERROR,     STATUS_PWR_STATE_LEN, STATUS_PWR_STATE_LEN + 1)
   `INIT_UNPACKED_STR(pwr_state_loopback,  STATUS_PWR_STATE_VAL_LOOPBACK,  STATUS_PWR_STATE_LEN, STATUS_PWR_STATE_LEN + 1)
 
@@ -245,7 +241,7 @@ module string_rom (
       case (pwr_status_code)
         3'd1:    pwr_state_bram.dout <= pwr_state_ready[pwr_state_bram.addr];
         3'd2:    pwr_state_bram.dout <= pwr_state_sending[pwr_state_bram.addr];
-        3'd3:    pwr_state_bram.dout <= pwr_state_receiving[pwr_state_bram.addr];
+        3'd3:    pwr_state_bram.dout <= pwr_state_rcv[pwr_state_bram.addr];
         3'd4:    pwr_state_bram.dout <= active_is_source ? pwr_state_src[pwr_state_bram.addr] : pwr_state_rcv[pwr_state_bram.addr];
         3'd5:    pwr_state_bram.dout <= pwr_state_error[pwr_state_bram.addr];
         3'd6:    pwr_state_bram.dout <= pwr_state_loopback[pwr_state_bram.addr];

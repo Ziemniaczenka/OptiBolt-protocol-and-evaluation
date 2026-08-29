@@ -101,9 +101,8 @@ module eval_cmd_exec #(
   localparam logic [7:0] PING_REPLY  = 8'h5A;
 
   // ROM Messages
-  localparam logic [7:0] HELP_BYTES [0:563] = '{
+  localparam logic [7:0] HELP_BYTES [0:535] = '{
     "/", "h", "e", "l", "p", " ", " ", " ", " ", " ", " ", " ", " ", " ", ":", " ", "S", "h", "o", "w", " ", "h", "e", "l", "p", "\n",
-    "/", "s", "t", "a", "t", "u", "s", " ", " ", " ", " ", " ", " ", " ", ":", " ", "L", "i", "n", "k", " ", "h", "e", "a", "l", "t", "h", "\n",
     "/", "p", "i", "n", "g", " ", " ", " ", " ", " ", " ", " ", " ", " ", ":", " ", "T", "e", "s", "t", " ", "R", "T", "T", "\n",
     "/", "s", "w", "e", "e", "p", " ", " ", " ", " ", " ", " ", " ", " ", ":", " ", "T", "e", "s", "t", " ", "b", "a", "u", "d", " ", "c", "o", "n", "f", "i", "g", "s", "\n",
     "/", "b", "a", "u", "d", " ", "<", "s", "p", "d", ">", " ", " ", " ", ":", " ", "1", "0", "0", "k", ",", " ", "1", "m", ",", " ", "1", ".", "2", "5", "m", ",", " ", "2", ".", "5", "m", ",", "\n",
@@ -142,15 +141,6 @@ module eval_cmd_exec #(
     "P", "o", "w", "e", "r", " ", "n", "e", "g", "o", "t", "i", "a", "t", "i", "o", "n", " ", "a", "r", "m", "e", "d", ".", "\n"
   };
 
-  localparam logic [7:0] STATUS_DISCONN_BYTES [0:22] = '{
-    "L", "i", "n", "k", ":", " ", "D", "I", "S", "C", "O", "N", "N", "E", "C", "T", "E", "D", " ", "(", "0", ")", "\n"
-  };
-  localparam logic [7:0] STATUS_CONN_BYTES [0:19] = '{
-    "L", "i", "n", "k", ":", " ", "C", "O", "N", "N", "E", "C", "T", "E", "D", " ", "(", "1", ")", "\n"
-  };
-  localparam logic [7:0] STATUS_LOOP_BYTES [0:18] = '{
-    "L", "i", "n", "k", ":", " ", "L", "O", "O", "P", "B", "A", "C", "K", " ", "(", "2", ")", "\n"
-  };
   localparam logic [7:0] BAUD_SET_BYTES [0:15] = '{
     "S", "p", "e", "e", "d", " ", "u", "p", "d", "a", "t", "e", "d", ".", " ", "\n"
   };
@@ -230,9 +220,6 @@ module eval_cmd_exec #(
     SRC_NONE,
     SRC_ECHO,
     SRC_HELP,
-    SRC_STATUS_DISCONN,
-    SRC_STATUS_CONN,
-    SRC_STATUS_LOOP,
     SRC_BAUD_SET,
     SRC_FAILOVER_ON,
     SRC_FAILOVER_OFF,
@@ -324,6 +311,7 @@ module eval_cmd_exec #(
   logic [ 4:0] sweep_tx_count;
   logic [ 4:0] sweep_rx_count;
   logic        sweep_had_error;
+  logic [31:0] sweep_remote_watchdog;
 
   // Power status message buffer
   logic [ 7:0] pwr_msg_buf [0:127];
@@ -333,9 +321,6 @@ module eval_cmd_exec #(
     case (msg_src)
       SRC_ECHO:           current_msg_char = (msg_idx == echo_len - 11'd1) ? 8'h0A : echo_buf[msg_idx];
       SRC_HELP:           current_msg_char = HELP_BYTES[msg_idx];
-      SRC_STATUS_DISCONN: current_msg_char = STATUS_DISCONN_BYTES[msg_idx];
-      SRC_STATUS_CONN:    current_msg_char = STATUS_CONN_BYTES[msg_idx];
-      SRC_STATUS_LOOP:    current_msg_char = STATUS_LOOP_BYTES[msg_idx];
       SRC_BAUD_SET:       current_msg_char = BAUD_SET_BYTES[msg_idx];
       SRC_FAILOVER_ON:    current_msg_char = FAILOVER_ON_BYTES[msg_idx];
       SRC_FAILOVER_OFF:   current_msg_char = FAILOVER_OFF_BYTES[msg_idx];
@@ -587,11 +572,6 @@ module eval_cmd_exec #(
             end else if (cmd_len >= 7 && cmd_buf[3]=="c" && cmd_buf[4]=="l" && cmd_buf[5]=="e" && cmd_buf[6]=="a") begin
               clear_console_req <= 1'b1;
               state <= E_IDLE;
-            end else if (cmd_len >= 8 && cmd_buf[3]=="s" && cmd_buf[4]=="t" && cmd_buf[5]=="a" && cmd_buf[6]=="t") begin
-              if (link_status == 2'b10) begin msg_src <= SRC_STATUS_LOOP; msg_len <= 11'd19; end
-              else if (link_status == 2'b01) begin msg_src <= SRC_STATUS_CONN; msg_len <= 11'd20; end
-              else begin msg_src <= SRC_STATUS_DISCONN; msg_len <= 11'd23; end
-              state <= E_STREAM_MSG;
             end else if (cmd_len >= 6 && cmd_buf[3]=="p" && cmd_buf[4]=="i" && cmd_buf[5]=="n") begin
               if (link_status == 2'b00) begin
                 msg_src <= SRC_ERR_DISCONN; msg_len <= 11'd25; state <= E_STREAM_MSG;
@@ -699,25 +679,70 @@ module eval_cmd_exec #(
               end
               msg_src <= SRC_SWEEP_START; msg_len <= 11'd27; state <= E_STREAM_MSG;
             end else if (cmd_len >= 8 && cmd_buf[3]=="p" && cmd_buf[4]=="o" && cmd_buf[5]=="w" && cmd_buf[6]=="e" && cmd_buf[7]=="r") begin
-              if (cmd_len >= 14 && cmd_buf[9]=="r" && cmd_buf[10]=="o" && cmd_buf[11]=="l" && cmd_buf[12]=="e") begin
-                if (cmd_buf[14] == "w" || cmd_buf[14] == "W")      cfg_role <= 2'd1; // WALL
-                else if (cmd_buf[14] == "b" || cmd_buf[14] == "B") cfg_role <= 2'd2; // BATTERY
-                else if (cmd_buf[14] == "s" || cmd_buf[14] == "S") cfg_role <= 2'd3; // SINK
-                msg_src <= SRC_PWR_ROLE_SET; msg_len <= 11'd19; state <= E_STREAM_MSG;
-              end else if (cmd_len >= 12 && cmd_buf[9]=="i" && cmd_buf[10]=="n") begin
-                // /power in <5|9|12|20> <amps>
-                if (cmd_buf[12] == "5")        cfg_in_amps[0] <= cmd_buf[14][3:0];
-                else if (cmd_buf[12] == "9")   cfg_in_amps[1] <= cmd_buf[14][3:0];
-                else if (cmd_buf[12] == "1")   cfg_in_amps[2] <= cmd_buf[15][3:0];
-                else if (cmd_buf[12] == "2")   cfg_in_amps[3] <= cmd_buf[15][3:0];
-                msg_src <= SRC_PWR_IN_SET; msg_len <= 11'd24; state <= E_STREAM_MSG;
-              end else if (cmd_len >= 13 && cmd_buf[9]=="o" && cmd_buf[10]=="u" && cmd_buf[11]=="t") begin
-                // /power out <5|9|12|20> <amps>
-                if (cmd_buf[13] == "5")        cfg_out_amps[0] <= cmd_buf[15][3:0];
-                else if (cmd_buf[13] == "9")   cfg_out_amps[1] <= cmd_buf[15][3:0];
-                else if (cmd_buf[13] == "1")   cfg_out_amps[2] <= cmd_buf[16][3:0];
-                else if (cmd_buf[13] == "2")   cfg_out_amps[3] <= cmd_buf[16][3:0];
-                msg_src <= SRC_PWR_OUT_SET; msg_len <= 11'd24; state <= E_STREAM_MSG;
+              if (cmd_len >= 14 && cmd_buf[9]=="r" && cmd_buf[10]=="o" && cmd_buf[11]=="l" && cmd_buf[12]=="e" && cmd_buf[13]==" ") begin
+                if (cmd_len == 18 && (cmd_buf[14] == "w" || cmd_buf[14] == "W") && (cmd_buf[15] == "a" || cmd_buf[15] == "A") &&
+                    (cmd_buf[16] == "l" || cmd_buf[16] == "L") && (cmd_buf[17] == "l" || cmd_buf[17] == "L")) begin
+                  cfg_role <= 2'd1; // WALL
+                  msg_src <= SRC_PWR_ROLE_SET; msg_len <= 11'd19; state <= E_STREAM_MSG;
+                end else if (cmd_len == 21 && (cmd_buf[14] == "b" || cmd_buf[14] == "B") && (cmd_buf[15] == "a" || cmd_buf[15] == "A") &&
+                    (cmd_buf[16] == "t" || cmd_buf[16] == "T") && (cmd_buf[17] == "t" || cmd_buf[17] == "T") &&
+                    (cmd_buf[18] == "e" || cmd_buf[18] == "E") && (cmd_buf[19] == "r" || cmd_buf[19] == "R") &&
+                    (cmd_buf[20] == "y" || cmd_buf[20] == "Y")) begin
+                  cfg_role <= 2'd2; // BATTERY
+                  msg_src <= SRC_PWR_ROLE_SET; msg_len <= 11'd19; state <= E_STREAM_MSG;
+                end else if (cmd_len == 18 && (cmd_buf[14] == "s" || cmd_buf[14] == "S") && (cmd_buf[15] == "i" || cmd_buf[15] == "I") &&
+                    (cmd_buf[16] == "n" || cmd_buf[16] == "N") && (cmd_buf[17] == "k" || cmd_buf[17] == "K")) begin
+                  cfg_role <= 2'd3; // SINK
+                  msg_src <= SRC_PWR_ROLE_SET; msg_len <= 11'd19; state <= E_STREAM_MSG;
+                end else begin
+                  msg_src <= SRC_UNKNOWN; msg_len <= 11'd16; state <= E_STREAM_MSG;
+                end
+              end else if (cmd_len >= 12 && cmd_buf[9]=="i" && cmd_buf[10]=="n" && cmd_buf[11]==" ") begin
+                // /power in <5|9|12|20> <0..9>
+                logic valid_pwr_in;
+                valid_pwr_in = 1'b0;
+                if (cmd_len == 15 && cmd_buf[12] == "5" && cmd_buf[13] == " " && cmd_buf[14] >= "0" && cmd_buf[14] <= "9") begin
+                  cfg_in_amps[0] <= cmd_buf[14][3:0];
+                  valid_pwr_in = 1'b1;
+                end else if (cmd_len == 15 && cmd_buf[12] == "9" && cmd_buf[13] == " " && cmd_buf[14] >= "0" && cmd_buf[14] <= "9") begin
+                  cfg_in_amps[1] <= cmd_buf[14][3:0];
+                  valid_pwr_in = 1'b1;
+                end else if (cmd_len == 16 && cmd_buf[12] == "1" && cmd_buf[13] == "2" && cmd_buf[14] == " " && cmd_buf[15] >= "0" && cmd_buf[15] <= "9") begin
+                  cfg_in_amps[2] <= cmd_buf[15][3:0];
+                  valid_pwr_in = 1'b1;
+                end else if (cmd_len == 16 && cmd_buf[12] == "2" && cmd_buf[13] == "0" && cmd_buf[14] == " " && cmd_buf[15] >= "0" && cmd_buf[15] <= "9") begin
+                  cfg_in_amps[3] <= cmd_buf[15][3:0];
+                  valid_pwr_in = 1'b1;
+                end
+
+                if (valid_pwr_in) begin
+                  msg_src <= SRC_PWR_IN_SET; msg_len <= 11'd24; state <= E_STREAM_MSG;
+                end else begin
+                  msg_src <= SRC_UNKNOWN; msg_len <= 11'd16; state <= E_STREAM_MSG;
+                end
+              end else if (cmd_len >= 13 && cmd_buf[9]=="o" && cmd_buf[10]=="u" && cmd_buf[11]=="t" && cmd_buf[12]==" ") begin
+                // /power out <5|9|12|20> <0..9>
+                logic valid_pwr_out;
+                valid_pwr_out = 1'b0;
+                if (cmd_len == 16 && cmd_buf[13] == "5" && cmd_buf[14] == " " && cmd_buf[15] >= "0" && cmd_buf[15] <= "9") begin
+                  cfg_out_amps[0] <= cmd_buf[15][3:0];
+                  valid_pwr_out = 1'b1;
+                end else if (cmd_len == 16 && cmd_buf[13] == "9" && cmd_buf[14] == " " && cmd_buf[15] >= "0" && cmd_buf[15] <= "9") begin
+                  cfg_out_amps[1] <= cmd_buf[15][3:0];
+                  valid_pwr_out = 1'b1;
+                end else if (cmd_len == 17 && cmd_buf[13] == "1" && cmd_buf[14] == "2" && cmd_buf[15] == " " && cmd_buf[16] >= "0" && cmd_buf[16] <= "9") begin
+                  cfg_out_amps[2] <= cmd_buf[16][3:0];
+                  valid_pwr_out = 1'b1;
+                end else if (cmd_len == 17 && cmd_buf[13] == "2" && cmd_buf[14] == "0" && cmd_buf[15] == " " && cmd_buf[16] >= "0" && cmd_buf[16] <= "9") begin
+                  cfg_out_amps[3] <= cmd_buf[16][3:0];
+                  valid_pwr_out = 1'b1;
+                end
+
+                if (valid_pwr_out) begin
+                  msg_src <= SRC_PWR_OUT_SET; msg_len <= 11'd24; state <= E_STREAM_MSG;
+                end else begin
+                  msg_src <= SRC_UNKNOWN; msg_len <= 11'd16; state <= E_STREAM_MSG;
+                end
               end else if (cmd_len >= 14 && cmd_buf[9]=="c" && cmd_buf[10]=="l" && cmd_buf[11]=="e") begin
                 cfg_role  <= 2'd0;
                 cfg_ready <= 1'b0;
@@ -765,14 +790,16 @@ module eval_cmd_exec #(
                     pwr_msg_buf[83] <= {4'h3, active_amps}; pwr_msg_buf[84] <= "A"; pwr_msg_buf[85] <= "\n";
                     msg_len <= 11'd86;
                   end else begin
-                    pwr_msg_buf[70] <= "S"; pwr_msg_buf[71] <= "I"; pwr_msg_buf[72] <= "N"; pwr_msg_buf[73] <= "K"; pwr_msg_buf[74] <= " ";
-                    if (active_voltage_id == 2'd3) begin pwr_msg_buf[75] <= "2"; pwr_msg_buf[76] <= "0"; end
-                    else if (active_voltage_id == 2'd2) begin pwr_msg_buf[75] <= "1"; pwr_msg_buf[76] <= "2"; end
-                    else if (active_voltage_id == 2'd1) begin pwr_msg_buf[75] <= " "; pwr_msg_buf[76] <= "9"; end
-                    else begin pwr_msg_buf[75] <= " "; pwr_msg_buf[76] <= "5"; end
-                    pwr_msg_buf[77] <= "V"; pwr_msg_buf[78] <= " "; pwr_msg_buf[79] <= "@"; pwr_msg_buf[80] <= " ";
-                    pwr_msg_buf[81] <= {4'h3, active_amps}; pwr_msg_buf[82] <= "A"; pwr_msg_buf[83] <= "\n";
-                    msg_len <= 11'd84;
+                    pwr_msg_buf[70] <= "R"; pwr_msg_buf[71] <= "E"; pwr_msg_buf[72] <= "C"; pwr_msg_buf[73] <= "E";
+                    pwr_msg_buf[74] <= "I"; pwr_msg_buf[75] <= "V"; pwr_msg_buf[76] <= "E"; pwr_msg_buf[77] <= "R";
+                    pwr_msg_buf[78] <= " ";
+                    if (active_voltage_id == 2'd3) begin pwr_msg_buf[79] <= "2"; pwr_msg_buf[80] <= "0"; end
+                    else if (active_voltage_id == 2'd2) begin pwr_msg_buf[79] <= "1"; pwr_msg_buf[80] <= "2"; end
+                    else if (active_voltage_id == 2'd1) begin pwr_msg_buf[79] <= " "; pwr_msg_buf[80] <= "9"; end
+                    else begin pwr_msg_buf[79] <= " "; pwr_msg_buf[80] <= "5"; end
+                    pwr_msg_buf[81] <= "V"; pwr_msg_buf[82] <= " "; pwr_msg_buf[83] <= "@"; pwr_msg_buf[84] <= " ";
+                    pwr_msg_buf[85] <= {4'h3, active_amps}; pwr_msg_buf[86] <= "A"; pwr_msg_buf[87] <= "\n";
+                    msg_len <= 11'd88;
                   end
                 end else begin
                   pwr_msg_buf[62] <= "A"; pwr_msg_buf[63] <= "c"; pwr_msg_buf[64] <= "t"; pwr_msg_buf[65] <= "i"; pwr_msg_buf[66] <= "v"; pwr_msg_buf[67] <= "e"; pwr_msg_buf[68] <= ":"; pwr_msg_buf[69] <= " ";
@@ -964,9 +991,6 @@ module eval_cmd_exec #(
           endcase
         end
 
-        // -------------------------------------------------------------------
-        // Baudrate Sweep FSM (16 combos)
-        // -------------------------------------------------------------------
         E_SWEEP_STEP: begin
           if (sweep_step < 5'd16) begin
             req_baud_rate    <= SWEEP_BAUD[sweep_step];

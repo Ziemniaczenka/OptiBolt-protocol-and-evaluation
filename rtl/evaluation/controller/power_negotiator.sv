@@ -201,11 +201,12 @@ module power_negotiator #(
             if (proto_rx_valid && proto_rx_type == MSG_POWER && proto_rx_data[7:4] == 4'h0 && proto_rx_data[1:0] != ROLE_NONE) begin
               peer_role <= proto_rx_data[1:0];
 
-              // Check for role conflicts
-              if ((cfg_role == ROLE_WALL && proto_rx_data[1:0] == ROLE_WALL) ||
-                  (cfg_role == ROLE_SINK && proto_rx_data[1:0] == ROLE_SINK)) begin
+              // Check for role conflicts (WALL vs WALL, SINK vs SINK, BATTERY vs BATTERY)
+              if (cfg_role == proto_rx_data[1:0]) begin
                 contract_error  <= 1'b1;
                 pwr_status_code <= STAT_ERROR;
+                tx_req          <= 1'b1;
+                tx_byte         <= {4'h0, 2'b00, cfg_role}; // Send back our role once before entering ERROR
                 state           <= S_ERROR;
               end else begin
                 // Determine directionality
@@ -284,9 +285,17 @@ module power_negotiator #(
                 timer <= '0;
                 peer_out_amps[proto_rx_data[5:4]] <= proto_rx_data[3:0];
               end else if (proto_rx_data[7:4] == 4'h0 && proto_rx_data[1:0] != ROLE_NONE) begin
-                // Source re-announced role
-                timer <= '0;
-                for (int i = 0; i < 4; i++) peer_out_amps[i] <= 4'd0;
+                if (proto_rx_data[1:0] == cfg_role) begin
+                  contract_error  <= 1'b1;
+                  pwr_status_code <= STAT_ERROR;
+                  tx_req          <= 1'b1;
+                  tx_byte         <= {4'h0, 2'b00, cfg_role};
+                  state           <= S_ERROR;
+                end else begin
+                  // Source re-announced role
+                  timer <= '0;
+                  for (int i = 0; i < 4; i++) peer_out_amps[i] <= 4'd0;
+                end
               end
             end else if (timer >= RETRY_TICKS) begin
               // Timeout waiting for PDOs -> re-advertise Sink role to prompt Source

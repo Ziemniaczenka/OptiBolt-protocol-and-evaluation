@@ -153,11 +153,13 @@ module dual_device_tb;
   logic [2:0] a_hs_tx_type;
   logic [7:0] a_hs_tx_data;
   logic       a_carrier_in;
+  logic       a_speed_updated_pulse;
 
   logic       b_hs_tx_req, b_hs_tx_ack;
   logic [2:0] b_hs_tx_type;
   logic [7:0] b_hs_tx_data;
   logic       b_carrier_in;
+  logic       b_speed_updated_pulse;
 
   link_handshake #(
       .RETRY_TICKS     (50),
@@ -173,7 +175,7 @@ module dual_device_tb;
       .proto_eval_preamble_error       (1'b0),
       .proto_eval_manchester_code_error(1'b0),
       .proto_eval_rx_carrier           (a_carrier_in),
-      .speed_updated_pulse             (1'b0),
+      .speed_updated_pulse             (a_speed_updated_pulse),
       .hs_tx_req                       (a_hs_tx_req),
       .hs_tx_type                      (a_hs_tx_type),
       .hs_tx_data                      (a_hs_tx_data),
@@ -195,7 +197,7 @@ module dual_device_tb;
       .proto_eval_preamble_error       (1'b0),
       .proto_eval_manchester_code_error(1'b0),
       .proto_eval_rx_carrier           (b_carrier_in),
-      .speed_updated_pulse             (1'b0),
+      .speed_updated_pulse             (b_speed_updated_pulse),
       .hs_tx_req                       (b_hs_tx_req),
       .hs_tx_type                      (b_hs_tx_type),
       .hs_tx_data                      (b_hs_tx_data),
@@ -254,6 +256,7 @@ module dual_device_tb;
       .eval_proto_baud_rate             (a_proto_baud_rate),
       .eval_proto_oversampling          (a_proto_oversampling),
       .eval_proto_loopback_en           (a_proto_loopback_en),
+      .speed_updated_pulse              (a_speed_updated_pulse),
       .eval_proto_tx_valid              (a_proto_tx_valid),
       .eval_proto_tx_type               (a_proto_tx_type),
       .eval_proto_tx_data               (a_proto_tx_data),
@@ -328,6 +331,7 @@ module dual_device_tb;
       .eval_proto_baud_rate             (b_proto_baud_rate),
       .eval_proto_oversampling          (b_proto_oversampling),
       .eval_proto_loopback_en           (b_proto_loopback_en),
+      .speed_updated_pulse              (b_speed_updated_pulse),
       .eval_proto_tx_valid              (b_proto_tx_valid),
       .eval_proto_tx_type               (b_proto_tx_type),
       .eval_proto_tx_data               (b_proto_tx_data),
@@ -631,6 +635,85 @@ module dual_device_tb;
     assert (!u_eval_a.u_eval_cmd_exec.sweep_active && !u_eval_b.u_eval_cmd_exec.sweep_active)
     else $error("Sweep active flag should be 0 on both boards after sweep completion");
     $display("[PASS] Test 6: Dual Device Baudrate Sweep completed cleanly with default speed restored!");
+
+    $display("[TEST 6.1] Board B initiating baudrate change to 5.0 Mbps after sweep...");
+    b_exec("/baud 5m");
+    repeat(50) @(posedge clk);
+    assert (a_proto_baud_rate == 4'd5 && b_proto_baud_rate == 4'd5)
+    else $error("Post-sweep baud change by Board B failed");
+    $display("[PASS] Test 6.1: Board B successfully negotiated 5.0 Mbps after sweep completion!");
+
+    // Restore 1.0 Mbps
+    a_exec("/baud 1m");
+    repeat(50) @(posedge clk);
+
+    // -------------------------------------------------------------------------
+    // TEST 7: Strict Power CLI Input Validation (0..9A)
+    // -------------------------------------------------------------------------
+    $display("[TEST 7] Testing invalid power command /power out 10 42 (should be rejected)...");
+    a_exec("/power clear");
+    a_exec("/power out 10 42");
+    repeat(10) @(posedge clk);
+    assert (u_eval_a.u_eval_cmd_exec.cfg_out_amps[0] == 4'd0 &&
+            u_eval_a.u_eval_cmd_exec.cfg_out_amps[1] == 4'd0 &&
+            u_eval_a.u_eval_cmd_exec.cfg_out_amps[2] == 4'd0 &&
+            u_eval_a.u_eval_cmd_exec.cfg_out_amps[3] == 4'd0)
+    else $error("Invalid power command modified output capabilities");
+    $display("[PASS] Test 7.1: Invalid /power out 10 42 correctly rejected without state change.");
+
+    $display("[TEST 7.2] Testing valid power command /power in 20 9 (up to 9A support)...");
+    a_exec("/power in 20 9");
+    repeat(10) @(posedge clk);
+    assert (u_eval_a.u_eval_cmd_exec.cfg_in_amps[3] == 4'd9)
+    else $error("Power input for 20V @ 9A failed to set");
+    $display("[PASS] Test 7.2: /power in 20 9 accepted and configured 20V @ 9A requirement.");
+
+    // -------------------------------------------------------------------------
+    // TEST 8: Power Role Conflict Collisions (Dual WALL, Dual SINK, Dual BATTERY)
+    // -------------------------------------------------------------------------
+    $display("[TEST 8.1] Testing Dual WALL collision (both should enter ERROR state)...");
+    a_exec("/power clear");
+    b_exec("/power clear");
+    a_exec("/power role wall");
+    a_exec("/power out 20 3");
+    b_exec("/power role wall");
+    b_exec("/power out 20 3");
+    a_exec("/power ready");
+    b_exec("/power ready");
+    #3000;
+    assert (a_pwr_status_code == 3'd5 && b_pwr_status_code == 3'd5)
+    else $error("Dual WALL collision should place both boards in STAT_ERROR (5)");
+    $display("[PASS] Test 8.1: Dual WALL collision cleanly placed both boards in STAT_ERROR!");
+
+    $display("[TEST 8.2] Testing Dual SINK collision (both should enter ERROR state)...");
+    a_exec("/power clear");
+    b_exec("/power clear");
+    a_exec("/power role sink");
+    a_exec("/power in 20 2");
+    b_exec("/power role sink");
+    b_exec("/power in 20 2");
+    a_exec("/power ready");
+    b_exec("/power ready");
+    #3000;
+    assert (a_pwr_status_code == 3'd5 && b_pwr_status_code == 3'd5)
+    else $error("Dual SINK collision should place both boards in STAT_ERROR (5)");
+    $display("[PASS] Test 8.2: Dual SINK collision cleanly placed both boards in STAT_ERROR!");
+
+    $display("[TEST 8.3] Testing Dual BATTERY collision (both should enter ERROR state)...");
+    a_exec("/power clear");
+    b_exec("/power clear");
+    a_exec("/power role battery");
+    a_exec("/power in 20 2");
+    a_exec("/power out 20 2");
+    b_exec("/power role battery");
+    b_exec("/power in 20 2");
+    b_exec("/power out 20 2");
+    a_exec("/power ready");
+    b_exec("/power ready");
+    #3000;
+    assert (a_pwr_status_code == 3'd5 && b_pwr_status_code == 3'd5)
+    else $error("Dual BATTERY collision should place both boards in STAT_ERROR (5)");
+    $display("[PASS] Test 8.3: Dual BATTERY collision cleanly placed both boards in STAT_ERROR!");
 
     $display("==================================================================");
     $display("=== ALL DUAL-DEVICE INTEGRATION TESTS COMPLETED SUCCESSFULLY! ===");
