@@ -234,7 +234,7 @@ module draw_popup_tb;
       .desc_bram(desc_b),
       .btn1_bram(btn1_b),
       .btn2_bram(btn2_b),
-      .show_progress(1'b1),  // Always enabled for preview
+      .show_progress(1'b1),
       .progress_val(progress_val),
       .btn1_selected(btn_selected),
       .btn2_selected(1'b0),
@@ -261,7 +261,7 @@ module draw_popup_tb;
       .desc_bram(desc_b),
       .btn1_bram(btn1_b),
       .btn2_bram(btn2_b),
-      .show_progress(1'b1),  // Zawsze włączony dla widoku
+      .show_progress(1'b1),
       .progress_val(progress_val),
       .btn1_selected(btn_selected),
       .btn2_selected(!btn_selected),

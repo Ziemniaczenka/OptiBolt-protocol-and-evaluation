@@ -31,6 +31,7 @@ module top_draw (
     input logic [1:0] active_voltage_id,
     input logic [3:0] active_amps,
     input logic       contract_active,
+    input logic       active_is_source,
 
     // Error & Diagnostics inputs
     input logic [ 7:0] prog_man,
@@ -223,6 +224,7 @@ module top_draw (
       .active_voltage_id(active_voltage_id),
       .active_amps(active_amps),
       .contract_active(contract_active),
+      .active_is_source(active_is_source),
       .pwr_state_bram(pwr_state_bram),
       .pwr_val_bram(pwr_val_bram),
       .failover_en(failover_en),

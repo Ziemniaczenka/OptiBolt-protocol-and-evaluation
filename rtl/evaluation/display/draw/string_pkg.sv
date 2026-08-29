@@ -77,6 +77,8 @@ package string_pkg;
     localparam STATUS_PWR_STATE_VAL_READY     = "Power State : READY       ";
     localparam STATUS_PWR_STATE_VAL_SENDING   = "Power State : SENDING     ";
     localparam STATUS_PWR_STATE_VAL_RECEIVING = "Power State : RECEIVING   ";
+    localparam STATUS_PWR_STATE_VAL_SRC       = "Power State : SOURCE (OK) ";
+    localparam STATUS_PWR_STATE_VAL_RCV       = "Power State : RECEIVER(OK)";
     localparam STATUS_PWR_STATE_VAL_ACTIVE    = "Power State : CONTRACT OK ";
     localparam STATUS_PWR_STATE_VAL_ERROR     = "Power State : ERROR       ";
     localparam STATUS_PWR_STATE_VAL_LOOPBACK  = "Power State : LOOPBACK N/A";

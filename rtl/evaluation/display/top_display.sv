@@ -36,6 +36,7 @@ module top_display (
     input logic [1:0] active_voltage_id,
     input logic [3:0] active_amps,
     input logic       contract_active,
+    input logic       active_is_source,
 
     output logic vs,
     output logic hs,
@@ -114,6 +115,7 @@ module top_display (
       .active_voltage_id(active_voltage_id),
       .active_amps(active_amps),
       .contract_active(contract_active),
+      .active_is_source(active_is_source),
       .console_bram(console_bram),
       .input_bram(input_bram),
       .dyn_bmp_bram(dyn_bmp_bram),

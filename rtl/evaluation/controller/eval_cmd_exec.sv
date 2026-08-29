@@ -427,6 +427,7 @@ module eval_cmd_exec #(
       bmp_we            <= 1'b0;
       prng_next_pixel   <= 1'b0;
       proto_tx_valid    <= 1'b0;
+      cfg_clear         <= 1'b0;
 
       // Global incoming Ping Request responder (for dual-device and loopback):
       if (proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data == CMD_PING_REQ) begin

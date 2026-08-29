@@ -133,9 +133,10 @@ module top_evaluation #(
   logic [1:0] active_voltage_id, active_voltage_id_clk74;
   logic [3:0] active_amps, active_amps_clk74;
   logic contract_active, contract_active_clk74;
+  logic active_is_source, active_is_source_clk74;
 
   cdc_sync #(
-      .WIDTH(119)
+      .WIDTH(120)
   ) u_cdc_ui_sync (
       .clk_dst(clk74p25),
       .rst_n(rst_n),
@@ -162,7 +163,8 @@ module top_evaluation #(
         pwr_status_code,
         active_voltage_id,
         active_amps,
-        contract_active
+        contract_active,
+        active_is_source
       }),
       .d_out({
         failover_en_clk74,
@@ -187,7 +189,8 @@ module top_evaluation #(
         pwr_status_code_clk74,
         active_voltage_id_clk74,
         active_amps_clk74,
-        contract_active_clk74
+        contract_active_clk74,
+        active_is_source_clk74
       })
   );
 
@@ -368,6 +371,7 @@ module top_evaluation #(
       .active_voltage_id(active_voltage_id),
       .active_amps(active_amps),
       .contract_active(contract_active),
+      .active_is_source(active_is_source),
 
       // Handshake Interface
       .hs_tx_req  (hs_tx_req),
@@ -426,6 +430,7 @@ module top_evaluation #(
       .active_voltage_id(active_voltage_id_clk74),
       .active_amps(active_amps_clk74),
       .contract_active(contract_active_clk74),
+      .active_is_source(active_is_source_clk74),
 
       .console_bram(console_if_b),
       .input_bram(input_if_b),

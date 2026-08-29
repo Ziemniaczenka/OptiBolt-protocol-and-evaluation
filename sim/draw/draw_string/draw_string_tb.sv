@@ -251,8 +251,6 @@ module draw_string_tb;
 
     // Frame 3
     letter_spacing = 8'd1;
-    // Using byte array for Polish characters to avoid string encoding issues.
-    // write_rom_str("Test Zażółć gęślą jaźń.");  // Keep original for comparison if needed
     write_rom_bytes(polish_str);
 
     u_writer_ram.write_string("A B C\nD E F\nG H I");

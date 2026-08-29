@@ -10,6 +10,7 @@ sv work ../../rtl/evaluation/display/draw/string_pkg.sv \
         ../../rtl/evaluation/controller/eval_console_buffer.sv \
         ../../rtl/evaluation/controller/eval_cmd_exec.sv \
         ../../rtl/evaluation/controller/power_negotiator.sv \
+        ../../rtl/evaluation/link_handshake.sv \
         ../../rtl/evaluation/evaluation_controller.sv \
         ../../rtl/evaluation/keyboard/keyboard_controller.sv \
         dual_device_tb.sv

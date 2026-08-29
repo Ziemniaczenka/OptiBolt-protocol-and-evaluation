@@ -104,7 +104,8 @@ module evaluation_controller #(
     output logic [2:0] pwr_status_code,
     output logic [1:0] active_voltage_id,
     output logic [3:0] active_amps,
-    output logic       contract_active
+    output logic       contract_active,
+    output logic       active_is_source
 );
 
   localparam int CLI_BUF_LEN = 128;
@@ -153,7 +154,6 @@ module evaluation_controller #(
   logic        cfg_ready;
   logic        cfg_clear;
   logic        contract_error;
-  logic        active_is_source;
   logic        contract_event_pulse;
 
   logic        pwr_tx_valid;
@@ -452,6 +452,10 @@ module evaluation_controller #(
   // =========================================================================
   // 5. Dedicated Command Parser & Execution Engine Submodule
   // =========================================================================
+  // Cmd Exec sees full if physical TX FIFO is full or if higher-priority subsystem is transmitting
+  logic cmd_tx_full;
+  assign cmd_tx_full = proto_eval_tx_full || nego_tx_valid || hs_tx_req || pwr_tx_valid;
+
   eval_cmd_exec #(
       .CLI_BUF_LEN     (CLI_BUF_LEN),
       .SWEEP_STEP_TICKS(SWEEP_STEP_TICKS)
@@ -491,7 +495,7 @@ module evaluation_controller #(
       .proto_tx_valid                  (cmd_tx_valid),
       .proto_tx_type                   (cmd_tx_type),
       .proto_tx_data                   (cmd_tx_data),
-      .proto_tx_full                   (proto_eval_tx_full),
+      .proto_tx_full                   (cmd_tx_full),
       .proto_rx_valid                  (proto_eval_rx_valid),
       .proto_rx_type                   (proto_eval_rx_type),
       .proto_rx_data                   (proto_eval_rx_data),
@@ -539,20 +543,21 @@ module evaluation_controller #(
   );
 
   // =========================================================================
-  // Protocol TX Multiplexer (Cmd Exec > Speed Nego > Handshake)
+  // Protocol TX Multiplexer (Speed Nego > Handshake > Power > Cmd Exec)
+  // Handshake & Nego packets have strict priority over bulk Bitmap & Chat TX
   // =========================================================================
   always_comb begin
-    if (cmd_tx_valid) begin
-      eval_proto_tx_valid = 1'b1;
-      eval_proto_tx_type  = cmd_tx_type;
-      eval_proto_tx_data  = cmd_tx_data;
-      hs_tx_ack           = 1'b0;
-      pwr_tx_ready        = 1'b0;
-    end else if (nego_tx_valid) begin
+    if (nego_tx_valid) begin
       eval_proto_tx_valid = 1'b1;
       eval_proto_tx_type  = nego_tx_type;
       eval_proto_tx_data  = nego_tx_data;
       hs_tx_ack           = 1'b0;
+      pwr_tx_ready        = 1'b0;
+    end else if (hs_tx_req) begin
+      eval_proto_tx_valid = 1'b1;
+      eval_proto_tx_type  = hs_tx_type;
+      eval_proto_tx_data  = hs_tx_data;
+      hs_tx_ack           = !proto_eval_tx_full;
       pwr_tx_ready        = 1'b0;
     end else if (pwr_tx_valid) begin
       eval_proto_tx_valid = 1'b1;
@@ -560,11 +565,11 @@ module evaluation_controller #(
       eval_proto_tx_data  = pwr_tx_data;
       hs_tx_ack           = 1'b0;
       pwr_tx_ready        = !proto_eval_tx_full;
-    end else if (hs_tx_req) begin
+    end else if (cmd_tx_valid) begin
       eval_proto_tx_valid = 1'b1;
-      eval_proto_tx_type  = hs_tx_type;
-      eval_proto_tx_data  = hs_tx_data;
-      hs_tx_ack           = !proto_eval_tx_full;
+      eval_proto_tx_type  = cmd_tx_type;
+      eval_proto_tx_data  = cmd_tx_data;
+      hs_tx_ack           = 1'b0;
       pwr_tx_ready        = 1'b0;
     end else begin
       eval_proto_tx_valid = 1'b0;

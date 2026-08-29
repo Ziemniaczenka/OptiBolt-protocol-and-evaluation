@@ -273,14 +273,24 @@ module power_negotiator #(
           // Sink: Receive PDOs until 0x7F
           S_SNK_WAIT_PDOS: begin
             pwr_status_code <= STAT_RECEIVING;
+            timer           <= timer + 32'd1;
             if (proto_rx_valid && proto_rx_type == MSG_POWER) begin
               if (proto_rx_data == 8'h7F) begin
                 // Source finished sending PDOs -> evaluate matching requirements
+                timer <= '0;
                 state <= S_SNK_SEND_REQ;
               end else if (proto_rx_data[7:6] == 2'b01) begin
-                // Store Source PDO
+                // Store Source PDO and reset timer
+                timer <= '0;
                 peer_out_amps[proto_rx_data[5:4]] <= proto_rx_data[3:0];
+              end else if (proto_rx_data[7:4] == 4'h0 && proto_rx_data[1:0] != ROLE_NONE) begin
+                // Source re-announced role
+                timer <= '0;
+                for (int i = 0; i < 4; i++) peer_out_amps[i] <= 4'd0;
               end
+            end else if (timer >= RETRY_TICKS) begin
+              // Timeout waiting for PDOs -> re-advertise Sink role to prompt Source
+              state <= S_DISCOVER_SEND;
             end
           end
 
@@ -377,6 +387,7 @@ module power_negotiator #(
           // Sink: Wait for ACCEPT
           S_SNK_WAIT_RESP: begin
             pwr_status_code <= STAT_RECEIVING;
+            timer           <= timer + 32'd1;
             if (proto_rx_valid && proto_rx_type == MSG_POWER) begin
               if (proto_rx_data[7:6] == 2'b11) begin
                 contract_active      <= 1'b1;
@@ -390,6 +401,9 @@ module power_negotiator #(
                 pwr_status_code <= STAT_ERROR;
                 state           <= S_ERROR;
               end
+            end else if (timer >= RETRY_TICKS) begin
+              // Retry sending Request
+              state <= S_SNK_SEND_REQ;
             end
           end
 

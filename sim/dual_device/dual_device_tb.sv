@@ -141,10 +141,67 @@ module dual_device_tb;
   // Clock generation: 100MHz (10ns period)
   always #5 clk = ~clk;
 
+  logic a_active_is_source;
+  logic b_active_is_source;
   logic [1:0] a_link_status;
   logic [1:0] b_link_status;
-  logic       a_tx_empty_sig;
-  logic       b_tx_empty_sig;
+  logic a_tx_empty_sig;
+  logic b_tx_empty_sig;
+
+  // Handshake interfaces for Board A & B
+  logic       a_hs_tx_req, a_hs_tx_ack;
+  logic [2:0] a_hs_tx_type;
+  logic [7:0] a_hs_tx_data;
+  logic       a_carrier_in;
+
+  logic       b_hs_tx_req, b_hs_tx_ack;
+  logic [2:0] b_hs_tx_type;
+  logic [7:0] b_hs_tx_data;
+  logic       b_carrier_in;
+
+  link_handshake #(
+      .RETRY_TICKS     (50),
+      .HEARTBEAT_TICKS (200),
+      .LINK_ALIVE_TICKS(500),
+      .PRNG_SEED       (16'hACE1)
+  ) u_link_hs_a (
+      .clk                             (clk),
+      .rst_n                           (rst_n),
+      .proto_eval_rx_valid             (b_to_a_valid),
+      .proto_eval_rx_type              (b_to_a_type),
+      .proto_eval_rx_data              (b_to_a_data),
+      .proto_eval_preamble_error       (1'b0),
+      .proto_eval_manchester_code_error(1'b0),
+      .proto_eval_rx_carrier           (a_carrier_in),
+      .speed_updated_pulse             (1'b0),
+      .hs_tx_req                       (a_hs_tx_req),
+      .hs_tx_type                      (a_hs_tx_type),
+      .hs_tx_data                      (a_hs_tx_data),
+      .hs_tx_ack                       (a_hs_tx_ack),
+      .link_status                     (a_link_status)
+  );
+
+  link_handshake #(
+      .RETRY_TICKS     (50),
+      .HEARTBEAT_TICKS (200),
+      .LINK_ALIVE_TICKS(500),
+      .PRNG_SEED       (16'h53A9)
+  ) u_link_hs_b (
+      .clk                             (clk),
+      .rst_n                           (rst_n),
+      .proto_eval_rx_valid             (a_to_b_valid),
+      .proto_eval_rx_type              (a_to_b_type),
+      .proto_eval_rx_data              (a_to_b_data),
+      .proto_eval_preamble_error       (1'b0),
+      .proto_eval_manchester_code_error(1'b0),
+      .proto_eval_rx_carrier           (b_carrier_in),
+      .speed_updated_pulse             (1'b0),
+      .hs_tx_req                       (b_hs_tx_req),
+      .hs_tx_type                      (b_hs_tx_type),
+      .hs_tx_data                      (b_hs_tx_data),
+      .hs_tx_ack                       (b_hs_tx_ack),
+      .link_status                     (b_link_status)
+  );
 
   // DUT A: Board A (Source / Wall)
   evaluation_controller #(
@@ -189,10 +246,10 @@ module dual_device_tb;
       .color_pre                        (),
       .color_par                        (),
       .color_hlt                        (),
-      .hs_tx_req                        (),
-      .hs_tx_type                       (),
-      .hs_tx_data                       (),
-      .hs_tx_ack                        (),
+      .hs_tx_req                        (a_hs_tx_req),
+      .hs_tx_type                       (a_hs_tx_type),
+      .hs_tx_data                       (a_hs_tx_data),
+      .hs_tx_ack                        (a_hs_tx_ack),
       .link_status                      (a_link_status),
       .eval_proto_baud_rate             (a_proto_baud_rate),
       .eval_proto_oversampling          (a_proto_oversampling),
@@ -208,7 +265,7 @@ module dual_device_tb;
       .proto_eval_parity_error          (1'b0),
       .proto_eval_manchester_code_error (1'b0),
       .proto_eval_preamble_error        (1'b0),
-      .proto_eval_rx_carrier            (a_link_status != 2'b00),
+      .proto_eval_rx_carrier            (a_carrier_in),
       .proto_eval_link_status           (a_link_status == 2'b01),
       .proto_eval_ber_count             ('0),
       .proto_eval_err_count             ('0),
@@ -216,6 +273,7 @@ module dual_device_tb;
       .active_voltage_id                (a_pwr_active_volt_id),
       .active_amps                      (a_pwr_active_amps),
       .contract_active                  (a_pwr_contract_active),
+      .active_is_source                 (a_active_is_source),
       .eval_failover_en                 ()
   );
 
@@ -262,10 +320,10 @@ module dual_device_tb;
       .color_pre                        (),
       .color_par                        (),
       .color_hlt                        (),
-      .hs_tx_req                        (),
-      .hs_tx_type                       (),
-      .hs_tx_data                       (),
-      .hs_tx_ack                        (),
+      .hs_tx_req                        (b_hs_tx_req),
+      .hs_tx_type                       (b_hs_tx_type),
+      .hs_tx_data                       (b_hs_tx_data),
+      .hs_tx_ack                        (b_hs_tx_ack),
       .link_status                      (b_link_status),
       .eval_proto_baud_rate             (b_proto_baud_rate),
       .eval_proto_oversampling          (b_proto_oversampling),
@@ -281,7 +339,7 @@ module dual_device_tb;
       .proto_eval_parity_error          (1'b0),
       .proto_eval_manchester_code_error (1'b0),
       .proto_eval_preamble_error        (1'b0),
-      .proto_eval_rx_carrier            (b_link_status != 2'b00),
+      .proto_eval_rx_carrier            (b_carrier_in),
       .proto_eval_link_status           (b_link_status == 2'b01),
       .proto_eval_ber_count             ('0),
       .proto_eval_err_count             ('0),
@@ -289,6 +347,7 @@ module dual_device_tb;
       .active_voltage_id                (b_pwr_active_volt_id),
       .active_amps                      (b_pwr_active_amps),
       .contract_active                  (b_pwr_contract_active),
+      .active_is_source                 (b_active_is_source),
       .eval_failover_en                 ()
   );
 
@@ -380,8 +439,8 @@ module dual_device_tb;
     clk = 0;
     rst_n = 0;
 
-    a_link_status  = 2'b01;
-    b_link_status  = 2'b01;
+    a_carrier_in   = 1'b1;
+    b_carrier_in   = 1'b1;
     a_tx_empty_sig = 1'b1;
     b_tx_empty_sig = 1'b1;
 
@@ -408,6 +467,31 @@ module dual_device_tb;
     $display("==================================================================");
     $display("=== STARTING DUAL DEVICE CROSS-BOARD INTEGRATION TESTS ===");
     $display("==================================================================");
+
+    // -------------------------------------------------------------------------
+    // TEST 0: 2-Way Handshake & 1-Cable Simplex Disconnect Handling
+    // -------------------------------------------------------------------------
+    $display("[TEST 0] Testing 2-Way Duplex Link Handshake...");
+    #2000;
+    assert (a_link_status == 2'b01 && b_link_status == 2'b01)
+    else $error("Both boards should establish duplex CONNECTED status");
+    $display("[PASS] Test 0: Duplex link established!");
+
+    $display("[TEST 0] Testing 1-Cable Simplex Disconnect (B->A cut, A->B intact)...");
+    a_carrier_in = 1'b0;
+    b_carrier_in = 1'b1;
+    #10000;
+    assert (a_link_status == 2'b00) else $error("Board A should be DISCONNECTED (no carrier)");
+    assert (b_link_status == 2'b00) else $error("Board B should be DISCONNECTED when peer cannot ACK");
+    $display("[PASS] Test 0: 1-Cable disconnect cleanly recognized by both boards!");
+
+    $display("[TEST 0] Reconnecting optical cables (duplex restored)...");
+    a_carrier_in = 1'b1;
+    b_carrier_in = 1'b1;
+    #3000;
+    assert (a_link_status == 2'b01 && b_link_status == 2'b01)
+    else $error("Both boards should re-establish CONNECTED status");
+    $display("[PASS] Test 0: Duplex link cleanly re-established!");
 
     // -------------------------------------------------------------------------
     // TEST 1: Cross-Board Chat (Board A types 'hello', Board B receives it)
@@ -459,7 +543,9 @@ module dual_device_tb;
     else $error("Contract voltage mismatch (expected 20V id=3)");
     assert (a_pwr_active_amps == 4'd3 && b_pwr_active_amps == 4'd3) // 3A
     else $error("Contract amps mismatch (expected 3A)");
-    $display("[PASS] Test 2.1: Dual device power contract established 20V @ 3A (60W)!");
+    assert (a_active_is_source == 1'b1 && b_active_is_source == 1'b0)
+    else $error("Role mismatch: Board A must be SOURCE (1), Board B must be SINK/RECEIVER (0)");
+    $display("[PASS] Test 2.1: Dual device power contract established 20V @ 3A (A=SOURCE, B=RECEIVER)!");
 
     $display("[TEST 2] Verifying /power status command output on Board A and B...");
     a_exec("/power status");
@@ -467,8 +553,8 @@ module dual_device_tb;
     $display("[PASS] Test 2.2: /power status successfully executed on both boards.");
 
     $display("[TEST 2] Simulating optical cable disconnect...");
-    a_link_status = 2'b00;
-    b_link_status = 2'b00;
+    a_carrier_in = 1'b0;
+    b_carrier_in = 1'b0;
     #1000;
     assert (!a_pwr_contract_active && !b_pwr_contract_active)
     else $error("Contract should be inactive on cable disconnect");
@@ -477,15 +563,15 @@ module dual_device_tb;
     $display("[PASS] Test 2.3: Disconnect cleanly reverted status to READY.");
 
     $display("[TEST 2] Simulating optical cable reconnect (auto-renegotiation)...");
-    a_link_status = 2'b01;
-    b_link_status = 2'b01;
-    #3000;
+    a_carrier_in = 1'b1;
+    b_carrier_in = 1'b1;
+    #4000;
     assert (a_pwr_contract_active && b_pwr_contract_active)
     else $error("Contract failed to automatically renegotiate on reconnect");
     $display("[PASS] Test 2.4: Reconnection automatically re-established 20V @ 3A contract!");
 
     // -------------------------------------------------------------------------
-    // TEST 3: Contract Termination via /power off
+    // TEST 3: Contract Termination via /power off & Re-arming
     // -------------------------------------------------------------------------
     $display("[TEST 3] Disconnecting power contract via /power off on Board A...");
     a_exec("/power off");
@@ -497,6 +583,17 @@ module dual_device_tb;
     assert (b_pwr_status_code == 3'd1) // Board B is READY (still waiting)
     else $error("Board B should be READY after peer power off");
     $display("[PASS] Test 3: Power OFF cleanly released contract, A=NOT_READY, B=READY.");
+
+    $display("[TEST 3.1] Re-arming Board A after power off (verifying not stuck in NOT READY)...");
+    a_exec("/power role wall");
+    a_exec("/power out 20 3");
+    a_exec("/power ready");
+    #4000;
+    assert (a_pwr_contract_active && b_pwr_contract_active)
+    else $error("Re-arming failed: boards did not establish contract");
+    assert (a_active_is_source == 1'b1 && b_active_is_source == 1'b0)
+    else $error("Active role mismatch after re-arm");
+    $display("[PASS] Test 3.1: Successfully re-armed Board A and re-established power contract!");
 
     // -------------------------------------------------------------------------
     // TEST 4: Streaming 128x128 PRNG Bitmap from Board A to Board B

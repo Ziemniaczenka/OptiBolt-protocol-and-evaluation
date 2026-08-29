@@ -13,8 +13,10 @@
  */
 
 module link_handshake #(
-    parameter int RETRY_TICKS     = 500_000,    // 5ms retry interval while searching for connection
-    parameter int HEARTBEAT_TICKS = 50_000_000  // 500ms periodic link testing interval while connected
+    parameter int RETRY_TICKS      = 500_000,    // 5ms retry interval while searching for connection
+    parameter int HEARTBEAT_TICKS  = 50_000_000,  // 500ms periodic link testing interval
+    parameter int LINK_ALIVE_TICKS = 150_000_000, // 1.5s timeout: drop link if no peer ACK received
+    parameter logic [15:0] PRNG_SEED = 16'hACE1
 ) (
     input logic clk,
     input logic rst_n,
@@ -43,12 +45,14 @@ module link_handshake #(
   import protocol_pkg::*;
 
   localparam logic [1:0] LINK_DISCONNECTED = 2'b00;
-  localparam logic [1:0] LINK_CONNECTED = 2'b01;
-  localparam logic [1:0] LINK_LOOPBACK = 2'b10;
+  localparam logic [1:0] LINK_CONNECTED    = 2'b01;
+  localparam logic [1:0] LINK_LOOPBACK     = 2'b10;
 
   // PRNG Instantiation using pixel_prng module (free-running on clk)
   logic [7:0] prng_byte;
-  pixel_prng u_hs_prng (
+  pixel_prng #(
+      .SEED(PRNG_SEED)
+  ) u_hs_prng (
       .clk(clk),
       .rst_n(rst_n),
       .next_pixel(1'b1),  // Advances every clock cycle
@@ -56,35 +60,37 @@ module link_handshake #(
       .pixel_byte(prng_byte)
   );
 
-  // Connect retry timer & connected heartbeat timer
-  logic [$clog2(RETRY_TICKS+1)-1:0]     retry_cnt;
-  logic [$clog2(HEARTBEAT_TICKS+1)-1:0] heartbeat_cnt;
+  // Timers
+  logic [$clog2(RETRY_TICKS+1)-1:0]      retry_cnt;
+  logic [$clog2(HEARTBEAT_TICKS+1)-1:0]  heartbeat_cnt;
+  logic [$clog2(LINK_ALIVE_TICKS+1)-1:0] link_alive_cnt;
 
-  logic [                      7:0] my_challenge;
-  logic                             challenge_latched;
-  logic                             pending_challenge_tx;
-  logic                             pending_ack_tx;
-  logic [                      7:0] ack_payload;
-  logic                             rx_carrier_d1;
-  logic [                     15:0] man_err_burst_cnt;
+  logic [ 7:0] my_challenge;
+  logic        challenge_latched;
+  logic        pending_challenge_tx;
+  logic        pending_ack_tx;
+  logic [ 7:0] peer_challenge_to_ack;
+  logic        rx_carrier_d1;
+  logic [15:0] man_err_burst_cnt;
 
-  wire                              rx_carrier_rose = proto_eval_rx_carrier && !rx_carrier_d1;
+  wire rx_carrier_rose = proto_eval_rx_carrier && !rx_carrier_d1;
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-      link_status          <= LINK_DISCONNECTED;
-      retry_cnt            <= '0;
-      heartbeat_cnt        <= '0;
-      my_challenge         <= 8'hA5;
-      challenge_latched    <= 1'b0;
-      pending_challenge_tx <= 1'b0;
-      pending_ack_tx       <= 1'b0;
-      ack_payload          <= 8'h00;
-      hs_tx_req            <= 1'b0;
-      hs_tx_type           <= MSG_CAPABILITIES;
-      hs_tx_data           <= 8'h00;
-      rx_carrier_d1        <= 1'b0;
-      man_err_burst_cnt    <= 16'd0;
+      link_status           <= LINK_DISCONNECTED;
+      retry_cnt             <= '0;
+      heartbeat_cnt         <= '0;
+      link_alive_cnt        <= '0;
+      my_challenge          <= 8'hA5;
+      challenge_latched     <= 1'b0;
+      pending_challenge_tx  <= 1'b0;
+      pending_ack_tx        <= 1'b0;
+      peer_challenge_to_ack <= 8'h00;
+      hs_tx_req             <= 1'b0;
+      hs_tx_type            <= MSG_CAPABILITIES;
+      hs_tx_data            <= 8'h00;
+      rx_carrier_d1         <= 1'b0;
+      man_err_burst_cnt     <= 16'd0;
     end else begin
       rx_carrier_d1 <= proto_eval_rx_carrier;
 
@@ -97,6 +103,7 @@ module link_handshake #(
         pending_challenge_tx <= 1'b1;
         retry_cnt            <= '0;
         heartbeat_cnt        <= '0;
+        link_alive_cnt       <= '0;
         man_err_burst_cnt    <= 16'd0;
       end else if (!proto_eval_rx_carrier) begin
         challenge_latched <= 1'b0;
@@ -110,16 +117,18 @@ module link_handshake #(
         pending_challenge_tx <= 1'b1;
         retry_cnt            <= '0;
         heartbeat_cnt        <= '0;
+        link_alive_cnt       <= '0;
         link_status          <= LINK_DISCONNECTED;
         pending_ack_tx       <= 1'b0;
         man_err_burst_cnt    <= 16'd0;
       end
 
       // ---------------------------------------------------------------------
-      // 3. Retry challenge while disconnected; Periodic Heartbeat while connected
+      // 3. Periodic Challenge Transmit & Link Alive Watchdog
       // ---------------------------------------------------------------------
       if (proto_eval_rx_carrier && link_status == LINK_DISCONNECTED) begin
-        heartbeat_cnt <= '0;
+        heartbeat_cnt  <= '0;
+        link_alive_cnt <= '0;
         if (retry_cnt >= RETRY_TICKS - 1) begin
           retry_cnt            <= '0;
           pending_challenge_tx <= 1'b1;
@@ -128,19 +137,33 @@ module link_handshake #(
         end
       end else if (proto_eval_rx_carrier && link_status != LINK_DISCONNECTED) begin
         retry_cnt <= '0;
+        // Heartbeat periodic challenge sender
         if (heartbeat_cnt >= HEARTBEAT_TICKS - 1) begin
           heartbeat_cnt        <= '0;
           pending_challenge_tx <= 1'b1;
         end else begin
           heartbeat_cnt <= heartbeat_cnt + 1;
         end
+
+        // Duplex Link Alive Watchdog: must receive peer ACKs to remain CONNECTED
+        if (link_status == LINK_CONNECTED) begin
+          if (link_alive_cnt >= LINK_ALIVE_TICKS - 1) begin
+            link_status    <= LINK_DISCONNECTED;
+            link_alive_cnt <= '0;
+          end else begin
+            link_alive_cnt <= link_alive_cnt + 1;
+          end
+        end else begin
+          link_alive_cnt <= '0;
+        end
       end else begin
-        retry_cnt     <= '0;
-        heartbeat_cnt <= '0;
+        retry_cnt      <= '0;
+        heartbeat_cnt  <= '0;
+        link_alive_cnt <= '0;
       end
 
       // ---------------------------------------------------------------------
-      // 4. Manchester Code Error Burst Monitor: drop link on persistent decode errors
+      // 4. Manchester Code Error Burst Monitor
       // ---------------------------------------------------------------------
       if (proto_eval_manchester_code_error) begin
         if (man_err_burst_cnt < 16'd50_000) begin
@@ -150,11 +173,12 @@ module link_handshake #(
           link_status          <= LINK_DISCONNECTED;
           pending_challenge_tx <= 1'b1;
           retry_cnt            <= '0;
+          link_alive_cnt       <= '0;
         end
       end
 
       // ---------------------------------------------------------------------
-      // 5. TX Request Arbiter Handshake
+      // 5. TX Request Arbiter Handshake (ACKs have priority over Challenges)
       // ---------------------------------------------------------------------
       if (hs_tx_ack) begin
         if (pending_ack_tx) begin
@@ -165,42 +189,45 @@ module link_handshake #(
         hs_tx_req <= 1'b0;
       end else if (pending_ack_tx) begin
         hs_tx_req  <= 1'b1;
-        hs_tx_type <= MSG_ACCEPT;
-        hs_tx_data <= ack_payload;
+        hs_tx_type <= MSG_ACCEPT;          // Type 2: Handshake Response ACK
+        hs_tx_data <= peer_challenge_to_ack;
       end else if (pending_challenge_tx) begin
         hs_tx_req  <= 1'b1;
-        hs_tx_type <= MSG_CAPABILITIES;
+        hs_tx_type <= MSG_CAPABILITIES;    // Type 1: Handshake Challenge
         hs_tx_data <= my_challenge;
       end else begin
         hs_tx_req <= 1'b0;
       end
 
       // ---------------------------------------------------------------------
-      // 6. RX Packet Processing & Status Latching
+      // 6. RX Packet Processing & 2-Way Handshake Validation
       // ---------------------------------------------------------------------
       if (!proto_eval_rx_carrier) begin
         // Optical signal physically lost -> immediate disconnect
-        link_status       <= LINK_DISCONNECTED;
-        pending_ack_tx    <= 1'b0;
-        man_err_burst_cnt <= 16'd0;
+        link_status           <= LINK_DISCONNECTED;
+        pending_ack_tx        <= 1'b0;
+        link_alive_cnt        <= '0;
+        man_err_burst_cnt     <= 16'd0;
       end else if (proto_eval_rx_valid) begin
-        man_err_burst_cnt <= 16'd0;  // Valid packet clears error burst counter
+        man_err_burst_cnt <= 16'd0;
 
         if (proto_eval_rx_type == MSG_CAPABILITIES) begin
+          // Message 1 (Challenge):
           if (proto_eval_rx_data == my_challenge) begin
-            /* Own token received back -> loopback confirmed */
+            /* Own token received with Type 1 header -> confirmed LOOPBACK */
             link_status    <= LINK_LOOPBACK;
-            pending_ack_tx <= 1'b0; // Suppress ACK to self in loopback
+            pending_ack_tx <= 1'b0;
           end else begin
-            // Different token received from another board -> CONNECTED
-            link_status    <= LINK_CONNECTED;
-            pending_ack_tx <= 1'b1;
-            ack_payload    <= proto_eval_rx_data + 8'h01;
+            /* Peer board token received -> schedule Type 2 ACK with peer's ID */
+            pending_ack_tx        <= 1'b1;
+            peer_challenge_to_ack <= proto_eval_rx_data;
           end
         end else if (proto_eval_rx_type == MSG_ACCEPT) begin
-          // Remote board acknowledged our token -> CONNECTED (unless in confirmed loopback)
-          if (link_status != LINK_LOOPBACK) begin
-            link_status <= LINK_CONNECTED;
+          // Message 2 (Response / ACK):
+          if (proto_eval_rx_data == my_challenge && link_status != LINK_LOOPBACK) begin
+            /* Peer acknowledged our challenge token -> DUPLEX CONNECTED confirmed! */
+            link_status    <= LINK_CONNECTED;
+            link_alive_cnt <= '0;  // Refresh keepalive watchdog
           end
         end
       end
