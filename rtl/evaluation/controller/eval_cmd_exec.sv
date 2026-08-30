@@ -141,11 +141,11 @@ module eval_cmd_exec #(
   // Bitmap report buffer
   logic [ 7:0] bmp_msg_buf  [0:63];
 
-  // BCD conversion registers (Double-Dabble)
-  logic [31:0] bcd_reg;
+  // 10-digit BCD conversion registers (Double-Dabble)
+  logic [39:0] bcd_reg;
   logic [31:0] bin_reg;
   logic [ 5:0] bcd_cnt;
-  logic [ 3:0] bcd_d [0:7];
+  logic [ 3:0] bcd_d [0:9];
   logic        fmt_is_bitmap;
   logic        fmt_report_is_rx;
 
@@ -157,6 +157,9 @@ module eval_cmd_exec #(
   logic        fmt_lead_zero;
 
   // Sweep registers
+  logic        sweep_master_active;
+  logic        remote_sweep_active;
+  logic [27:0] remote_sweep_timer;
   logic [ 4:0] sweep_step;
   logic [ 4:0] sweep_print_step;
   logic [31:0] sweep_timer;
@@ -165,7 +168,9 @@ module eval_cmd_exec #(
   logic [ 4:0] sweep_rx_count;
   logic        sweep_had_error;
 
-  // Combinational Power Status Message Character Generator (Zero Register Overhead)
+  assign sweep_active = sweep_master_active || remote_sweep_active;
+
+  // Combinational Power Status Message Character Generator
   function automatic logic [7:0] get_pwr_char(
       input logic [10:0] idx,
       input logic [ 3:0] in_a[4],
@@ -281,7 +286,7 @@ module eval_cmd_exec #(
       set_speed_req         <= 1'b0;
       req_baud_rate         <= 4'd1;
       req_oversampling      <= 4'd0;
-      failover_en           <= 1'b1; // Failover enabled by default
+      failover_en           <= 1'b1;
       proto_tx_valid        <= 1'b0;
       proto_tx_type         <= 3'b000;
       proto_tx_data         <= 8'h00;
@@ -310,11 +315,13 @@ module eval_cmd_exec #(
       fmt_digit_idx         <= '0;
       fmt_text_idx          <= '0;
       fmt_lead_zero         <= 1'b1;
+      sweep_master_active   <= 1'b0;
+      remote_sweep_active   <= 1'b0;
+      remote_sweep_timer    <= '0;
       sweep_step            <= '0;
       sweep_print_step      <= '0;
       sweep_timer           <= '0;
       sweep_pkt_gap         <= '0;
-      sweep_active          <= 1'b0;
       sweep_tx_count        <= '0;
       sweep_rx_count        <= '0;
       sweep_had_error       <= 1'b0;
@@ -325,7 +332,7 @@ module eval_cmd_exec #(
         cfg_in_amps[i]  <= 4'd0;
         cfg_out_amps[i] <= 4'd0;
       end
-      for (int i = 0; i < 8; i++) bcd_d[i] <= 4'd0;
+      for (int i = 0; i < 10; i++) bcd_d[i] <= 4'd0;
       for (int i = 0; i < 64; i++) begin
         ping_msg_buf[i] <= 8'h00;
         bmp_msg_buf[i]  <= 8'h00;
@@ -338,7 +345,7 @@ module eval_cmd_exec #(
       proto_tx_valid    <= 1'b0;
       cfg_clear         <= 1'b0;
 
-      // Global incoming Ping Request responder (for dual-device and loopback):
+      // Ping Request responder
       if (proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data == CMD_PING_REQ) begin
         proto_tx_valid <= 1'b1;
         proto_tx_type  <= MSG_REQUEST;
@@ -347,19 +354,34 @@ module eval_cmd_exec #(
 
       // Remote Sweep notification listeners
       if (proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data == CMD_SWEEP_START) begin
-        sweep_active <= 1'b1;
+        remote_sweep_active <= 1'b1;
+        remote_sweep_timer  <= '0;
       end else if (proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data == CMD_SWEEP_END) begin
-        sweep_active <= 1'b0;
+        remote_sweep_active <= 1'b0;
+        remote_sweep_timer  <= '0;
       end
 
-      // Remote Sweep Test Packet Echo (dual-device mode):
+      // Remote Sweep Responder auto-timeout (2.0s without packets restores normal mode)
+      if (remote_sweep_active) begin
+        if (remote_sweep_timer < 28'd200_000_000) begin
+          remote_sweep_timer <= remote_sweep_timer + 28'd1;
+        end else begin
+          remote_sweep_active <= 1'b0;
+          remote_sweep_timer  <= '0;
+        end
+      end else begin
+        remote_sweep_timer <= '0;
+      end
+
+      // Remote Sweep Test Packet Echo (dual-device mode)
       if (link_status == 2'b01 && proto_rx_valid && proto_rx_type == MSG_SWEEP && state == E_IDLE) begin
-        proto_tx_valid <= 1'b1;
-        proto_tx_type  <= MSG_SWEEP;
-        proto_tx_data  <= proto_rx_data;
+        proto_tx_valid     <= 1'b1;
+        proto_tx_type      <= MSG_SWEEP;
+        proto_tx_data      <= proto_rx_data;
+        remote_sweep_timer <= '0; // Reset watchdog on active sweep traffic
       end
 
-      // Latch incoming bitmap reception completion pulse from evaluation_controller
+      // Incoming bitmap reception completion pulse
       if (bmp_rx_done_pulse) begin
         bmp_pending_rx        <= 1'b1;
         bmp_pending_rx_cycles <= bmp_rx_cycles;
@@ -389,7 +411,7 @@ module eval_cmd_exec #(
         end
       end
 
-      // Automatic failover alert notification (only when failover enabled and not during sweep)
+      // Automatic failover alert notification
       if (failover_triggered && state == E_IDLE && failover_en && !sweep_active && !print_valid) begin
         msg_src <= SRC_FAILOVER_ALERT;
         msg_idx <= '0;
@@ -399,13 +421,13 @@ module eval_cmd_exec #(
 
       case (state)
         // -------------------------------------------------------------------
-        // Idle: check CLI echo requests, parsed commands, and telemetry pulses
+        // Idle
         // -------------------------------------------------------------------
         E_IDLE: begin
           if (echo_req) begin
             msg_src     <= SRC_ECHO;
             msg_idx     <= (cmd_buf[2] == "/") ? 11'd2 : 11'd0;
-            msg_len     <= cmd_len + 11'd1; // Include trailing '\n'
+            msg_len     <= cmd_len + 11'd1;
             echo_ack    <= 1'b1;
             pending_cmd <= cmd_valid;
             state       <= E_STREAM_MSG;
@@ -435,22 +457,26 @@ module eval_cmd_exec #(
                 end
               end
               ITEM_SWEEP_BTN: begin
-                sweep_step        <= 5'd0;
-                sweep_print_step  <= 5'd0;
-                sweep_timer       <= '0;
-                sweep_pkt_gap     <= '0;
-                sweep_active      <= 1'b1;
-                sweep_tx_count    <= 4'd0;
-                sweep_rx_count    <= 4'd0;
-                sweep_had_error   <= 1'b0;
-                popup_mode        <= POPUP_PROGRESS;
-                progress_val      <= 8'd0;
-                if (link_status == 2'b01) begin
-                  proto_tx_valid <= 1'b1;
-                  proto_tx_type  <= MSG_REQUEST;
-                  proto_tx_data  <= CMD_SWEEP_START;
+                if (link_status == 2'b00) begin
+                  msg_src <= SRC_ERR_DISCONN; msg_len <= 11'd25; msg_idx <= '0; state <= E_STREAM_MSG;
+                end else begin
+                  sweep_master_active <= 1'b1;
+                  sweep_step          <= 5'd0;
+                  sweep_print_step    <= 5'd0;
+                  sweep_timer         <= '0;
+                  sweep_pkt_gap       <= '0;
+                  sweep_tx_count      <= 4'd0;
+                  sweep_rx_count      <= 4'd0;
+                  sweep_had_error     <= 1'b0;
+                  popup_mode          <= POPUP_PROGRESS;
+                  progress_val        <= 8'd0;
+                  if (link_status == 2'b01) begin
+                    proto_tx_valid <= 1'b1;
+                    proto_tx_type  <= MSG_REQUEST;
+                    proto_tx_data  <= CMD_SWEEP_START;
+                  end
+                  msg_src <= SRC_SWEEP_START; msg_len <= 11'd27; msg_idx <= '0; state <= E_STREAM_MSG;
                 end
-                msg_src <= SRC_SWEEP_START; msg_len <= 11'd27; msg_idx <= '0; state <= E_STREAM_MSG;
               end
               ITEM_SNDBMP_BTN: begin
                 if (link_status == 2'b00) begin
@@ -491,18 +517,18 @@ module eval_cmd_exec #(
         // Parse and Execute Command
         // -------------------------------------------------------------------
         E_PARSE_CMD: begin
-          msg_idx <= '0; // Always reset msg_idx to 0!
+          msg_idx <= '0;
 
           if (cmd_buf[2] != "/") begin
-            // Normal chat message: stream payload over OptiBolt protocol as MSG_TEXT
+            // Normal chat message
             if (link_status != 2'b00) begin
-              tx_chat_idx <= 11'd2; // Start from first character after "> "
+              tx_chat_idx <= 11'd2;
               state       <= E_TX_CHAT;
             end else begin
               msg_src <= SRC_ERR_DISCONN; msg_len <= 11'd25; state <= E_STREAM_MSG;
             end
           end else begin
-            // Local slash commands
+            // Slash commands
             logic [3:0] target_rate, target_os;
             logic valid_rate;
             target_rate = 4'd1; target_os = 4'd0;
@@ -554,20 +580,18 @@ module eval_cmd_exec #(
             end else if (cmd_len >= 5 && cmd_buf[3]=="o" && cmd_buf[4]=="s") begin
               if (cmd_len >= 7 && cmd_buf[5] == " ") begin
                 if (cmd_buf[6] == "8" && (cmd_len == 7 || cmd_buf[7] == "x" || cmd_buf[7] == "X")) begin
-                  req_baud_rate    <= active_baud_rate; // PRESERVE active baud rate!
-                  req_oversampling <= 4'd0;             // 8x
+                  req_baud_rate    <= active_baud_rate;
+                  req_oversampling <= 4'd0;
                   set_speed_req    <= 1'b1;
                   msg_src <= SRC_BAUD_SET; msg_len <= 11'd16;
                 end else if (cmd_buf[6] == "1" && cmd_buf[7] == "6" && (cmd_len == 8 || cmd_buf[8] == "x" || cmd_buf[8] == "X")) begin
-                  // 16x is supported on 100k (0), 1.25m (2), 2.5m (3), 3.125m (4), 6.25m (6), 12.5m (8)
                   if (active_baud_rate == 4'd0 || active_baud_rate == 4'd2 || active_baud_rate == 4'd3 ||
                       active_baud_rate == 4'd4 || active_baud_rate == 4'd6 || active_baud_rate == 4'd8) begin
-                    req_baud_rate    <= active_baud_rate; // PRESERVE active baud rate!
-                    req_oversampling <= 4'd1;             // 16x
+                    req_baud_rate    <= active_baud_rate;
+                    req_oversampling <= 4'd1;
                     set_speed_req    <= 1'b1;
                     msg_src <= SRC_BAUD_SET; msg_len <= 11'd16;
                   end else begin
-                    // Clear error message when active baud rate does not support 16x
                     msg_src <= SRC_ERR_OS_UNSUPPORTED; msg_len <= 11'd45;
                   end
                 end else begin
@@ -604,44 +628,47 @@ module eval_cmd_exec #(
               clear_bmp_idx <= 14'd0;
               state         <= E_CLEAR_BITMAP;
             end else if (cmd_len >= 6 && cmd_buf[3]=="s" && cmd_buf[4]=="w" && cmd_buf[5]=="e") begin
-              sweep_step        <= 5'd0;
-              sweep_print_step  <= 5'd0;
-              sweep_timer       <= '0;
-              sweep_pkt_gap     <= '0;
-              sweep_active      <= 1'b1;
-              sweep_tx_count    <= 4'd0;
-              sweep_rx_count    <= 4'd0;
-              sweep_had_error   <= 1'b0;
-              show_progress     <= 1'b1;
-              popup_mode        <= POPUP_PROGRESS;
-              progress_val      <= 8'd0;
-              if (link_status == 2'b01) begin
-                proto_tx_valid <= 1'b1;
-                proto_tx_type  <= MSG_REQUEST;
-                proto_tx_data  <= CMD_SWEEP_START;
+              if (link_status == 2'b00) begin
+                msg_src <= SRC_ERR_DISCONN; msg_len <= 11'd25; state <= E_STREAM_MSG;
+              end else begin
+                sweep_master_active <= 1'b1;
+                sweep_step          <= 5'd0;
+                sweep_print_step    <= 5'd0;
+                sweep_timer         <= '0;
+                sweep_pkt_gap       <= '0;
+                sweep_tx_count      <= 4'd0;
+                sweep_rx_count      <= 4'd0;
+                sweep_had_error     <= 1'b0;
+                show_progress       <= 1'b1;
+                popup_mode          <= POPUP_PROGRESS;
+                progress_val        <= 8'd0;
+                if (link_status == 2'b01) begin
+                  proto_tx_valid <= 1'b1;
+                  proto_tx_type  <= MSG_REQUEST;
+                  proto_tx_data  <= CMD_SWEEP_START;
+                end
+                msg_src <= SRC_SWEEP_START; msg_len <= 11'd27; state <= E_STREAM_MSG;
               end
-              msg_src <= SRC_SWEEP_START; msg_len <= 11'd27; state <= E_STREAM_MSG;
             end else if (cmd_len >= 8 && cmd_buf[3]=="p" && cmd_buf[4]=="o" && cmd_buf[5]=="w" && cmd_buf[6]=="e" && cmd_buf[7]=="r") begin
               if (cmd_len >= 14 && cmd_buf[9]=="r" && cmd_buf[10]=="o" && cmd_buf[11]=="l" && cmd_buf[12]=="e" && cmd_buf[13]==" ") begin
                 if (cmd_len == 18 && (cmd_buf[14] == "w" || cmd_buf[14] == "W") && (cmd_buf[15] == "a" || cmd_buf[15] == "A") &&
                     (cmd_buf[16] == "l" || cmd_buf[16] == "L") && (cmd_buf[17] == "l" || cmd_buf[17] == "L")) begin
-                  cfg_role <= 2'd1; // WALL
+                  cfg_role <= 2'd1;
                   msg_src <= SRC_PWR_ROLE_SET; msg_len <= 11'd19; state <= E_STREAM_MSG;
                 end else if (cmd_len == 21 && (cmd_buf[14] == "b" || cmd_buf[14] == "B") && (cmd_buf[15] == "a" || cmd_buf[15] == "A") &&
                     (cmd_buf[16] == "t" || cmd_buf[16] == "T") && (cmd_buf[17] == "t" || cmd_buf[17] == "T") &&
                     (cmd_buf[18] == "e" || cmd_buf[18] == "E") && (cmd_buf[19] == "r" || cmd_buf[19] == "R") &&
                     (cmd_buf[20] == "y" || cmd_buf[20] == "Y")) begin
-                  cfg_role <= 2'd2; // BATTERY
+                  cfg_role <= 2'd2;
                   msg_src <= SRC_PWR_ROLE_SET; msg_len <= 11'd19; state <= E_STREAM_MSG;
                 end else if (cmd_len == 18 && (cmd_buf[14] == "s" || cmd_buf[14] == "S") && (cmd_buf[15] == "i" || cmd_buf[15] == "I") &&
                     (cmd_buf[16] == "n" || cmd_buf[16] == "N") && (cmd_buf[17] == "k" || cmd_buf[17] == "K")) begin
-                  cfg_role <= 2'd3; // SINK
+                  cfg_role <= 2'd3;
                   msg_src <= SRC_PWR_ROLE_SET; msg_len <= 11'd19; state <= E_STREAM_MSG;
                 end else begin
                   msg_src <= SRC_UNKNOWN; msg_len <= 11'd16; state <= E_STREAM_MSG;
                 end
               end else if (cmd_len >= 12 && cmd_buf[9]=="i" && cmd_buf[10]=="n" && cmd_buf[11]==" ") begin
-                // /power in <5|9|12|20> <0..9>
                 logic valid_pwr_in;
                 valid_pwr_in = 1'b0;
                 if (cmd_len == 15 && cmd_buf[12] == "5" && cmd_buf[13] == " " && cmd_buf[14] >= "0" && cmd_buf[14] <= "9") begin
@@ -664,7 +691,6 @@ module eval_cmd_exec #(
                   msg_src <= SRC_UNKNOWN; msg_len <= 11'd16; state <= E_STREAM_MSG;
                 end
               end else if (cmd_len >= 13 && cmd_buf[9]=="o" && cmd_buf[10]=="u" && cmd_buf[11]=="t" && cmd_buf[12]==" ") begin
-                // /power out <5|9|12|20> <0..9>
                 logic valid_pwr_out;
                 valid_pwr_out = 1'b0;
                 if (cmd_len == 16 && cmd_buf[13] == "5" && cmd_buf[14] == " " && cmd_buf[15] >= "0" && cmd_buf[15] <= "9") begin
@@ -706,7 +732,6 @@ module eval_cmd_exec #(
                 proto_tx_data  <= 8'hFE;
                 msg_src <= SRC_PWR_OFF; msg_len <= 11'd22; state <= E_STREAM_MSG;
               end else if (cmd_len >= 15 && cmd_buf[9]=="s" && cmd_buf[10]=="t" && cmd_buf[11]=="a") begin
-                // /power status : Show full power table
                 if (!contract_active) msg_len <= 11'd75;
                 else if (active_is_source) msg_len <= 11'd86;
                 else msg_len <= 11'd88;
@@ -732,7 +757,7 @@ module eval_cmd_exec #(
           end else if (print_ready) begin
             print_valid <= 1'b0;
             if (msg_idx == msg_len - 11'd1) begin
-              if (sweep_active) state <= E_SWEEP_STEP;
+              if (sweep_master_active) state <= E_SWEEP_STEP;
               else if (pending_cmd) begin
                 pending_cmd <= 1'b0;
                 state       <= E_PARSE_CMD;
@@ -746,23 +771,23 @@ module eval_cmd_exec #(
         end
 
         // -------------------------------------------------------------------
-        // Sequential Double-Dabble BCD Converter (32-bit Binary -> 8 BCD Digits)
+        // 10-Digit Double-Dabble BCD Converter (32-bit Binary -> 10 BCD Digits)
         // -------------------------------------------------------------------
         E_CONVERT_BCD: begin
           if (bcd_cnt > 0) begin
-            logic [31:0] bcd_next;
+            logic [39:0] bcd_next;
             bcd_next = bcd_reg;
-            for (int i = 0; i < 8; i++) begin
+            for (int i = 0; i < 10; i++) begin
               if (bcd_next[i*4 +: 4] >= 4'd5) bcd_next[i*4 +: 4] = bcd_next[i*4 +: 4] + 4'd3;
             end
-            bcd_reg <= {bcd_next[30:0], bin_reg[31]};
+            bcd_reg <= {bcd_next[38:0], bin_reg[31]};
             bin_reg <= {bin_reg[30:0], 1'b0};
             bcd_cnt <= bcd_cnt - 6'd1;
           end else begin
-            for (int i = 0; i < 8; i++) bcd_d[i] <= bcd_reg[i*4 +: 4];
+            for (int i = 0; i < 10; i++) bcd_d[i] <= bcd_reg[i*4 +: 4];
             fmt_ptr       <= 6'd0;
             fmt_phase     <= 3'd0;
-            fmt_digit_idx <= 4'd7;
+            fmt_digit_idx <= 4'd9;
             fmt_text_idx  <= 5'd0;
             fmt_lead_zero <= 1'b1;
             if (fmt_is_bitmap) state <= E_BMP_FMT_STEP;
@@ -771,7 +796,7 @@ module eval_cmd_exec #(
         end
 
         // -------------------------------------------------------------------
-        // Sequential Ping Result Formatter: "Ping: X cycles (Y.YY us)\n"
+        // Ping Result Formatter: "Ping: X cycles (Y.YY us)\n"
         // -------------------------------------------------------------------
         E_PING_FMT_STEP: begin
           case (fmt_phase)
@@ -791,14 +816,14 @@ module eval_cmd_exec #(
                   fmt_text_idx <= 5'd0;
                 end else begin
                   fmt_phase     <= 3'd1; // Digits
-                  fmt_digit_idx <= 4'd7;
+                  fmt_digit_idx <= 4'd9;
                   fmt_lead_zero <= 1'b1;
                   fmt_text_idx  <= 5'd0;
                 end
               end else fmt_text_idx <= fmt_text_idx + 5'd1;
             end
 
-            3'd1: begin // Decimal digits for clock cycles
+            3'd1: begin // Decimal digits for clock cycles (bcd_d[9:0])
               if (bcd_d[fmt_digit_idx] != 4'd0 || !fmt_lead_zero || fmt_digit_idx == 4'd0) begin
                 ping_msg_buf[fmt_ptr] <= 8'h30 + {4'd0, bcd_d[fmt_digit_idx]};
                 fmt_ptr <= fmt_ptr + 6'd1;
@@ -824,23 +849,32 @@ module eval_cmd_exec #(
               endcase
               fmt_ptr <= fmt_ptr + 6'd1;
               if (fmt_text_idx == 5'd8) begin
-                fmt_phase     <= 3'd3; // Microseconds integer digits
-                fmt_digit_idx <= 4'd7;
+                fmt_phase     <= 3'd3; // Microseconds integer digits (bcd_d[9:2])
+                fmt_digit_idx <= 4'd9;
                 fmt_lead_zero <= 1'b1;
                 fmt_text_idx  <= 5'd0;
               end else fmt_text_idx <= fmt_text_idx + 5'd1;
             end
 
-            3'd3: begin // Microseconds integer digits (bcd_d[7:2])
-              if (bcd_d[fmt_digit_idx] != 4'd0 || !fmt_lead_zero || fmt_digit_idx == 4'd2) begin
-                ping_msg_buf[fmt_ptr] <= 8'h30 + {4'd0, bcd_d[fmt_digit_idx]};
-                fmt_ptr <= fmt_ptr + 6'd1;
-                fmt_lead_zero <= 1'b0;
-              end
-              if (fmt_digit_idx == 4'd2) begin
-                fmt_phase    <= 3'd4; // Decimal point + fractions
+            3'd3: begin // Microseconds integer digits (100 cycles = 1 us -> bcd_d[9:2])
+              if (bcd_d[9] == 4'd0 && bcd_d[8] == 4'd0 && bcd_d[7] == 4'd0 &&
+                  bcd_d[6] == 4'd0 && bcd_d[5] == 4'd0 && bcd_d[4] == 4'd0 &&
+                  bcd_d[3] == 4'd0 && bcd_d[2] == 4'd0) begin
+                ping_msg_buf[fmt_ptr] <= "0";
+                fmt_ptr      <= fmt_ptr + 6'd1;
+                fmt_phase    <= 3'd4;
                 fmt_text_idx <= 5'd0;
-              end else fmt_digit_idx <= fmt_digit_idx - 4'd1;
+              end else begin
+                if (bcd_d[fmt_digit_idx] != 4'd0 || !fmt_lead_zero || fmt_digit_idx == 4'd2) begin
+                  ping_msg_buf[fmt_ptr] <= 8'h30 + {4'd0, bcd_d[fmt_digit_idx]};
+                  fmt_ptr <= fmt_ptr + 6'd1;
+                  fmt_lead_zero <= 1'b0;
+                end
+                if (fmt_digit_idx == 4'd2) begin
+                  fmt_phase    <= 3'd4;
+                  fmt_text_idx <= 5'd0;
+                end else fmt_digit_idx <= fmt_digit_idx - 4'd1;
+              end
             end
 
             3'd4: begin // "." then bcd_d[1], bcd_d[0]
@@ -851,7 +885,7 @@ module eval_cmd_exec #(
               endcase
               fmt_ptr <= fmt_ptr + 6'd1;
               if (fmt_text_idx == 5'd2) begin
-                fmt_phase    <= 3'd5; // " us)\n"
+                fmt_phase    <= 3'd5;
                 fmt_text_idx <= 5'd0;
               end else fmt_text_idx <= fmt_text_idx + 5'd1;
             end
@@ -901,11 +935,11 @@ module eval_cmd_exec #(
         end
 
         // -------------------------------------------------------------------
-        // Sequential Bitmap Timing Formatter: "Bitmap TX/RX: X cycles (Y.YY ms)\n"
+        // 10-Digit Bitmap Timing Formatter: "Bitmap TX/RX: X cycles (Y.YY ms)\n"
         // -------------------------------------------------------------------
         E_BMP_FMT_STEP: begin
           case (fmt_phase)
-            3'd0: begin // "Bitmap TX: " or "Bitmap RX: " (11 chars)
+            3'd0: begin // "Bitmap TX: " or "Bitmap RX: "
               case (fmt_text_idx)
                 5'd0:  bmp_msg_buf[fmt_ptr] <= "B";
                 5'd1:  bmp_msg_buf[fmt_ptr] <= "i";
@@ -921,14 +955,14 @@ module eval_cmd_exec #(
               endcase
               fmt_ptr <= fmt_ptr + 6'd1;
               if (fmt_text_idx == 5'd10) begin
-                fmt_phase     <= 3'd1; // Cycle digits
-                fmt_digit_idx <= 4'd7;
+                fmt_phase     <= 3'd1;
+                fmt_digit_idx <= 4'd9;
                 fmt_lead_zero <= 1'b1;
                 fmt_text_idx  <= 5'd0;
               end else fmt_text_idx <= fmt_text_idx + 5'd1;
             end
 
-            3'd1: begin // Decimal digits for clock cycles (bcd_d[7:0])
+            3'd1: begin // Decimal digits for clock cycles (bcd_d[9:0])
               if (bcd_d[fmt_digit_idx] != 4'd0 || !fmt_lead_zero || fmt_digit_idx == 4'd0) begin
                 bmp_msg_buf[fmt_ptr] <= 8'h30 + {4'd0, bcd_d[fmt_digit_idx]};
                 fmt_ptr <= fmt_ptr + 6'd1;
@@ -940,7 +974,7 @@ module eval_cmd_exec #(
               end else fmt_digit_idx <= fmt_digit_idx - 4'd1;
             end
 
-            3'd2: begin // " cycles (" (9 chars)
+            3'd2: begin // " cycles ("
               case (fmt_text_idx)
                 5'd0: bmp_msg_buf[fmt_ptr] <= " ";
                 5'd1: bmp_msg_buf[fmt_ptr] <= "c";
@@ -954,18 +988,19 @@ module eval_cmd_exec #(
               endcase
               fmt_ptr <= fmt_ptr + 6'd1;
               if (fmt_text_idx == 5'd8) begin
-                fmt_phase     <= 3'd3; // Milliseconds integer digits (bcd_d[7:5])
-                fmt_digit_idx <= 4'd7;
+                fmt_phase     <= 3'd3; // Milliseconds integer digits (bcd_d[9:5])
+                fmt_digit_idx <= 4'd9;
                 fmt_lead_zero <= 1'b1;
                 fmt_text_idx  <= 5'd0;
               end else fmt_text_idx <= fmt_text_idx + 5'd1;
             end
 
-            3'd3: begin // Milliseconds integer digits (10^5 cycles = 1 ms -> bcd_d[7:5])
-              if (bcd_d[7] == 4'd0 && bcd_d[6] == 4'd0 && bcd_d[5] == 4'd0) begin
+            3'd3: begin // Milliseconds integer digits (10^5 cycles = 1 ms -> bcd_d[9:5])
+              if (bcd_d[9] == 4'd0 && bcd_d[8] == 4'd0 && bcd_d[7] == 4'd0 &&
+                  bcd_d[6] == 4'd0 && bcd_d[5] == 4'd0) begin
                 bmp_msg_buf[fmt_ptr] <= "0";
                 fmt_ptr      <= fmt_ptr + 6'd1;
-                fmt_phase    <= 3'd4; // Fraction
+                fmt_phase    <= 3'd4;
                 fmt_text_idx <= 5'd0;
               end else begin
                 if (bcd_d[fmt_digit_idx] != 4'd0 || !fmt_lead_zero || fmt_digit_idx == 4'd5) begin
@@ -974,7 +1009,7 @@ module eval_cmd_exec #(
                   fmt_lead_zero <= 1'b0;
                 end
                 if (fmt_digit_idx == 4'd5) begin
-                  fmt_phase    <= 3'd4; // Fraction
+                  fmt_phase    <= 3'd4;
                   fmt_text_idx <= 5'd0;
                 end else fmt_digit_idx <= fmt_digit_idx - 4'd1;
               end
@@ -988,12 +1023,12 @@ module eval_cmd_exec #(
               endcase
               fmt_ptr <= fmt_ptr + 6'd1;
               if (fmt_text_idx == 5'd2) begin
-                fmt_phase    <= 3'd5; // " ms)\n"
+                fmt_phase    <= 3'd5;
                 fmt_text_idx <= 5'd0;
               end else fmt_text_idx <= fmt_text_idx + 5'd1;
             end
 
-            3'd5: begin // " ms)\n" (5 chars)
+            3'd5: begin // " ms)\n"
               case (fmt_text_idx)
                 5'd0: bmp_msg_buf[fmt_ptr] <= " ";
                 5'd1: bmp_msg_buf[fmt_ptr] <= "m";
@@ -1031,23 +1066,23 @@ module eval_cmd_exec #(
             progress_val     <= 8'((255 * (sweep_step + 1)) / 16);
             state            <= E_SWEEP_WAIT;
           end else begin
-            // Sweep complete: notify remote peer at default speed 1.0 Mbps 8x
+            // Sweep complete: send CMD_SWEEP_END at default speed 1.0 Mbps 8x
             if (link_status == 2'b01) begin
               proto_tx_valid <= 1'b1;
               proto_tx_type  <= MSG_REQUEST;
               proto_tx_data  <= CMD_SWEEP_END;
             end
-            req_baud_rate    <= 4'd1;
-            req_oversampling <= 4'd0;
-            set_speed_req    <= 1'b1;
-            sweep_active     <= 1'b0;
-            show_popup       <= 1'b0;
-            show_progress    <= 1'b0;
-            popup_mode       <= POPUP_NONE;
-            msg_src          <= SRC_SWEEP_DONE;
-            msg_len          <= 11'd21;
-            msg_idx          <= '0;
-            state            <= E_STREAM_MSG;
+            req_baud_rate       <= 4'd1;
+            req_oversampling    <= 4'd0;
+            set_speed_req       <= 1'b1;
+            sweep_master_active <= 1'b0;
+            show_popup          <= 1'b0;
+            show_progress       <= 1'b0;
+            popup_mode          <= POPUP_NONE;
+            msg_src             <= SRC_SWEEP_DONE;
+            msg_len             <= 11'd21;
+            msg_idx             <= '0;
+            state               <= E_STREAM_MSG;
           end
         end
 
@@ -1096,7 +1131,7 @@ module eval_cmd_exec #(
               msg_src <= SRC_SWEEP_FAIL;
               msg_len <= 11'd24;
             end
-            // Always return to default speed (1.0 Mbps 8x) locally so next step can negotiate cleanly
+            // Restore default speed (1.0 Mbps 8x) locally before starting next step
             req_baud_rate    <= 4'd1;
             req_oversampling <= 4'd0;
             set_speed_req    <= 1'b1;
@@ -1107,49 +1142,41 @@ module eval_cmd_exec #(
 
         E_SWEEP_RESTORE: begin
           sweep_timer <= sweep_timer + 32'd1;
-          if (sweep_timer >= (SWEEP_STEP_TICKS >> 3)) begin
+          // Wait for remote responder to also return to 1.0M 8x via step dwell timeout
+          if (sweep_timer >= (SWEEP_STEP_TICKS >> 2)) begin
             msg_idx <= '0;
             state   <= E_STREAM_MSG;
           end
         end
 
         // -------------------------------------------------------------------
-        // Dynamic Bitmap Streaming (2 bytes per pixel with continuous PRNG)
+        // Dynamic Bitmap Streaming
         // -------------------------------------------------------------------
         E_BITMAP_SEND: begin
           bmp_tx_timer <= bmp_tx_timer + 32'd1;
 
           if (proto_tx_valid && proto_tx_full) begin
-            // Hold current byte valid until FIFO accepts it
             proto_tx_valid <= 1'b1;
           end else if (proto_tx_valid) begin
-            // Byte was consumed by FIFO: enter 200ns recovery gap
             proto_tx_valid <= 1'b0;
             tx_gap_cnt     <= 6'd0;
           end else if (tx_gap_cnt < 6'd20) begin
-            // 20 cycles @ 100MHz = 200ns recovery gap between bytes
             tx_gap_cnt <= tx_gap_cnt + 6'd1;
           end else begin
-            // Recovery gap elapsed (or first byte starting)
             if (tx_pixel_cnt < 15'd16384) begin
               proto_tx_valid <= 1'b1;
               proto_tx_type  <= MSG_BITMAP;
               if (!tx_pixel_phase) begin
-                // Latch RGB sample from free-running PRNG for Byte 0
                 latched_pixel_rgb <= prng_pixel_rgb;
-                // Byte 0: {1'b0, R[3:0], G[3:1]}
                 proto_tx_data     <= {1'b0, prng_pixel_rgb[11:8], prng_pixel_rgb[7:5]};
                 tx_pixel_phase    <= 1'b1;
               end else begin
-                // Byte 1 uses matching lower bits of latched pixel RGB
-                // Byte 1: {1'b1, G[0], B[3:0], 2'b00}
                 proto_tx_data   <= {1'b1, latched_pixel_rgb[4], latched_pixel_rgb[3:0], 2'b00};
                 tx_pixel_cnt    <= tx_pixel_cnt + 15'd1;
                 tx_pixel_phase  <= 1'b0;
                 progress_val    <= 8'(tx_pixel_cnt[13:6]);
               end
             end else begin
-              // Transmission complete: hide progress popup and format console timer report
               proto_tx_valid   <= 1'b0;
               show_popup       <= 1'b0;
               show_progress    <= 1'b0;
@@ -1190,7 +1217,7 @@ module eval_cmd_exec #(
             end else if (tx_chat_idx == cmd_len) begin
               proto_tx_valid <= 1'b1;
               proto_tx_type  <= MSG_TEXT;
-              proto_tx_data  <= 8'h0A; // Trailing newline
+              proto_tx_data  <= 8'h0A;
               tx_chat_idx    <= tx_chat_idx + 11'd1;
             end else begin
               proto_tx_valid <= 1'b0;

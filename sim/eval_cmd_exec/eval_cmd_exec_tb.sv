@@ -253,12 +253,12 @@ module eval_cmd_exec_tb;
     send_cli_cmd("/clear");
     assert(clear_console_req == 1'b1 || dut.state == 0) else $error("clear_console_req failed!");
 
-    // 7. Test Bitmap RX telemetry formatting
-    $display("[TEST 7] Testing Bitmap RX Telemetry Report formatting...");
+    // 7. Test Bitmap RX telemetry formatting (10.5 seconds at 100k = 1,050,000,000 cycles)
+    $display("[TEST 7] Testing Bitmap RX Telemetry Report formatting (10.5s @ 100k)...");
     clear_stream <= 1'b1;
     @(posedge clk);
     clear_stream <= 1'b0;
-    bmp_rx_cycles = 32'd3_276_800;
+    bmp_rx_cycles = 32'd1_050_000_000;
     @(posedge clk);
     bmp_rx_done_pulse = 1;
     @(posedge clk);
@@ -267,8 +267,18 @@ module eval_cmd_exec_tb;
     while (dut.state != 0) @(posedge clk);
     repeat(10) @(posedge clk);
     $display("Received Bitmap RX stream: %s", received_stream);
-    assert(received_stream.substr(0, 9) == "Bitmap RX:")
+    assert(received_stream == "Bitmap RX: 1050000000 cycles (10500.00 ms)\n")
       else $error("Bitmap RX formatting failed! Got: %s", received_stream);
+
+    // 8. Test /sweep from disconnected state
+    $display("[TEST 8] Testing /sweep from disconnected state...");
+    link_status = 2'b00; // Disconnected
+    send_cli_cmd("/sweep");
+    $display("Received response: %s", received_stream);
+    assert(received_stream.substr(0, 4) == "Error")
+      else $error("Disconnected /sweep did not return error! Got: %s", received_stream);
+    assert(sweep_active == 1'b0)
+      else $error("Sweep was started while disconnected!");
 
     $display("=== ALL EVAL_CMD_EXEC TESTS PASSED! ===");
     $finish;
