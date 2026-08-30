@@ -1,27 +1,14 @@
 #!/usr/bin/env python3
 """
-===============================================================================
-OptiBolt Tool: Image-to-Palette-Memory Converter (`img2mem_palette.py`)
-===============================================================================
-
-Author: Tomasz Więcławski & Sebastian Zoń
-Project: OptiBolt Protocol & Evaluation Platform (AGH UST)
-
-DESCRIPTION:
-    Converts any standard raster image (PNG, BMP, JPG) into a palette-indexed
-    Verilog/SystemVerilog `$readmemh` formatted memory file (`.mem`).
-    
-    Instead of storing uncompressed 12-bit RGB values per pixel (which consumes
-    massive amounts of Block RAM or LUTs), this script maps all unique colors
-    into an indexed color palette table:
-      - <= 2 colors:  1 bit per pixel  (2x BRAM compression)
-      - <= 4 colors:  2 bits per pixel (6x BRAM compression)
-      - <= 16 colors: 4 bits per pixel (3x BRAM compression)
-      - <= 256 colors: 8 bits per pixel (1.5x BRAM compression)
-
-    The generated `.mem` file includes a human-readable and machine-parseable
-    Verilog header with image dimensions, bits per pixel, and exact 12-bit RGB
-    hex values for each palette index.
+ * Copyright (C) 2026  AGH University of Science and Technology
+ * MTM UEC2
+ * Author: Tomasz Więcławski & Sebastian Zoń
+ *
+ * Description:
+ * Converts raster image into a palette-indexed
+ * draw_bitmap.sv formatted memory file.
+ * Instead of storing uncompressed 12-bit RGB values per pixel, 
+ * this script maps all unique colors into an indexed color palette table.
 
 USAGE:
     python tools/img2mem_palette.py <input_image> [output_file.mem]
@@ -41,7 +28,7 @@ SYSTEMVERILOG INTEGRATION:
             .PALETTE_BITS(2),
             .PALETTE('{12'hFFF, 12'h000, 12'hFF3, 12'hCDF})
         ) u_draw_logo ( ... );
-===============================================================================
+
 """
 
 import sys

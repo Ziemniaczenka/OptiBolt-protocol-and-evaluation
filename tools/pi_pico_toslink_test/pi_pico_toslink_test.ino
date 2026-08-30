@@ -1,3 +1,12 @@
+/**
+ * Copyright (C) 2026  AGH University of Science and Technology
+ * MTM UEC2
+ * Author: Tomasz Więcławski & Sebastian Zoń
+ *
+ * Description:
+ * Pi Pico ArduinoIDE test of OptiBolt transciever (verify working and different speeds) 
+ */
+
 #include <Arduino.h>
 #include "hardware/pio.h"
 #include "hardware/clocks.h"

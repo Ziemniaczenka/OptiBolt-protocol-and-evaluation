@@ -40,6 +40,7 @@ xrun.log
 
 results/*
 !results/top_basys3.bit
+!results/warning_summary.log
 fpga/dfx_runtime.txt
 
 .Xil/
