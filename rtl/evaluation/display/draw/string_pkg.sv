@@ -128,9 +128,9 @@ package string_pkg;
     localparam int BTN_ABOUT_LEN  = $bits(BTN_ABOUT_VAL) / 8;
 
     // ABOUT POPUP
-    localparam ABOUT_TITLE_VAL = "About OptiBolt";
+    localparam ABOUT_TITLE_VAL = "OptiBolt Protocol and Evaluation";
     localparam int ABOUT_TITLE_LEN = $bits(ABOUT_TITLE_VAL) / 8;
-    localparam ABOUT_DESC_VAL = "OptiBolt Evaluation Platform\nBy T. Wieclawski & S. Zon";
+    localparam ABOUT_DESC_VAL = "Copyright (C) 2026 AGH UST MTM\nAuthors: T. Wieclawski & S. Zon";
     localparam int ABOUT_DESC_LEN = $bits(ABOUT_DESC_VAL) / 8;
     localparam BTN_OK_VAL = "OK";
     localparam int BTN_OK_LEN = $bits(BTN_OK_VAL) / 8;

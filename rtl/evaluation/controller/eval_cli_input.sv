@@ -57,22 +57,22 @@ module eval_cli_input #(
   inp_state_t state;
 
   // Local CLI input line buffer (64 bytes)
-  logic [ 7:0] input_buf_reg    [0:CLI_BUF_LEN-1];
+  logic [7:0] input_buf_reg[0:CLI_BUF_LEN-1];
   logic [10:0] input_len_reg;
   logic [10:0] input_cursor_reg;
-  logic [ 6:0] input_update_idx;
+  logic [6:0] input_update_idx;
 
   // 4-entry static history buffer slots (zero inter-slot copying)
-  logic [ 7:0] history_buf      [0:3] [0:CLI_BUF_LEN-1];
-  logic [10:0] history_len      [0:3];
-  logic [ 1:0] hist_ptrs        [0:3]; // hist_ptrs[0] = MRU slot, hist_ptrs[3] = LRU slot
-  logic [ 2:0] history_count;
-  logic [ 2:0] history_pos;
+  logic [7:0] history_buf[0:3][0:CLI_BUF_LEN-1];
+  logic [10:0] history_len[0:3];
+  logic [1:0] hist_ptrs[0:3];  // hist_ptrs[0] = MRU slot, hist_ptrs[3] = LRU slot
+  logic [2:0] history_count;
+  logic [2:0] history_pos;
 
   // Sequential MRU history matching registers
-  logic [ 1:0] hist_check_idx;
-  logic [ 1:0] hist_match_idx;
-  logic        hist_matched;
+  logic [1:0] hist_check_idx;
+  logic [1:0] hist_match_idx;
+  logic hist_matched;
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -170,7 +170,7 @@ module eval_cli_input #(
               // History navigation DOWN (towards latest / empty)
               if (history_pos > 3'd1) begin
                 logic [1:0] load_slot;
-                load_slot = hist_ptrs[history_pos[1:0] - 2'd2];
+                load_slot = hist_ptrs[history_pos[1:0]-2'd2];
                 input_buf_reg[0] <= 8'h3E;
                 input_buf_reg[1] <= 8'h20;
                 for (int i = 2; i < CLI_BUF_LEN; i++) begin
@@ -208,7 +208,7 @@ module eval_cli_input #(
             end else if (cmd_backspace && input_cursor_reg > 11'd2) begin
               // Backspace deletion: direct clear if at end of buffer
               if (input_cursor_reg == input_len_reg) begin
-                input_buf_reg[input_len_reg[5:0] - 6'd1] <= 8'h00;
+                input_buf_reg[input_len_reg[5:0]-6'd1] <= 8'h00;
               end else begin
                 for (int i = 2; i < CLI_BUF_LEN - 1; i++) begin
                   if (i >= input_cursor_reg - 1) input_buf_reg[i] <= input_buf_reg[i+1];
@@ -273,7 +273,7 @@ module eval_cli_input #(
             logic [1:0] m_slot;
             m_slot = hist_ptrs[hist_match_idx];
             case (hist_match_idx)
-              2'd0: ; // Already MRU
+              2'd0: ;  // Already MRU
               2'd1: begin
                 hist_ptrs[0] <= m_slot;
                 hist_ptrs[1] <= hist_ptrs[0];

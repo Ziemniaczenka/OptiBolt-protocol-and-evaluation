@@ -59,29 +59,31 @@ module draw_progress_bar #(
   );
 
   draw_rect u_fill (
-      .clk(clk),
-      .rst_n(rst_n),
-      .xstart(xstart + 11'd1),
-      .ystart(ystart + 11'd2),
-      .xend(xstart + 11'd1 + fill_width),
-      .yend(ystart + height - 11'd2),
-      .filled(1'b1),
-      .thickness(11'd0),
-      .color(active_fill_color),
-      .vga_in(vga_in),
+      .clk        (clk),
+      .rst_n      (rst_n),
+      .xstart     (xstart + 11'd1),
+      .ystart     (ystart + 11'd2),
+      .xend       (xstart + 11'd1 + fill_width),
+      .yend       (ystart + height - 11'd2),
+      .filled     (1'b1),
+      .thickness  (11'd0),
+      .color      (active_fill_color),
+      .vga_in     (vga_in),
+      .rgb_out    (),
       .draw_en_out(en_fill)
   );
 
   always_comb begin
     if (en_bg) begin
-      rgb_out = rgb_bg;
+      rgb_out     = rgb_bg;
       draw_en_out = 1'b1;
     end else if (en_fill) begin
-      rgb_out = active_fill_color;
+      rgb_out     = active_fill_color;
       draw_en_out = 1'b1;
     end else begin
-      rgb_out = 12'h0;
+      rgb_out     = 12'h0;
       draw_en_out = 1'b0;
     end
   end
+
 endmodule

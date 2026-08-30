@@ -138,7 +138,8 @@ module evaluation_controller_tb;
       .pwr_status_code(),
       .active_voltage_id(),
       .active_amps(),
-      .contract_active()
+      .contract_active(),
+      .eval_failover_en()
   );
 
   task automatic type_char(input [7:0] c);

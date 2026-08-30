@@ -44,8 +44,15 @@ module draw_dyn_bitmap_tb;
   );
 
   // BRAM Interfaces (128x128 dynamic bitmap = 16384 entries -> ADDR_WIDTH = 14)
-  bram_if #(.ADDR_WIDTH(14), .DATA_WIDTH(12)) ram_if_a();
-  bram_if #(.ADDR_WIDTH(14), .DATA_WIDTH(12), .READ_ONLY(1)) ram_if_b();
+  bram_if #(
+      .ADDR_WIDTH(14),
+      .DATA_WIDTH(12)
+  ) ram_if_a ();
+  bram_if #(
+      .ADDR_WIDTH(14),
+      .DATA_WIDTH(12),
+      .READ_ONLY (1)
+  ) ram_if_b ();
 
   bram_tdp #(
       .DATA_WIDTH(12),
@@ -73,21 +80,19 @@ module draw_dyn_bitmap_tb;
   );
 
   // PRNG Pixel Generator
-  logic        next_pixel;
   logic [11:0] prng_pixel_rgb;
   logic [ 7:0] prng_pixel_byte;
 
   pixel_prng u_prng (
-      .clk(clk),
-      .rst_n(rst_n),
-      .next_pixel(next_pixel),
-      .pixel_rgb(prng_pixel_rgb),
+      .clk       (clk),
+      .rst_n     (rst_n),
+      .pixel_rgb (prng_pixel_rgb),
       .pixel_byte(prng_pixel_byte)
   );
 
   wire [3:0] r = en_ram ? rgb_ram[11:8] : 4'h1;
-  wire [3:0] g = en_ram ? rgb_ram[7:4]  : 4'h1;
-  wire [3:0] b = en_ram ? rgb_ram[3:0]  : 4'h2;
+  wire [3:0] g = en_ram ? rgb_ram[7:4] : 4'h1;
+  wire [3:0] b = en_ram ? rgb_ram[3:0] : 4'h2;
 
   tiff_writer #(
       .XDIM(16'd1650),
@@ -109,7 +114,6 @@ module draw_dyn_bitmap_tb;
     ram_if_a.en = 0;
     ram_if_a.addr = 0;
     ram_if_a.din = 0;
-    next_pixel = 0;
 
     #(RST_START_TIME) rst_n = 1'b0;
     #(RST_ACTIVE_TIME) rst_n = 1'b1;
@@ -119,14 +123,12 @@ module draw_dyn_bitmap_tb;
     // Stream 16,384 PRNG generated pixels into BRAM via Port A
     for (int i = 0; i < 16384; i++) begin
       @(posedge clk);
-      next_pixel = 1'b1;
-      ram_if_a.we = 1'b1;
-      ram_if_a.en = 1'b1;
+      ram_if_a.we   = 1'b1;
+      ram_if_a.en   = 1'b1;
       ram_if_a.addr = 14'(i);
-      ram_if_a.din = prng_pixel_rgb;
+      ram_if_a.din  = prng_pixel_rgb;
     end
     @(posedge clk);
-    next_pixel = 1'b0;
     ram_if_a.we = 1'b0;
     ram_if_a.en = 1'b0;
 

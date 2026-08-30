@@ -81,7 +81,7 @@ package protocol_pkg;
    *      BAUD: 4'd0=100k, 4'd1=1M, 4'd2=1.25M, 4'd3=2.5M, 4'd4=3.125M,
    *            4'd5=5M, 4'd6=6.25M, 4'd7=8.33M, 4'd8=12.5M, 4'd9=25M
    */
-  localparam logic [2:0] MSG_REQUEST      = 3'b001;
+  localparam logic [2:0] MSG_REQUEST = 3'b001;
 
   /**
    * MSG_ACCEPT (3'b010)
@@ -89,14 +89,14 @@ package protocol_pkg;
    * Purpose: Optical Link Handshake Response ACK.
    * Data payload: [7:0] Echo of peer challenge token confirming duplex connection.
    */
-  localparam logic [2:0] MSG_ACCEPT       = 3'b010;
+  localparam logic [2:0] MSG_ACCEPT = 3'b010;
 
   /**
    * MSG_DENIED (3'b011)
    * -------------------
    * Purpose: Command Rejection / Protocol NACK.
    */
-  localparam logic [2:0] MSG_DENIED       = 3'b011;
+  localparam logic [2:0] MSG_DENIED = 3'b011;
 
   /**
    * MSG_TEXT (3'b100)
@@ -104,7 +104,7 @@ package protocol_pkg;
    * Purpose: Console ASCII Text Messaging (Chat).
    * Data payload: [7:0] ASCII Character byte (e.g. 'A'..'Z', '0'..'9', '\n').
    */
-  localparam logic [2:0] MSG_TEXT         = 3'b100;
+  localparam logic [2:0] MSG_TEXT = 3'b100;
 
   /**
    * MSG_BITMAP (3'b101)
@@ -121,8 +121,7 @@ package protocol_pkg;
    *      Bits [5:2]   : 4-bit Blue channel (0..15)
    *      Bits [1:0]   : 2'b00 (Zero padding)
    */
-  localparam logic [2:0] MSG_BITMAP       = 3'b101;
-  localparam logic [2:0] MSG_TEST1        = 3'b101; // Backwards-compatible alias
+  localparam logic [2:0] MSG_BITMAP = 3'b101;
 
   /**
    * MSG_POWER (3'b110)
@@ -137,8 +136,7 @@ package protocol_pkg;
    *  - Contract ACK:  (8'hFD) : Contract established confirmation
    *  - Conflict/Err:  (8'hFC) : Power collision or invalid configuration
    */
-  localparam logic [2:0] MSG_POWER        = 3'b110;
-  localparam logic [2:0] MSG_TEST2        = 3'b110; // Backwards-compatible alias
+  localparam logic [2:0] MSG_POWER = 3'b110;
 
   /**
    * MSG_SWEEP (3'b111)
@@ -149,14 +147,13 @@ package protocol_pkg;
    *  - Bits [3:0]: Test packet sequence counter (0..15)
    *  - Responder echoes the packet back verbatim to test duplex BER and packet delivery.
    */
-  localparam logic [2:0] MSG_SWEEP        = 3'b111;
-  localparam logic [2:0] MSG_TEST3        = 3'b111; // Backwards-compatible alias
+  localparam logic [2:0] MSG_SWEEP = 3'b111;
 
   // Control Constants for MSG_REQUEST
-  localparam logic [7:0] CMD_PING_REQ    = 8'hA5;
-  localparam logic [7:0] CMD_PING_RESP   = 8'h5A;
+  localparam logic [7:0] CMD_PING_REQ = 8'hA5;
+  localparam logic [7:0] CMD_PING_RESP = 8'h5A;
   localparam logic [7:0] CMD_SWEEP_START = 8'hE0;
-  localparam logic [7:0] CMD_SWEEP_END   = 8'hE1;
-  localparam logic [7:0] CMD_SPEED_ACK   = 8'hB1;
+  localparam logic [7:0] CMD_SWEEP_END = 8'hE1;
+  localparam logic [7:0] CMD_SPEED_ACK = 8'hB1;
 
 endpackage

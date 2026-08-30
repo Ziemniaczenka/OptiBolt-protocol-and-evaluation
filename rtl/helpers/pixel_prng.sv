@@ -13,7 +13,6 @@ module pixel_prng #(
 ) (
     input  logic        clk,
     input  logic        rst_n,
-    input  logic        next_pixel,
     output logic [11:0] pixel_rgb,
     output logic [ 7:0] pixel_byte
 );

@@ -13,8 +13,8 @@
  */
 
 module link_handshake #(
-    parameter int RETRY_TICKS      = 500_000,    // 5ms retry interval while searching for connection
-    parameter int HEARTBEAT_TICKS  = 50_000_000,  // 500ms periodic link testing interval
+    parameter int RETRY_TICKS = 500_000,  // 5ms retry interval while searching for connection
+    parameter int HEARTBEAT_TICKS = 50_000_000,  // 500ms periodic link testing interval
     parameter int LINK_ALIVE_TICKS = 150_000_000, // 1.5s timeout: drop link if no peer ACK received
     parameter logic [15:0] PRNG_SEED = 16'hACE1
 ) (
@@ -45,35 +45,34 @@ module link_handshake #(
   import protocol_pkg::*;
 
   localparam logic [1:0] LINK_DISCONNECTED = 2'b00;
-  localparam logic [1:0] LINK_CONNECTED    = 2'b01;
-  localparam logic [1:0] LINK_LOOPBACK     = 2'b10;
+  localparam logic [1:0] LINK_CONNECTED = 2'b01;
+  localparam logic [1:0] LINK_LOOPBACK = 2'b10;
 
   // PRNG Instantiation using pixel_prng module (free-running on clk)
   logic [7:0] prng_byte;
   pixel_prng #(
       .SEED(PRNG_SEED)
   ) u_hs_prng (
-      .clk(clk),
-      .rst_n(rst_n),
-      .next_pixel(1'b1),  // Advances every clock cycle
-      .pixel_rgb(),
+      .clk       (clk),
+      .rst_n     (rst_n),
+      .pixel_rgb (),
       .pixel_byte(prng_byte)
   );
 
   // Timers
-  logic [$clog2(RETRY_TICKS+1)-1:0]      retry_cnt;
-  logic [$clog2(HEARTBEAT_TICKS+1)-1:0]  heartbeat_cnt;
+  logic [     $clog2(RETRY_TICKS+1)-1:0] retry_cnt;
+  logic [ $clog2(HEARTBEAT_TICKS+1)-1:0] heartbeat_cnt;
   logic [$clog2(LINK_ALIVE_TICKS+1)-1:0] link_alive_cnt;
 
-  logic [ 7:0] my_challenge;
-  logic        challenge_latched;
-  logic        pending_challenge_tx;
-  logic        pending_ack_tx;
-  logic [ 7:0] peer_challenge_to_ack;
-  logic        rx_carrier_d1;
-  logic [15:0] man_err_burst_cnt;
+  logic [                           7:0] my_challenge;
+  logic                                  challenge_latched;
+  logic                                  pending_challenge_tx;
+  logic                                  pending_ack_tx;
+  logic [                           7:0] peer_challenge_to_ack;
+  logic                                  rx_carrier_d1;
+  logic [                          15:0] man_err_burst_cnt;
 
-  wire rx_carrier_rose = proto_eval_rx_carrier && !rx_carrier_d1;
+  wire                                   rx_carrier_rose = proto_eval_rx_carrier && !rx_carrier_d1;
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
@@ -189,11 +188,11 @@ module link_handshake #(
         hs_tx_req <= 1'b0;
       end else if (pending_ack_tx) begin
         hs_tx_req  <= 1'b1;
-        hs_tx_type <= MSG_ACCEPT;          // Type 2: Handshake Response ACK
+        hs_tx_type <= MSG_ACCEPT;  // Type 2: Handshake Response ACK
         hs_tx_data <= peer_challenge_to_ack;
       end else if (pending_challenge_tx) begin
         hs_tx_req  <= 1'b1;
-        hs_tx_type <= MSG_CAPABILITIES;    // Type 1: Handshake Challenge
+        hs_tx_type <= MSG_CAPABILITIES;  // Type 1: Handshake Challenge
         hs_tx_data <= my_challenge;
       end else begin
         hs_tx_req <= 1'b0;
@@ -204,10 +203,10 @@ module link_handshake #(
       // ---------------------------------------------------------------------
       if (!proto_eval_rx_carrier) begin
         // Optical signal physically lost -> immediate disconnect
-        link_status           <= LINK_DISCONNECTED;
-        pending_ack_tx        <= 1'b0;
-        link_alive_cnt        <= '0;
-        man_err_burst_cnt     <= 16'd0;
+        link_status       <= LINK_DISCONNECTED;
+        pending_ack_tx    <= 1'b0;
+        link_alive_cnt    <= '0;
+        man_err_burst_cnt <= 16'd0;
       end else if (proto_eval_rx_valid) begin
         man_err_burst_cnt <= 16'd0;
 
