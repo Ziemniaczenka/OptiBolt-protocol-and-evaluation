@@ -1,13 +1,10 @@
 ---
-title: Schemat Blokowy Połączeń
+title: Schemat Blokowy Połączeń Sprzętowych
 ---
 flowchart LR
-  %%{init: {'flowchart': {'curve': 'linear'}}}%%
-
   %% --- Left Board ---
-
   Disp1[Display] --> |VGA| Basys1 
-  Kb1[Keyboard] <--> |USB| Basys1
+  Kb1[Keyboard] <--> |USB/PS2| Basys1
 
   subgraph Basys1[Basys 3]
     direction TB
@@ -19,30 +16,28 @@ flowchart LR
   end
 
   %% --- Left OptiBolt ---
-  subgraph OB1[OptiBolt]
+  subgraph OB1[OptiBolt PMOD]
     direction LR
-    Tx1[Tx]
-    Rx1[Rx]
+    Tx1[Tx LED]
+    Rx1[Rx Photo]
   end
 
-  Basys1 <--> |PMOD| OB1
-
-  %% --- Right OptiBolt ---
-  subgraph OB2[OptiBolt]
-    direction LR
-    Rx2[Rx]
-    Tx2[Tx]
-  end
+  Basys1 <--> |PMOD JB/JC| OB1
 
   %% --- Central Optical Link ---
-  Tx1 ==> |TOSLINK| Rx2 
-  Rx1 ~~~  Tx2 ==> |TOSLINK| Rx1 
-  Tx2 ~~~ Rx1
+  Tx1 ==> |TOSLINK Światłowód 1| Rx2 
+  Tx2 ==> |TOSLINK Światłowód 2| Rx1 
 
-  OB2 <--> |PMOD| Basys2
+  %% --- Right OptiBolt ---
+  subgraph OB2[OptiBolt PMOD]
+    direction LR
+    Rx2[Rx Photo]
+    Tx2[Tx LED]
+  end
+
+  OB2 <--> |PMOD JB/JC| Basys2
 
   %% --- Right Board ---
-
   subgraph Basys2[Basys 3]
     direction TB
     CPU2[Artix 7]
@@ -53,4 +48,4 @@ flowchart LR
   end
   
   Basys2 --> |VGA| Disp2[Display]
-  Basys2 <--> |USB| Kb2[Keyboard]
+  Basys2 <--> |USB/PS2| Kb2[Keyboard]

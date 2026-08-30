@@ -1,0 +1,17 @@
+---
+title: Schemat Połączeń Między Sekcjami
+---
+flowchart LR
+  VGA[VGA Display]
+  Eval["Evaluation Platform<br/>(top_evaluation)"]
+  OptiBolt["OptiBolt Protocol<br/>(optibolt_controller)"]
+  Tx["OptiBolt Tx<br/>(JB1:A14)"]
+  Rx["OptiBolt Rx<br/>(JB3:B15)"]
+  Detector["Carrier Detector<br/>(optical_carrier_detector)"]
+
+  Eval ===>|vga_if| VGA
+  Eval <==>|CDC Bridge (100MHz / 200MHz)| OptiBolt
+  OptiBolt -->|Tx Stream| Tx
+  Rx -->|Rx Stream| OptiBolt
+  Rx -->|Rx Stream| Detector
+  Detector -->|Carrier Detect| Eval

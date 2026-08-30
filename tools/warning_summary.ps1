@@ -55,4 +55,5 @@ if ($IMPL_LOG) {
 $project_name = [System.IO.Path]::GetFileName((Get-Location).Path)
 $escaped_project_name = [regex]::Escape($project_name)
 $content = Get-Content $LOG_FILE
-$content -replace ".*[\\/]$escaped_project_name[\\/]", "" | Out-File $LOG_FILE -Encoding UTF8
+$pattern = "(?<=\[)(?:[A-Za-z]:)?[\\/][^\]]*?[\\/]$escaped_project_name[\\/]"
+($content -replace $pattern, "") | Out-File $LOG_FILE -Encoding UTF8

@@ -1,0 +1,62 @@
+---
+title: Architektura Protokołu OptiBolt (optibolt_controller)
+---
+flowchart TD
+  classDef ext_port fill:#e8f5e9,stroke:#43a047,stroke-width:2px,stroke-dasharray: 4 4,color:#1b5e20;
+  classDef inst fill:#e3f2fd,stroke:#1e88e5,stroke-width:2px,color:#0d47a1;
+
+  style top fill:transparent,stroke:#9e9e9e,stroke-width:2px,color:#000000
+  style Grp_In fill:transparent,stroke:#43a047,stroke-width:1px,stroke-dasharray: 2 2,color:#1b5e20
+  style Grp_Out fill:transparent,stroke:#43a047,stroke-width:1px,stroke-dasharray: 2 2,color:#1b5e20
+
+  subgraph Grp_In ["Interfejsy Wejściowe (INPUT)"]
+    direction TB
+    Clocks(["Zegar 200MHz i Reset"]):::ext_port
+    Config(["Parametry: baud_rate, oversampling"]):::ext_port
+    Opt_RX(["Kabel optyczny RX"]):::ext_port
+    TX_Data_In(["Dane TX z CDC FIFO"]):::ext_port
+    RX_Ctrl_In(["Sterowanie odczytem RX"]):::ext_port
+  end
+
+  subgraph Grp_Out ["Interfejsy Wyjściowe (OUTPUT)"]
+    direction TB
+    Opt_TX(["Kabel optyczny TX"]):::ext_port
+    TX_Status(["Flagi statusu TX: full, idle"]):::ext_port
+    RX_Data_Out(["Dane RX do CDC FIFO"]):::ext_port
+    RX_Errors(["Flagi błędów: parity, manchester, preamble"]):::ext_port
+  end
+
+  subgraph top ["Moduł optibolt_controller"]
+    direction TB
+    TickGen["u_sampling_tick_generator"]:::inst
+    Dec["u_manchester_decoder"]:::inst
+    RxLogic["u_optibolt_receiver"]:::inst
+    RxFifo["u_rx_fifo"]:::inst
+    
+    TxFifo["u_tx_fifo"]:::inst
+    TxLogic["u_optibolt_transmitter"]:::inst
+    Cod["u_manchester_coder"]:::inst
+  end
+
+  Clocks -.-> top
+  Config ==>|Parametry konfiguracyjne| TickGen
+  Config ==>|Parametry konfiguracyjne| Dec
+  Config ==>|Parametry konfiguracyjne| Cod
+  
+  Opt_RX ==>|Strumień RX| Dec
+  TX_Data_In ==>|Zapis danych TX| TxFifo
+  RX_Ctrl_In -->|Odczyt RX| RxFifo
+
+  TickGen -->|Zegar próbkujący| Dec
+  Dec ==>|Odkodowany strumień bitów| RxLogic
+  RxLogic ==>|Odebrana ramka danych| RxFifo
+
+  TickGen -->|Zegar próbkujący| Cod
+  TxFifo ==>|Odczyt ramki danych| TxLogic
+  TxLogic <==>|Bity TX i sterowanie| Cod
+  
+  Cod ===>|Strumień kodowany Manchester TX| Opt_TX
+  TxFifo ==>|Status bufora| TX_Status
+  TxLogic -.->|Zajętość nadajnika| TX_Status
+  RxFifo ==>|Dane i status bufora| RX_Data_Out
+  RxLogic ==>|Diagnostyka błędów| RX_Errors

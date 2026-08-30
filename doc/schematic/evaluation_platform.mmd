@@ -1,0 +1,32 @@
+---
+title: Architektura Platformy Ewaluacyjnej
+---
+flowchart LR
+  subgraph top_display ["top_display / top_draw"]
+    vga_pkg["vga_pkg.sv"]
+    vga_timing["vga_timing.sv"]
+    draw_mux["draw_mux.sv"]
+    draw_rect["draw_rect.sv"]
+    draw_string["draw_string.sv"]
+    draw_bitmap["draw_bitmap.sv"]
+    draw_popup["draw_popup.sv"]
+    draw_progress["draw_progress.sv"]
+  end
+
+  subgraph top_keyboard ["top_keyboard"]
+    ps2_core["Ps2Interface.vhd"]
+    kbd_dec["keyboard_decoder.sv"]
+    kbd_ctrl["keyboard_controller.sv"]
+  end
+
+  subgraph evaluation_controller ["evaluation_controller"]
+    eval_fsm["eval_fsm.sv (Nawigacja UI)"]
+    eval_cli["eval_cli_input.sv (Obsługa wejścia)"]
+    eval_cmd["eval_cmd_exec.sv (Wykonywanie komend)"]
+    eval_console["eval_console_buffer.sv (Bufor konsoli)"]
+    eval_metrics["eval_metrics.sv (Telemetria)"]
+    pwr_neg["power_negotiator.sv (Negocjacja zasilania)"]
+  end
+
+  top_keyboard -->|Komendy nawigacji i znaki ASCII| evaluation_controller
+  evaluation_controller -->|Bufory tekstu, stanu i grafiki BRAM| top_display
