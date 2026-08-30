@@ -362,8 +362,151 @@ flowchart LR
 ```
 </details>
 
+``` mermaid
+  flowchart TD
+    %% Definicje stylów
+    classDef ext_port fill:#e8f5e9,stroke:#43a047,stroke-width:2px,stroke-dasharray: 4 4,color:#1b5e20;
+    classDef inst fill:#e3f2fd,stroke:#1e88e5,stroke-width:2px,color:#0d47a1;
+
+    %% Style zgrupowań 
+    style top fill:transparent,stroke:#9e9e9e,stroke-width:2px,color:#000000
+    style Grp_In fill:transparent,stroke:#43a047,stroke-width:1px,stroke-dasharray: 2 2,color:#1b5e20
+    style Grp_Out fill:transparent,stroke:#43a047,stroke-width:1px,stroke-dasharray: 2 2,color:#1b5e20
+    style Grp_InOut fill:transparent,stroke:#43a047,stroke-width:1px,stroke-dasharray: 2 2,color:#1b5e20
+
+    %% ================= INTERFEJSY ZEWNĘTRZNE =================
+
+    subgraph Grp_In ["Interfejsy Wejściowe (INPUT)"]
+        direction TB
+        Opt_RX(["Kabel optyczny RX"]):::ext_port
+        Clocks(["Zegary"]):::ext_port
+    end
+
+    subgraph Grp_InOut ["Interfejsy Dwukierunkowe (INOUT)"]
+        direction TB
+        PS2(["Interfejs Klawiatury PS/2"]):::ext_port
+    end
+
+    subgraph Grp_Out ["Interfejsy Wyjściowe (OUTPUT)"]
+        direction TB
+        UI_Video(["VGA display"]):::ext_port
+        UI_Seg(["Wyświetlacz 7 segmentowy"]):::ext_port
+        Opt_TX(["Kabel optyczny TX"]):::ext_port
+    end
+
+    %% ================= WNĘTRZE MODUŁU TOP =================
+
+    subgraph top ["Moduł top"]
+        direction TB
+        Eval["u_top_evaluation"]:::inst
+        Detector["u_optical_carrier_detector"]:::inst
+        Bridge["u_optibolt_cdc_bridge"]:::inst
+        Ctrl["u_optibolt_controller"]:::inst
+    end
+
+    %% ================= POŁĄCZENIA INTERFEJSÓW =================
+
+    %% Wejścia -> Moduły
+    Opt_RX ==>|RX| Detector
+    Opt_RX ==>|RX| Ctrl
+    Clocks -.-> top
+
+    %% Dwukierunkowe
+    Eval <==>|Magistrala PS/2| PS2
+
+    %% Moduły -> Wyjścia
+    Eval ===|Magistrala VGA| UI_Video
+    Eval ===|Magistrala 7-seg| UI_Seg
+    Ctrl ===|TX| Opt_TX
+
+    %% Między modułami wewnątrz top
+    Detector -->|Sygnał detekcji| Eval
+    Eval <==>|Sygnały w domenie 100MHz| Bridge
+    Bridge <==>|Sygnały w domenie 200MHz| Ctrl
+```
+</details>
+
 
 ## Architektura Protokołu OptiBolt
+
+``` mermaid
+  flowchart TD
+    %% Definicje stylów
+    classDef ext_port fill:#e8f5e9,stroke:#43a047,stroke-width:2px,stroke-dasharray: 4 4,color:#1b5e20;
+    classDef inst fill:#e3f2fd,stroke:#1e88e5,stroke-width:2px,color:#0d47a1;
+
+    %% Style zgrupowań 
+    style top fill:transparent,stroke:#9e9e9e,stroke-width:2px,color:#000000
+    style Grp_In fill:transparent,stroke:#43a047,stroke-width:1px,stroke-dasharray: 2 2,color:#1b5e20
+    style Grp_Out fill:transparent,stroke:#43a047,stroke-width:1px,stroke-dasharray: 2 2,color:#1b5e20
+
+    %% ================= INTERFEJSY ZEWNĘTRZNE =================
+
+    subgraph Grp_In ["Interfejsy Wejściowe (INPUT)"]
+        direction TB
+        Clocks(["Zegary i Reset"]):::ext_port
+        Config(["Konfiguracja protokołu"]):::ext_port
+        Opt_RX(["Kabel optyczny RX"]):::ext_port
+        TX_Data_In(["Magistrala wejściowa TX"]):::ext_port
+        RX_Ctrl_In(["Sterowanie odczytem RX"]):::ext_port
+    end
+
+    subgraph Grp_Out ["Interfejsy Wyjściowe (OUTPUT)"]
+        direction TB
+        Opt_TX(["Kabel optyczny TX"]):::ext_port
+        TX_Status(["Flagi statusu TX"]):::ext_port
+        RX_Data_Out(["Magistrala wyjściowa RX"]):::ext_port
+        RX_Errors(["Flagi błędów RX"]):::ext_port
+    end
+
+    %% ================= WNĘTRZE MODUŁU =================
+
+    subgraph top ["Moduł optibolt_controller"]
+        direction TB
+        TickGen["u_sampling_tick_generator"]:::inst
+        Dec["u_manchester_decoder"]:::inst
+        RxLogic["u_optibolt_receiver"]:::inst
+        RxFifo["u_rx_fifo"]:::inst
+        
+        TxFifo["u_tx_fifo"]:::inst
+        TxLogic["u_optibolt_transmitter"]:::inst
+        Cod["u_manchester_coder"]:::inst
+    end
+
+    %% ================= POŁĄCZENIA INTERFEJSÓW =================
+
+    %% Wejścia -> Moduły
+    Clocks -.-> top
+    Config ==>|Parametry konfiguracyjne| TickGen
+    Config ==>|Parametry konfiguracyjne| Dec
+    Config ==>|Parametry konfiguracyjne| Cod
+    
+    Opt_RX ==>|Strumień RX| Dec
+    
+    TX_Data_In ==>|Zapis danych| TxFifo
+    RX_Ctrl_In -->|Zezwolenie odczytu| RxFifo
+
+    %% Ścieżka odbiorcza (RX PATH) wewnątrz modułu
+    TickGen -->|Zegar próbkujący| Dec
+    Dec ==>|Odkodowany strumień bitów| RxLogic
+    RxLogic ==>|Odebrana ramka danych| RxFifo
+
+    %% Ścieżka nadawcza (TX PATH) wewnątrz modułu
+    TickGen -->|Zegar próbkujący| Cod
+    TxFifo ==>|Odczyt ramki danych| TxLogic
+    TxLogic <==>|Synchronizacja i bity TX| Cod
+    
+    %% Moduły -> Wyjścia
+    Cod ===>|Strumień TX| Opt_TX
+    
+    TxFifo ==>|Zapełnienie bufora| TX_Status
+    TxLogic -.->|Flaga zajętości nadajnika| TX_Status
+    
+    RxFifo ==>|Dane i status bufora| RX_Data_Out
+    RxLogic ==>|Diagnostyka| RX_Errors
+
+```
+</details>
 
 ## Architektura Platformy Ewaluacji
 <details open>
