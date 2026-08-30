@@ -212,8 +212,10 @@ module optibolt_link_manager #(
           speed_nego_in_progress <= 1'b0;
           nego_tx_valid          <= 1'b1;
           nego_tx_type           <= MSG_REQUEST;
+          nego_tx_data           <= CMD_SPEED_ACK;
         end else if (speed_nego_in_progress && proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data == CMD_SPEED_ACK) begin
           // Remote peer accepted our speed change request: apply requested speed
+          current_baud           <= req_baud_rate;
           current_os             <= req_oversampling;
           speed_updated_pulse    <= 1'b1;
           speed_nego_in_progress <= 1'b0;

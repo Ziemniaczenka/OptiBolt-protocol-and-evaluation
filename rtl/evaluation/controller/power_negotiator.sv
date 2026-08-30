@@ -85,7 +85,6 @@ module power_negotiator #(
   logic       [ 2:0] pdo_idx;
   logic       [ 1:0] chosen_volt_id;
   logic       [ 3:0] chosen_amps;
-  logic              chosen_valid;
   logic       [31:0] timer;
 
   // Packet assembly
@@ -111,7 +110,6 @@ module power_negotiator #(
       pdo_idx        <= 3'd0;
       chosen_volt_id <= 2'd0;
       chosen_amps    <= 4'd0;
-      chosen_valid   <= 1'b0;
       timer          <= '0;
       tx_req         <= 1'b0;
       tx_byte        <= 8'h00;
@@ -129,7 +127,6 @@ module power_negotiator #(
       pdo_idx        <= 3'd0;
       chosen_volt_id <= 2'd0;
       chosen_amps    <= 4'd0;
-      chosen_valid   <= 1'b0;
       timer          <= '0;
       tx_req         <= 1'b0;
       tx_byte        <= 8'h00;
@@ -313,7 +310,6 @@ module power_negotiator #(
                 tx_byte        <= {2'b10, 2'd3, peer_out_amps[3]};
                 chosen_volt_id <= 2'd3;
                 chosen_amps    <= peer_out_amps[3];
-                chosen_valid   <= 1'b1;
                 timer          <= '0;
                 state          <= S_SNK_WAIT_RESP;
               end else if (cfg_in_amps[2] > 4'd0 && peer_out_amps[2] >= cfg_in_amps[2]) begin
@@ -321,7 +317,6 @@ module power_negotiator #(
                 tx_byte        <= {2'b10, 2'd2, peer_out_amps[2]};
                 chosen_volt_id <= 2'd2;
                 chosen_amps    <= peer_out_amps[2];
-                chosen_valid   <= 1'b1;
                 timer          <= '0;
                 state          <= S_SNK_WAIT_RESP;
               end else if (cfg_in_amps[1] > 4'd0 && peer_out_amps[1] >= cfg_in_amps[1]) begin
@@ -329,7 +324,6 @@ module power_negotiator #(
                 tx_byte        <= {2'b10, 2'd1, peer_out_amps[1]};
                 chosen_volt_id <= 2'd1;
                 chosen_amps    <= peer_out_amps[1];
-                chosen_valid   <= 1'b1;
                 timer          <= '0;
                 state          <= S_SNK_WAIT_RESP;
               end else if (cfg_in_amps[0] > 4'd0 && peer_out_amps[0] >= cfg_in_amps[0]) begin
@@ -337,7 +331,6 @@ module power_negotiator #(
                 tx_byte        <= {2'b10, 2'd0, peer_out_amps[0]};
                 chosen_volt_id <= 2'd0;
                 chosen_amps    <= peer_out_amps[0];
-                chosen_valid   <= 1'b1;
                 timer          <= '0;
                 state          <= S_SNK_WAIT_RESP;
               end else begin

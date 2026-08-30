@@ -21,7 +21,7 @@ module manchester_decoder (
   import protocol_pkg::*;
   logic [3:0] C1_START, C1_END, CENTER, C2_START, C2_END;
   logic [3:0] counter, MAX_COUNT;
-  logic rx_reg, rx_sync, rx_past, edge_detected;
+  logic rx_reg, rx_sync, rx_past;
   logic [4:0] voting_c1, voting_c2;
   logic result_c1, result_c2, vote_evaluation, searching, skip_vote;
 
@@ -67,7 +67,6 @@ module manchester_decoder (
       rx_reg <= '0;
       rx_sync <= '0;
       rx_past <= '0;
-      edge_detected <= '0;
       counter <= '0;
       rx_binary <= '0;
       bit_valid <= '0;
@@ -82,7 +81,6 @@ module manchester_decoder (
       rx_sync <= rx_reg;
       if (tick) begin
         rx_past <= rx_sync;
-        edge_detected <= rx_sync ^ rx_past;
         bit_valid <= 1'b0;
         decode_error <= 1'b0;
         if (counter == MAX_COUNT) begin
