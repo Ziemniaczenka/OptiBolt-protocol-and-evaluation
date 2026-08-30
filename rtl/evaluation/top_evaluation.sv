@@ -20,8 +20,8 @@ module top_evaluation #(
     input logic rst_n,
 
     // Keyboard PS/2
-    input logic ps2_clk,
-    input logic ps2_data,
+    inout wire ps2_clk,
+    inout wire ps2_data,
 
     // OptiBolt Protocol Interface
     output logic [3:0] eval_proto_baud_rate,
@@ -77,7 +77,7 @@ module top_evaluation #(
   logic       char_valid;
   logic [7:0] char_ascii;
   logic       cmd_backspace;
-  logic [7:0] key_code;
+  logic [8:0] key_code;
 
   // UI Navigation
   logic [3:0] ui_selected_item;

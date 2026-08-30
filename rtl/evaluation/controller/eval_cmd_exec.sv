@@ -372,6 +372,7 @@ module eval_cmd_exec #(
       msg_idx               <= '0;
       msg_len               <= '0;
       pending_cmd           <= 1'b0;
+      tx_chat_idx           <= '0;
       print_valid           <= 1'b0;
       print_char            <= 8'h00;
       print_last            <= 1'b0;

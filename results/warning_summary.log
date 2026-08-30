@@ -1,69 +1,30 @@
 Warnings, critical warnings and errors from synthesis and implementation
 
-Created: 2026-08-30 20:56:40
+Created: 2026-08-30 22:04:31
 
 ----SYNTHESIS----
-WARNING: [Synth 8-7071] port 'empty_wr' of module 'async_fifo' is unconnected for instance 'u_rx_async_fifo' [rtl/helpers/optibolt_cdc_bridge.sv:107]
-WARNING: [Synth 8-7023] instance 'u_rx_async_fifo' of module 'async_fifo' has 11 connections declared, but only 10 given [rtl/helpers/optibolt_cdc_bridge.sv:107]
-WARNING: [Synth 8-7071] port 'dbg_rx_data' of module 'keyboard_decoder' is unconnected for instance 'u_kbd_dec' [rtl/evaluation/keyboard/top_keyboard.sv:34]
-WARNING: [Synth 8-7071] port 'dbg_rx_valid' of module 'keyboard_decoder' is unconnected for instance 'u_kbd_dec' [rtl/evaluation/keyboard/top_keyboard.sv:34]
-WARNING: [Synth 8-7023] instance 'u_kbd_dec' of module 'keyboard_decoder' has 9 connections declared, but only 7 given [rtl/evaluation/keyboard/top_keyboard.sv:34]
-WARNING: [Synth 8-6104] Input port 'ps2_clk' has an internal driver [rtl/evaluation/top_evaluation.sv:311]
-WARNING: [Synth 8-6104] Input port 'ps2_data' has an internal driver [rtl/evaluation/top_evaluation.sv:312]
-WARNING: [Synth 8-689] width (8) of port connection 'key_code' does not match port width (9) of module 'top_keyboard' [rtl/evaluation/top_evaluation.sv:323]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:218]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:219]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:220]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:221]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:222]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:228]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:229]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:231]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:233]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:234]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:235]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:236]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:237]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:238]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:239]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:241]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:242]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:243]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:245]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:246]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:247]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:248]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:249]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:251]
-WARNING: [Synth 8-330] inout connections inferred for interface port 'bram_if' with no modport [rtl/evaluation/display/draw/top_draw.sv:252]
-WARNING: [Synth 8-7071] port 'proto_eval_link_status' of module 'top_evaluation' is unconnected for instance 'u_top_evaluation' [rtl/top.sv:128]
-WARNING: [Synth 8-7071] port 'proto_eval_ber_count' of module 'top_evaluation' is unconnected for instance 'u_top_evaluation' [rtl/top.sv:128]
-WARNING: [Synth 8-7071] port 'proto_eval_err_count' of module 'top_evaluation' is unconnected for instance 'u_top_evaluation' [rtl/top.sv:128]
-WARNING: [Synth 8-7023] instance 'u_top_evaluation' of module 'top_evaluation' has 31 connections declared, but only 28 given [rtl/top.sv:128]
-WARNING: [Synth 8-6014] Unused sequential element history_buf_reg[0][0] was removed.  [rtl/evaluation/controller/eval_cli_input.sv:107]
-WARNING: [Synth 8-6014] Unused sequential element history_buf_reg[0][1] was removed.  [rtl/evaluation/controller/eval_cli_input.sv:107]
-WARNING: [Synth 8-6014] Unused sequential element history_buf_reg[1][0] was removed.  [rtl/evaluation/controller/eval_cli_input.sv:107]
-WARNING: [Synth 8-6014] Unused sequential element history_buf_reg[1][1] was removed.  [rtl/evaluation/controller/eval_cli_input.sv:107]
-WARNING: [Synth 8-6014] Unused sequential element history_buf_reg[2][0] was removed.  [rtl/evaluation/controller/eval_cli_input.sv:107]
-WARNING: [Synth 8-6014] Unused sequential element history_buf_reg[2][1] was removed.  [rtl/evaluation/controller/eval_cli_input.sv:107]
-WARNING: [Synth 8-6014] Unused sequential element history_buf_reg[3][0] was removed.  [rtl/evaluation/controller/eval_cli_input.sv:107]
-WARNING: [Synth 8-6014] Unused sequential element history_buf_reg[3][1] was removed.  [rtl/evaluation/controller/eval_cli_input.sv:107]
-WARNING: [Synth 8-6014] Unused sequential element load_slot_reg was removed.  [rtl/evaluation/controller/eval_cli_input.sv:157]
-WARNING: [Synth 8-6014] Unused sequential element load_slot_reg was removed.  [rtl/evaluation/controller/eval_cli_input.sv:173]
-WARNING: [Synth 8-6014] Unused sequential element check_slot_reg was removed.  [rtl/evaluation/controller/eval_cli_input.sv:241]
-WARNING: [Synth 8-6014] Unused sequential element match_reg was removed.  [rtl/evaluation/controller/eval_cli_input.sv:242]
-WARNING: [Synth 8-6014] Unused sequential element m_slot_reg was removed.  [rtl/evaluation/controller/eval_cli_input.sv:274]
-WARNING: [Synth 8-6014] Unused sequential element new_slot_reg was removed.  [rtl/evaluation/controller/eval_cli_input.sv:296]
-WARNING: [Synth 8-7137] Register btn_trigger_reg in module eval_cli_input has both Set and reset with same priority. This may cause simulation mismatches. Consider rewriting code  [rtl/evaluation/controller/eval_cli_input.sv:111]
+WARNING: [Synth 8-6014] Unused sequential element history_buf_reg[0][0] was removed.  [rtl/evaluation/controller/eval_cli_input.sv:108]
+WARNING: [Synth 8-6014] Unused sequential element history_buf_reg[0][1] was removed.  [rtl/evaluation/controller/eval_cli_input.sv:108]
+WARNING: [Synth 8-6014] Unused sequential element history_buf_reg[1][0] was removed.  [rtl/evaluation/controller/eval_cli_input.sv:108]
+WARNING: [Synth 8-6014] Unused sequential element history_buf_reg[1][1] was removed.  [rtl/evaluation/controller/eval_cli_input.sv:108]
+WARNING: [Synth 8-6014] Unused sequential element history_buf_reg[2][0] was removed.  [rtl/evaluation/controller/eval_cli_input.sv:108]
+WARNING: [Synth 8-6014] Unused sequential element history_buf_reg[2][1] was removed.  [rtl/evaluation/controller/eval_cli_input.sv:108]
+WARNING: [Synth 8-6014] Unused sequential element history_buf_reg[3][0] was removed.  [rtl/evaluation/controller/eval_cli_input.sv:108]
+WARNING: [Synth 8-6014] Unused sequential element history_buf_reg[3][1] was removed.  [rtl/evaluation/controller/eval_cli_input.sv:108]
+WARNING: [Synth 8-6014] Unused sequential element load_slot_reg was removed.  [rtl/evaluation/controller/eval_cli_input.sv:158]
+WARNING: [Synth 8-6014] Unused sequential element load_slot_reg was removed.  [rtl/evaluation/controller/eval_cli_input.sv:174]
+WARNING: [Synth 8-6014] Unused sequential element check_slot_reg was removed.  [rtl/evaluation/controller/eval_cli_input.sv:242]
+WARNING: [Synth 8-6014] Unused sequential element match_reg was removed.  [rtl/evaluation/controller/eval_cli_input.sv:243]
+WARNING: [Synth 8-6014] Unused sequential element m_slot_reg was removed.  [rtl/evaluation/controller/eval_cli_input.sv:275]
+WARNING: [Synth 8-6014] Unused sequential element new_slot_reg was removed.  [rtl/evaluation/controller/eval_cli_input.sv:297]
 WARNING: [Synth 8-6014] Unused sequential element char_is_last_reg was removed.  [rtl/evaluation/controller/eval_console_buffer.sv:96]
-WARNING: [Synth 8-6014] Unused sequential element ping_is_loopback_reg was removed.  [rtl/evaluation/controller/eval_cmd_exec.sv:405]
-WARNING: [Synth 8-6014] Unused sequential element target_rate_reg was removed.  [rtl/evaluation/controller/eval_cmd_exec.sv:655]
-WARNING: [Synth 8-6014] Unused sequential element target_os_reg was removed.  [rtl/evaluation/controller/eval_cmd_exec.sv:656]
-WARNING: [Synth 8-6014] Unused sequential element valid_rate_reg was removed.  [rtl/evaluation/controller/eval_cmd_exec.sv:657]
-WARNING: [Synth 8-6014] Unused sequential element valid_pwr_in_reg was removed.  [rtl/evaluation/controller/eval_cmd_exec.sv:835]
-WARNING: [Synth 8-6014] Unused sequential element valid_pwr_out_reg was removed.  [rtl/evaluation/controller/eval_cmd_exec.sv:861]
-WARNING: [Synth 8-6014] Unused sequential element bcd_next_reg was removed.  [rtl/evaluation/controller/eval_cmd_exec.sv:959]
-WARNING: [Synth 8-7137] Register tx_chat_idx_reg in module eval_cmd_exec has both Set and reset with same priority. This may cause simulation mismatches. Consider rewriting code  [rtl/evaluation/controller/eval_cmd_exec.sv:644]
+WARNING: [Synth 8-6014] Unused sequential element ping_is_loopback_reg was removed.  [rtl/evaluation/controller/eval_cmd_exec.sv:406]
+WARNING: [Synth 8-6014] Unused sequential element target_rate_reg was removed.  [rtl/evaluation/controller/eval_cmd_exec.sv:656]
+WARNING: [Synth 8-6014] Unused sequential element target_os_reg was removed.  [rtl/evaluation/controller/eval_cmd_exec.sv:657]
+WARNING: [Synth 8-6014] Unused sequential element valid_rate_reg was removed.  [rtl/evaluation/controller/eval_cmd_exec.sv:658]
+WARNING: [Synth 8-6014] Unused sequential element valid_pwr_in_reg was removed.  [rtl/evaluation/controller/eval_cmd_exec.sv:836]
+WARNING: [Synth 8-6014] Unused sequential element valid_pwr_out_reg was removed.  [rtl/evaluation/controller/eval_cmd_exec.sv:862]
+WARNING: [Synth 8-6014] Unused sequential element bcd_next_reg was removed.  [rtl/evaluation/controller/eval_cmd_exec.sv:960]
 WARNING: [Synth 8-6014] Unused sequential element peer_role_reg was removed.  [rtl/evaluation/controller/power_negotiator.sv:108]
 WARNING: [Synth 8-3848] Net btn2_bram\.addr in module/entity draw_popup does not have driver. [rtl/evaluation/display/draw/draw_popup.sv:28]
 WARNING: [Synth 8-3848] Net btn2_bram\.en in module/entity draw_popup does not have driver. [rtl/evaluation/display/draw/draw_popup.sv:28]
@@ -181,9 +142,7 @@ WARNING: [Synth 8-3332] Sequential element (FSM_onehot_state_reg[6]) is unused a
 WARNING: [Synth 8-5835] Resources of type BRAM have been overutilized. Used = 130, Available = 100. Will try to implement using LUT-RAM. 
 |string_rom    | pwr_state_error          | 32x8          | LUT            | 
 Synthesis finished with 0 errors, 0 critical warnings and 208 warnings.
-WARNING: [Opt 31-35] Removing redundant IBUF, u_clk_wiz_0/inst/clkin1_ibufg, from the path connected to top-level port: clk 
-Resolution: The tool has removed redundant IBUF. To resolve this warning, check for redundant IBUF in the input design.
-601 Infos, 180 Warnings, 0 Critical Warnings and 0 Errors encountered.
+601 Infos, 140 Warnings, 0 Critical Warnings and 0 Errors encountered.
 
 ----IMPLEMENTATION----
 9 Infos, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.
@@ -191,11 +150,11 @@ INFO: [Project 1-461] DRC finished with 0 Errors
 38 Infos, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.
 INFO: [Vivado_Tcl 4-198] DRC finished with 0 Errors
 INFO: [Vivado_Tcl 4-198] DRC finished with 0 Errors, 21 Warnings
-INFO: [Physopt 32-1044] Break lutnm for timing: one critical 31, two critical 9, total 40, new lutff created 1
+INFO: [Physopt 32-1044] Break lutnm for timing: one critical 10, two critical 4, total 14, new lutff created 0
 83 Infos, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.
 94 Infos, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.
-106 Infos, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.
+107 Infos, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.
 WARNING: [Power 33-332] Found switching activity that implies high-fanout reset nets being asserted for excessive periods of time which may result in inaccurate power analysis.
-123 Infos, 1 Warnings, 0 Critical Warnings and 0 Errors encountered.
+124 Infos, 1 Warnings, 0 Critical Warnings and 0 Errors encountered.
 INFO: [Vivado 12-3199] DRC finished with 0 Errors
-138 Infos, 1 Warnings, 0 Critical Warnings and 0 Errors encountered.
+139 Infos, 1 Warnings, 0 Critical Warnings and 0 Errors encountered.

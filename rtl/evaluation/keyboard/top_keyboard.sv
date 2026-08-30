@@ -38,7 +38,9 @@ module top_keyboard (
       .ps2_data(ps2_data),
       .keys_pressed(keys_pressed),
       .key_make_strobe(key_make_strobe),
-      .key_code(key_code)
+      .key_code(key_code),
+      .dbg_rx_data(),
+      .dbg_rx_valid()
   );
 
   keyboard_controller u_kbd_ctrl (

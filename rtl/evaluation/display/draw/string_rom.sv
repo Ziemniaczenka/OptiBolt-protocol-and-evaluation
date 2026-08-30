@@ -19,47 +19,47 @@ module string_rom (
     input logic       rx_carrier,   // 1=Optical light present, 0=No light
 
     // Status strings
-    interface status_lbl_bram,
-    interface link_bram,
-    interface light_bram,
-    interface baud_bram,
-    interface os_bram,
+    bram_if.memory status_lbl_bram,
+    bram_if.memory link_bram,
+    bram_if.memory light_bram,
+    bram_if.memory baud_bram,
+    bram_if.memory os_bram,
     input logic [2:0] pwr_status_code,
     input logic [1:0] active_voltage_id,
     input logic [3:0] active_amps,
     input logic contract_active,
     input logic active_is_source,
-    interface pwr_state_bram,
-    interface pwr_val_bram,
+    bram_if.memory pwr_state_bram,
+    bram_if.memory pwr_val_bram,
     input logic failover_en,
-    interface failover_bram,
+    bram_if.memory failover_bram,
 
     // Toolbar buttons
-    interface help_btn_bram,
-    interface ping_btn_bram,
-    interface sweep_btn_bram,
-    interface sndbmp_btn_bram,
-    interface clrbmp_btn_bram,
-    interface clrcon_btn_bram,
-    interface about_btn_bram,
+    bram_if.memory help_btn_bram,
+    bram_if.memory ping_btn_bram,
+    bram_if.memory sweep_btn_bram,
+    bram_if.memory sndbmp_btn_bram,
+    bram_if.memory clrbmp_btn_bram,
+    bram_if.memory clrcon_btn_bram,
+    bram_if.memory about_btn_bram,
 
     // Popup strings
-    interface popup_title_bram,
-    interface popup_desc_bram,
-    interface popup_btn_bram,
+    bram_if.memory popup_title_bram,
+    bram_if.memory popup_desc_bram,
+    bram_if.memory popup_btn_bram,
 
     // Diagnostics strings
-    interface diag_title_bram,
-    interface diag_man_bram,
-    interface diag_pre_bram,
-    interface diag_par_bram,
-    interface diag_hlt_bram,
+    bram_if.memory diag_title_bram,
+    bram_if.memory diag_man_bram,
+    bram_if.memory diag_pre_bram,
+    bram_if.memory diag_par_bram,
+    bram_if.memory diag_hlt_bram,
 
     // Dynamic Bitmap label
-    interface bmp_lbl_bram,
+    bram_if.memory bmp_lbl_bram,
 
     // Console label
-    interface console_title_bram
+    bram_if.memory console_title_bram
 );
 
   /**

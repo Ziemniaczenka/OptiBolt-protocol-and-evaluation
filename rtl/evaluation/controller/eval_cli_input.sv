@@ -86,6 +86,7 @@ module eval_cli_input #(
       input_din        <= 8'h00;
       cmd_valid        <= 1'b0;
       cmd_len          <= '0;
+      btn_trigger      <= 1'b0;
       echo_req         <= 1'b0;
       history_count    <= '0;
       history_pos      <= '0;

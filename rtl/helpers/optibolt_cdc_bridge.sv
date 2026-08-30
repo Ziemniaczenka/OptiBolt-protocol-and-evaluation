@@ -110,6 +110,7 @@ module optibolt_cdc_bridge (
       .wr_en   (rx_enable_200),
       .din     ({rx_type_200, rx_data_200}),
       .full    (rx_async_full_200),
+      .empty_wr(),
 
       .clk_rd  (clk100),
       .rst_rd_n(rst_n),
