@@ -44,9 +44,11 @@ module optibolt_link_manager_tb;
   logic       speed_nego_in_progress;
   logic       speed_updated_pulse;
 
+  logic proto_eval_tx_empty;
+
   optibolt_link_manager #(
       .DEFAULT_BAUD_RATE   (4'd1), // 1.0 Mbps
-      .DEFAULT_OVERSAMPLING(4'd0)  // 16x OS
+      .DEFAULT_OVERSAMPLING(4'd0)  // 8x OS
   ) dut (
       .clk                             (clk),
       .rst_n                           (rst_n),
@@ -73,7 +75,8 @@ module optibolt_link_manager_tb;
       .active_loopback_en              (active_loopback_en),
       .failover_triggered              (failover_triggered),
       .speed_nego_in_progress          (speed_nego_in_progress),
-      .speed_updated_pulse             (speed_updated_pulse)
+      .speed_updated_pulse             (speed_updated_pulse),
+      .proto_eval_tx_empty             (proto_eval_tx_empty)
   );
 
   logic failover_seen;
@@ -98,6 +101,7 @@ module optibolt_link_manager_tb;
     proto_rx_valid = 0;
     proto_rx_type = 0;
     proto_rx_data = 0;
+    proto_eval_tx_empty = 1'b1;
 
     $display("=== STARTING OPTIBOLT_LINK_MANAGER TESTBENCH ===");
     repeat(10) @(posedge clk);
@@ -121,11 +125,11 @@ module optibolt_link_manager_tb;
       else $error("Expected negotiation TX packet!");
     set_speed_req <= 1'b0;
 
-    // Simulate remote acknowledge
+    // Simulate remote acknowledge (MSG_REQUEST with CMD_SPEED_ACK)
     @(posedge clk);
     proto_rx_valid <= 1'b1;
     proto_rx_type  <= MSG_REQUEST;
-    proto_rx_data  <= {4'd0, 4'd2};
+    proto_rx_data  <= CMD_SPEED_ACK;
     @(posedge clk);
     proto_rx_valid <= 1'b0;
     repeat(2) @(posedge clk);

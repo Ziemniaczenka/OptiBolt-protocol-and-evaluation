@@ -19,6 +19,7 @@
 import string_pkg::*;
 import ui_pkg::*;
 import protocol_pkg::*;
+import eval_cmd_pkg::*;
 
 module dual_device_tb;
 
@@ -392,7 +393,7 @@ module dual_device_tb;
       a_type_string(s);
       a_submit_cmd();
       wait (u_eval_a.u_eval_cli_input.state == u_eval_a.u_eval_cli_input.INP_IDLE);
-      wait (u_eval_a.u_eval_cmd_exec.state == u_eval_a.u_eval_cmd_exec.E_IDLE);
+      wait (u_eval_a.u_eval_cmd_exec.state == E_IDLE);
       repeat(10) @(posedge clk);
     end
   endtask
@@ -434,7 +435,7 @@ module dual_device_tb;
       b_type_string(s);
       b_submit_cmd();
       wait (u_eval_b.u_eval_cli_input.state == u_eval_b.u_eval_cli_input.INP_IDLE);
-      wait (u_eval_b.u_eval_cmd_exec.state == u_eval_b.u_eval_cmd_exec.E_IDLE);
+      wait (u_eval_b.u_eval_cmd_exec.state == E_IDLE);
       repeat(10) @(posedge clk);
     end
   endtask
@@ -457,8 +458,8 @@ module dual_device_tb;
     b_ui_selected_item = ITEM_INPUT;
 
     #20 rst_n = 1;
-    wait (u_eval_a.u_eval_cmd_exec.state == u_eval_a.u_eval_cmd_exec.E_IDLE);
-    wait (u_eval_b.u_eval_cmd_exec.state == u_eval_b.u_eval_cmd_exec.E_IDLE);
+    wait (u_eval_a.u_eval_cmd_exec.state == E_IDLE);
+    wait (u_eval_b.u_eval_cmd_exec.state == E_IDLE);
     @(posedge clk);
 
     // Enter text typing mode on both boards
@@ -503,8 +504,8 @@ module dual_device_tb;
     $display("[TEST 1] Testing Cross-Board Text Chat (Board A -> Board B)...");
     a_type_string("hello");
     a_submit_cmd();
-    wait (u_eval_a.u_eval_cmd_exec.state == u_eval_a.u_eval_cmd_exec.E_TX_CHAT);
-    wait (u_eval_a.u_eval_cmd_exec.state == u_eval_a.u_eval_cmd_exec.E_IDLE);
+    wait (u_eval_a.u_eval_cmd_exec.state == E_TX_CHAT);
+    wait (u_eval_a.u_eval_cmd_exec.state == E_IDLE);
     repeat(50) @(posedge clk);
 
     assert (b_received_chat) else $error("Board B did not write received chat to console BRAM");
@@ -608,19 +609,40 @@ module dual_device_tb;
     wait (u_eval_b.rx_bmp_has_b0 == 1'b1);
     wait (u_eval_b.rx_bmp_has_b0 == 1'b0);
     $display("[PASS] Test 4: Board B actively receiving and decoding bitmap stream into BRAM.");
-    force u_eval_a.u_eval_cmd_exec.state = u_eval_a.u_eval_cmd_exec.E_IDLE;
+    force u_eval_a.u_eval_cmd_exec.state = E_IDLE;
     @(posedge clk);
     release u_eval_a.u_eval_cmd_exec.state;
     repeat(10) @(posedge clk);
 
     // -------------------------------------------------------------------------
-    // TEST 5: Speed Negotiation with ACK Drain Handling
+    // TEST 5: Speed & Oversampling Negotiation Cross-Board
     // -------------------------------------------------------------------------
-    $display("[TEST 5] Board A requesting speed change to 2.5 Mbps...");
+    $display("[TEST 5.1] Board B requesting /os 16x while on 1.0 Mbps (should report error)...");
+    b_exec("/os 16x");
+    repeat(20) @(posedge clk);
+    assert (b_proto_oversampling == 4'd0 && a_proto_oversampling == 4'd0)
+    else $error("16x OS should be rejected on 1.0 Mbps");
+    $display("[PASS] Test 5.1: /os 16x correctly rejected on unsupported 1.0 Mbps rate.");
+
+    $display("[TEST 5.2] Board A requesting speed change to 2.5 Mbps...");
     a_exec("/baud 2.5m");
     repeat(50) @(posedge clk);
     assert (b_proto_baud_rate == 4'd3 && a_proto_baud_rate == 4'd3);
-    $display("[PASS] Test 5: Both devices successfully synchronized speed to 2.5 Mbps!");
+    $display("[PASS] Test 5.2: Both devices successfully synchronized speed to 2.5 Mbps!");
+
+    $display("[TEST 5.3] Board B requesting /os 16x on supported 2.5 Mbps rate...");
+    b_exec("/os 16x");
+    repeat(50) @(posedge clk);
+    assert (b_proto_oversampling == 4'd1 && a_proto_oversampling == 4'd1)
+    else $error("Cross-board /os 16x negotiation failed on 2.5 Mbps");
+    $display("[PASS] Test 5.3: Board B successfully negotiated 16x oversampling with Board A!");
+
+    $display("[TEST 5.4] Board B requesting /os 8x to return to 8x OS...");
+    b_exec("/os 8x");
+    repeat(50) @(posedge clk);
+    assert (b_proto_oversampling == 4'd0 && a_proto_oversampling == 4'd0)
+    else $error("Cross-board /os 8x negotiation failed");
+    $display("[PASS] Test 5.4: Board B successfully returned to 8x oversampling!");
 
     // -------------------------------------------------------------------------
     // TEST 6: Dual Device Baudrate Sweep
@@ -628,7 +650,7 @@ module dual_device_tb;
     $display("[TEST 6] Initiating full Dual-Device Baudrate Sweep from Board A...");
     a_exec("/sweep");
     // Wait for sweep to complete across all 16 frequency steps
-    wait (u_eval_a.u_eval_cmd_exec.state == u_eval_a.u_eval_cmd_exec.E_IDLE);
+    wait (u_eval_a.u_eval_cmd_exec.state == E_IDLE);
     repeat(50) @(posedge clk);
     assert (a_proto_baud_rate == 4'd1 && b_proto_baud_rate == 4'd1)
     else $error("Both boards should return to default 1.0 Mbps after sweep");

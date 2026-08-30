@@ -14,7 +14,7 @@ import protocol_pkg::*;
 module optibolt_link_manager #(
     parameter logic [3:0] DEFAULT_BAUD_RATE    = 4'd1,
     parameter logic [3:0] DEFAULT_OVERSAMPLING = 4'd0,
-    parameter int         SWEEP_WATCHDOG_TICKS = 10_000_000
+    parameter int         SWEEP_STEP_TICKS     = 5_000_000
 ) (
     input logic clk,
     input logic rst_n,
@@ -67,7 +67,7 @@ module optibolt_link_manager #(
   logic [3:0] pending_os;
   logic       ack_tx_in_progress;
   logic       ack_tx_started;
-  logic [31:0] sweep_watchdog_cnt;
+  logic [31:0] sweep_dwell_cnt;
 
   assign active_baud_rate    = current_baud;
   assign active_oversampling = current_os;
@@ -88,7 +88,7 @@ module optibolt_link_manager #(
       pending_os             <= DEFAULT_OVERSAMPLING;
       ack_tx_in_progress     <= 1'b0;
       ack_tx_started         <= 1'b0;
-      sweep_watchdog_cnt     <= '0;
+      sweep_dwell_cnt        <= '0;
       failover_triggered     <= 1'b0;
       speed_nego_in_progress <= 1'b0;
       speed_updated_pulse    <= 1'b0;
@@ -111,9 +111,13 @@ module optibolt_link_manager #(
       par_d1              <= proto_eval_parity_error;
 
       // ---------------------------------------------------------------------
-      // Error Accumulator in 100ms window
+      // Error Accumulator in 100ms window (bypassed during active sweep)
       // ---------------------------------------------------------------------
-      if (err_monitor_timer >= 24'd10_000_000) begin
+      if (sweep_active) begin
+        err_monitor_timer  <= '0;
+        window_error_count <= '0;
+        carrier_loss_timer <= '0;
+      end else if (err_monitor_timer >= 24'd10_000_000) begin
         err_monitor_timer  <= '0;
         window_error_count <= '0;
       end else begin
@@ -127,45 +131,55 @@ module optibolt_link_manager #(
       end
 
       // ---------------------------------------------------------------------
-      // Automatic Link Failover
+      // Automatic Link Failover (Normal Operation Only - Inactive during Sweep)
       // ---------------------------------------------------------------------
-      if (!rx_carrier || link_status == 2'b00) begin
-        if (carrier_loss_timer < 20'd1_000_000) carrier_loss_timer <= carrier_loss_timer + 20'd1;
-      end else begin
-        carrier_loss_timer <= '0;
-      end
-
-      if (failover_en && !sweep_active && (current_baud != DEFAULT_BAUD_RATE || current_os != DEFAULT_OVERSAMPLING)) begin
-        if (window_error_count >= 16'd200 || carrier_loss_timer >= 20'd1_000_000) begin
-          current_baud       <= DEFAULT_BAUD_RATE;
-          current_os         <= DEFAULT_OVERSAMPLING;
-          window_error_count <= '0;
+      if (!sweep_active) begin
+        if (!rx_carrier || link_status == 2'b00) begin
+          if (carrier_loss_timer < 20'd1_000_000) carrier_loss_timer <= carrier_loss_timer + 20'd1;
+        end else begin
           carrier_loss_timer <= '0;
-          failover_triggered <= 1'b1;
+        end
+
+        if (failover_en && (current_baud != DEFAULT_BAUD_RATE || current_os != DEFAULT_OVERSAMPLING)) begin
+          if (window_error_count >= 16'd200 || carrier_loss_timer >= 20'd1_000_000) begin
+            current_baud       <= DEFAULT_BAUD_RATE;
+            current_os         <= DEFAULT_OVERSAMPLING;
+            window_error_count <= '0;
+            carrier_loss_timer <= '0;
+            failover_triggered <= 1'b1;
+          end
         end
       end
 
       // ---------------------------------------------------------------------
-      // Sweep Watchdog: Fallback to default rate if broken test speed hangs
+      // Sweep Step Dwell Timer: Automatic Fallback to Default Speed after Step
       // ---------------------------------------------------------------------
       if (sweep_active && (current_baud != DEFAULT_BAUD_RATE || current_os != DEFAULT_OVERSAMPLING)) begin
-        if (sweep_watchdog_cnt >= SWEEP_WATCHDOG_TICKS) begin
-          current_baud        <= DEFAULT_BAUD_RATE;
-          current_os          <= DEFAULT_OVERSAMPLING;
-          speed_updated_pulse <= 1'b1;
-          sweep_watchdog_cnt  <= '0;
+        // Dwell timeout slightly longer than step ticks (SWEEP_STEP_TICKS + 12.5%)
+        if (sweep_dwell_cnt >= 32'(SWEEP_STEP_TICKS + (SWEEP_STEP_TICKS >> 3))) begin
+          current_baud           <= DEFAULT_BAUD_RATE;
+          current_os             <= DEFAULT_OVERSAMPLING;
+          speed_updated_pulse    <= 1'b1;
+          speed_nego_in_progress <= 1'b0;
+          sweep_dwell_cnt        <= '0;
         end else begin
-          sweep_watchdog_cnt <= sweep_watchdog_cnt + 32'd1;
+          sweep_dwell_cnt <= sweep_dwell_cnt + 32'd1;
         end
       end else begin
-        sweep_watchdog_cnt <= '0;
+        sweep_dwell_cnt <= '0;
       end
 
       // ---------------------------------------------------------------------
       // User Speed Setting Request
       // ---------------------------------------------------------------------
       if (set_speed_req) begin
-        if (link_status == 2'b01) begin  // Remote connected: initiate negotiation
+        if (sweep_active && req_baud_rate == DEFAULT_BAUD_RATE && req_oversampling == DEFAULT_OVERSAMPLING) begin
+          // During sweep, restoring 1.0M is applied locally without requiring peer ACK
+          current_baud           <= DEFAULT_BAUD_RATE;
+          current_os             <= DEFAULT_OVERSAMPLING;
+          speed_updated_pulse    <= 1'b1;
+          speed_nego_in_progress <= 1'b0;
+        end else if (link_status == 2'b01) begin  // Remote connected: initiate negotiation
           nego_tx_valid          <= 1'b1;
           nego_tx_type           <= MSG_REQUEST;
           nego_tx_data           <= {req_oversampling, req_baud_rate};
@@ -197,12 +211,16 @@ module optibolt_link_manager #(
           ack_tx_started         <= 1'b0;
           speed_nego_in_progress <= 1'b0;
           nego_tx_valid          <= 1'b1;
-          nego_tx_type           <= MSG_ACCEPT;
-          nego_tx_data           <= CMD_SPEED_ACK;
-        end else if (speed_nego_in_progress && proto_rx_valid && proto_rx_type == MSG_ACCEPT && proto_rx_data == CMD_SPEED_ACK) begin
+          nego_tx_type           <= MSG_REQUEST;
+        end else if (speed_nego_in_progress && proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data == CMD_SPEED_ACK) begin
           // Remote peer accepted our speed change request: apply requested speed
-          current_baud           <= req_baud_rate;
           current_os             <= req_oversampling;
+          speed_updated_pulse    <= 1'b1;
+          speed_nego_in_progress <= 1'b0;
+        end else if (proto_rx_valid && proto_rx_type == MSG_REQUEST && proto_rx_data == CMD_SWEEP_END) begin
+          // Remote peer ended sweep: restore default speed
+          current_baud           <= DEFAULT_BAUD_RATE;
+          current_os             <= DEFAULT_OVERSAMPLING;
           speed_updated_pulse    <= 1'b1;
           speed_nego_in_progress <= 1'b0;
         end

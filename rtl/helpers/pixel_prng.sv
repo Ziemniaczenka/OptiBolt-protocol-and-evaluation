@@ -21,10 +21,11 @@ module pixel_prng #(
   logic [15:0] lfsr;
 
   // 16-bit Galois LFSR with taps at bits 16, 14, 13, 11 (polynomial x^16 + x^14 + x^13 + x^11 + 1)
+  // Advances unconditionally every clock cycle for maximum entropy
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
       lfsr <= SEED;  // Non-zero initial seed
-    end else if (next_pixel) begin
+    end else begin
       lfsr <= {lfsr[14:0], lfsr[15] ^ lfsr[13] ^ lfsr[12] ^ lfsr[10]};
     end
   end

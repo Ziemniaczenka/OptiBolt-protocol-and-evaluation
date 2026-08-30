@@ -78,6 +78,7 @@ set sv_files {
     ../rtl/evaluation/controller/optibolt_link_manager.sv
     ../rtl/evaluation/controller/eval_diagnostics.sv
     ../rtl/evaluation/controller/eval_cli_input.sv
+    ../rtl/evaluation/controller/eval_cmd_pkg.sv
     ../rtl/evaluation/controller/eval_console_buffer.sv
     ../rtl/evaluation/controller/eval_cmd_exec.sv
     ../rtl/evaluation/controller/power_negotiator.sv

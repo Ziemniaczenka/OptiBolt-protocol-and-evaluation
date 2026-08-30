@@ -12,9 +12,10 @@
 import string_pkg::*;
 import ui_pkg::*;
 import protocol_pkg::*;
+import eval_cmd_pkg::*;
 
 module eval_cmd_exec #(
-    parameter int CLI_BUF_LEN      = 128,
+    parameter int CLI_BUF_LEN      = 64,
     parameter int SWEEP_STEP_TICKS = 5_000_000
 ) (
     input  logic        clk,
@@ -31,8 +32,6 @@ module eval_cmd_exec #(
 
     // CLI text echo stream from eval_cli_input
     input  logic        echo_req,
-    input  logic [7:0]  echo_buf [0:CLI_BUF_LEN-1],
-    input  logic [10:0] echo_len,
     output logic        echo_ack,
 
     // Console print stream output to eval_console_buffer
@@ -60,6 +59,8 @@ module eval_cmd_exec #(
     output logic        set_speed_req,
     output logic [ 3:0] req_baud_rate,
     output logic [ 3:0] req_oversampling,
+    input  logic [ 3:0] active_baud_rate,
+    input  logic [ 3:0] active_oversampling,
     output logic        failover_en,
     input  logic        failover_triggered,
     output logic        sweep_active,
@@ -71,6 +72,7 @@ module eval_cmd_exec #(
     output logic [ 2:0] proto_tx_type,
     output logic [ 7:0] proto_tx_data,
     input  logic        proto_tx_full,
+    input  logic        proto_tx_empty,
 
     // Power Negotiation Configuration
     output logic [ 1:0] cfg_role,
@@ -91,169 +93,12 @@ module eval_cmd_exec #(
     input  logic [ 7:0] proto_rx_data,
     input  logic        proto_eval_parity_error,
     input  logic        proto_eval_manchester_code_error,
-    input  logic        proto_eval_preamble_error
+    input  logic        proto_eval_preamble_error,
+
+    // Bitmap RX Done Telemetry from evaluation_controller
+    input  logic        bmp_rx_done_pulse,
+    input  logic [31:0] bmp_rx_cycles
 );
-
-  localparam logic [2:0] MSG_REQUEST = 3'b001;
-  localparam logic [2:0] MSG_TEXT    = 3'b100;
-  localparam logic [2:0] MSG_BITMAP  = 3'b101; // Map bitmap to MSG_TEST1 (3'b101)
-  localparam logic [7:0] PING_TOKEN  = 8'hA5;
-  localparam logic [7:0] PING_REPLY  = 8'h5A;
-
-  // ROM Messages
-  localparam logic [7:0] HELP_BYTES [0:535] = '{
-    "/", "h", "e", "l", "p", " ", " ", " ", " ", " ", " ", " ", " ", " ", ":", " ", "S", "h", "o", "w", " ", "h", "e", "l", "p", "\n",
-    "/", "p", "i", "n", "g", " ", " ", " ", " ", " ", " ", " ", " ", " ", ":", " ", "T", "e", "s", "t", " ", "R", "T", "T", "\n",
-    "/", "s", "w", "e", "e", "p", " ", " ", " ", " ", " ", " ", " ", " ", ":", " ", "T", "e", "s", "t", " ", "b", "a", "u", "d", " ", "c", "o", "n", "f", "i", "g", "s", "\n",
-    "/", "b", "a", "u", "d", " ", "<", "s", "p", "d", ">", " ", " ", " ", ":", " ", "1", "0", "0", "k", ",", " ", "1", "m", ",", " ", "1", ".", "2", "5", "m", ",", " ", "2", ".", "5", "m", ",", "\n",
-    " ", " ", "3", ".", "1", "2", "5", "m", ",", " ", "5", "m", ",", " ", "6", ".", "2", "5", "m", ",", " ", "8", ".", "3", "3", "m", ",", " ", "1", "2", ".", "5", "m", ",", " ", "2", "5", "m", "\n",
-    "/", "o", "s", " ", "<", "8", "x", " ", "|", " ", "1", "6", "x", ">", ":", " ", "S", "e", "t", " ", "o", "v", "e", "r", "s", "a", "m", "p", "l", "i", "n", "g", "\n",
-    "/", "b", "i", "t", "m", "a", "p", " ", "s", "e", "n", "d", " ", " ", ":", " ", "S", "t", "r", "e", "a", "m", " ", "B", "M", "P", "\n",
-    "/", "b", "i", "t", "m", "a", "p", " ", "c", "l", "e", "a", "r", " ", ":", " ", "C", "l", "e", "a", "r", " ", "B", "M", "P", "\n",
-    "/", "f", "a", "i", "l", "o", "v", "e", "r", " ", "o", "n", " ", "|", " ", "o", "f", "f", " ", ":", " ", "F", "a", "i", "l", "o", "v", "e", "r", " ", "m", "o", "d", "e", "\n",
-    "/", "c", "l", "e", "a", "r", " ", " ", " ", " ", " ", " ", " ", " ", ":", " ", "C", "l", "e", "a", "r", " ", "c", "o", "n", "s", "o", "l", "e", "\n",
-    "/", "p", "o", "w", "e", "r", " ", "r", "o", "l", "e", " ", "<", "w", "a", "l", "l", " ", "|", " ", "b", "a", "t", "t", "e", "r", "y", " ", "|", " ", "s", "i", "n", "k", ">", "\n",
-    "/", "p", "o", "w", "e", "r", " ", "i", "n", " ", "<", "v", ">", " ", "<", "a", ">", ":", " ", "S", "e", "t", " ", "i", "n", " ", "r", "e", "q", "\n",
-    "/", "p", "o", "w", "e", "r", " ", "o", "u", "t", " ", "<", "v", ">", " ", "<", "a", ">", ":", " ", "S", "e", "t", " ", "o", "u", "t", " ", "c", "a", "p", "\n",
-    "/", "p", "o", "w", "e", "r", " ", "r", "e", "a", "d", "y", " ", " ", ":", " ", "A", "r", "m", " ", "n", "e", "g", "o", "t", "i", "a", "t", "i", "o", "n", "\n",
-    "/", "p", "o", "w", "e", "r", " ", "o", "f", "f", " ", " ", " ", " ", ":", " ", "D", "i", "s", "a", "b", "l", "e", " ", "p", "o", "w", "e", "r", "\n",
-    "/", "p", "o", "w", "e", "r", " ", "c", "l", "e", "a", "r", " ", " ", ":", " ", "R", "e", "s", "e", "t", " ", "t", "a", "b", "l", "e", "s", "\n",
-    "/", "p", "o", "w", "e", "r", " ", "s", "t", "a", "t", "u", "s", " ", ":", " ", "S", "h", "o", "w", " ", "p", "o", "w", "e", "r", " ", "t", "a", "b", "l", "e", "\n"
-  };
-  localparam int HELP_LEN = $size(HELP_BYTES);
-
-  localparam logic [7:0] PWR_OFF_BYTES [0:21] = '{
-    "P", "o", "w", "e", "r", " ", "d", "i", "s", "a", "b", "l", "e", "d", " ", "(", "O", "F", "F", ")", ".", "\n"
-  };
-  localparam logic [7:0] PWR_ROLE_SET_BYTES [0:18] = '{
-    "P", "o", "w", "e", "r", " ", "r", "o", "l", "e", " ", "u", "p", "d", "a", "t", "e", "d", "\n"
-  };
-  localparam logic [7:0] PWR_IN_SET_BYTES [0:23] = '{
-    "P", "o", "w", "e", "r", " ", "i", "n", "p", "u", "t", " ", "r", "e", "q", "u", "i", "r", "e", "m", "e", "n", "t", "\n"
-  };
-  localparam logic [7:0] PWR_OUT_SET_BYTES [0:23] = '{
-    "P", "o", "w", "e", "r", " ", "o", "u", "t", "p", "u", "t", " ", "c", "a", "p", "a", "b", "i", "l", "i", "t", "y", "\n"
-  };
-  localparam logic [7:0] PWR_CLEARED_BYTES [0:20] = '{
-    "P", "o", "w", "e", "r", " ", "t", "a", "b", "l", "e", "s", " ", "c", "l", "e", "a", "r", "e", "d", "\n"
-  };
-  localparam logic [7:0] PWR_READY_BYTES [0:24] = '{
-    "P", "o", "w", "e", "r", " ", "n", "e", "g", "o", "t", "i", "a", "t", "i", "o", "n", " ", "a", "r", "m", "e", "d", ".", "\n"
-  };
-
-  localparam logic [7:0] BAUD_SET_BYTES [0:15] = '{
-    "S", "p", "e", "e", "d", " ", "u", "p", "d", "a", "t", "e", "d", ".", " ", "\n"
-  };
-  localparam logic [7:0] FAILOVER_ON_BYTES [0:18] = '{
-    "F", "a", "i", "l", "o", "v", "e", "r", ":", " ", "E", "N", "A", "B", "L", "E", "D", " ", "\n"
-  };
-  localparam logic [7:0] FAILOVER_OFF_BYTES [0:18] = '{
-    "F", "a", "i", "l", "o", "v", "e", "r", ":", " ", "D", "I", "S", "A", "B", "L", "E", "D", "\n"
-  };
-  localparam logic [7:0] FAILOVER_ALERT_BYTES [0:46] = '{
-    "A", "L", "E", "R", "T", ":", " ", "F", "a", "i", "l", "o", "v", "e", "r", " ", "t", "r", "i", "g",
-    "g", "e", "r", "e", "d", "!", " ", "S", "p", "e", "e", "d", " ", "d", "r", "o", "p", "p", "e", "d",
-    " ", "t", "o", " ", "1", "M", "\n"
-  };
-  localparam logic [7:0] UNKNOWN_CMD_BYTES [0:15] = '{
-    "U", "n", "k", "n", "o", "w", "n", " ", "c", "o", "m", "m", "a", "n", "d", "\n"
-  };
-  localparam logic [7:0] ERR_DISCONN_BYTES [0:24] = '{
-    "E", "r", "r", "o", "r", ":", " ", "L", "i", "n", "k", " ", "d", "i", "s", "c", "o", "n", "n", "e", "c", "t", "e", "d", "\n"
-  };
-  localparam logic [7:0] PING_START_BYTES [0:15] = '{
-    "S", "e", "n", "d", "i", "n", "g", " ", "p", "i", "n", "g", ".", ".", ".", "\n"
-  };
-  localparam logic [7:0] SWEEP_START_BYTES [0:26] = '{
-    "S", "t", "a", "r", "t", "i", "n", "g", " ", "b", "a", "u", "d", "r", "a", "t", "e", " ", "s", "w", "e", "e", "p", ".", ".", ".", "\n"
-  };
-  localparam logic [7:0] SWEEP_DONE_BYTES [0:20] = '{
-    "B", "a", "u", "d", " ", "s", "w", "e", "e", "p", " ", "c", "o", "m", "p", "l", "e", "t", "e", ".", "\n"
-  };
-
-  localparam logic [7:0] SWEEP_PASS_STR[0:15][0:20] = '{
-    '{" ", " ", "1", "0", "0", "k", "b", "p", "s", " ", " ", "8", "x", ":", " ", "P", "A", "S", "S", " ", "\n"},
-    '{" ", " ", "1", "0", "0", "k", "b", "p", "s", " ", "1", "6", "x", ":", " ", "P", "A", "S", "S", " ", "\n"},
-    '{" ", " ", "1", ".", "0", "M", "b", "p", "s", " ", " ", "8", "x", ":", " ", "P", "A", "S", "S", " ", "\n"},
-    '{" ", "1", ".", "2", "5", "M", "b", "p", "s", " ", " ", "8", "x", ":", " ", "P", "A", "S", "S", " ", "\n"},
-    '{" ", "1", ".", "2", "5", "M", "b", "p", "s", " ", "1", "6", "x", ":", " ", "P", "A", "S", "S", " ", "\n"},
-    '{" ", " ", "2", ".", "5", "M", "b", "p", "s", " ", " ", "8", "x", ":", " ", "P", "A", "S", "S", " ", "\n"},
-    '{" ", " ", "2", ".", "5", "M", "b", "p", "s", " ", "1", "6", "x", ":", " ", "P", "A", "S", "S", " ", "\n"},
-    '{"3", ".", "1", "2", "5", "M", "b", "p", "s", " ", " ", "8", "x", ":", " ", "P", "A", "S", "S", " ", "\n"},
-    '{"3", ".", "1", "2", "5", "M", "b", "p", "s", " ", "1", "6", "x", ":", " ", "P", "A", "S", "S", " ", "\n"},
-    '{" ", " ", "5", ".", "0", "M", "b", "p", "s", " ", " ", "8", "x", ":", " ", "P", "A", "S", "S", " ", "\n"},
-    '{" ", "6", ".", "2", "5", "M", "b", "p", "s", " ", " ", "8", "x", ":", " ", "P", "A", "S", "S", " ", "\n"},
-    '{" ", "6", ".", "2", "5", "M", "b", "p", "s", " ", "1", "6", "x", ":", " ", "P", "A", "S", "S", " ", "\n"},
-    '{" ", "8", ".", "3", "3", "M", "b", "p", "s", " ", " ", "8", "x", ":", " ", "P", "A", "S", "S", " ", "\n"},
-    '{" ", "1", "2", ".", "5", "M", "b", "p", "s", " ", " ", "8", "x", ":", " ", "P", "A", "S", "S", " ", "\n"},
-    '{" ", "1", "2", ".", "5", "M", "b", "p", "s", " ", "1", "6", "x", ":", " ", "P", "A", "S", "S", " ", "\n"},
-    '{" ", "2", "5", ".", "0", "M", "b", "p", "s", " ", " ", "8", "x", ":", " ", "P", "A", "S", "S", " ", "\n"}
-  };
-
-  localparam logic [7:0] SWEEP_FAIL_STR[0:15][0:23] = '{
-    '{" ", " ", "1", "0", "0", "k", "b", "p", "s", " ", " ", "8", "x", ":", " ", "F", "A", "I", "L", " ", "e", "r", "r", "\n"},
-    '{" ", " ", "1", "0", "0", "k", "b", "p", "s", " ", "1", "6", "x", ":", " ", "F", "A", "I", "L", " ", "e", "r", "r", "\n"},
-    '{" ", " ", "1", ".", "0", "M", "b", "p", "s", " ", " ", "8", "x", ":", " ", "F", "A", "I", "L", " ", "e", "r", "r", "\n"},
-    '{" ", "1", ".", "2", "5", "M", "b", "p", "s", " ", " ", "8", "x", ":", " ", "F", "A", "I", "L", " ", "e", "r", "r", "\n"},
-    '{" ", "1", ".", "2", "5", "M", "b", "p", "s", " ", "1", "6", "x", ":", " ", "F", "A", "I", "L", " ", "e", "r", "r", "\n"},
-    '{" ", " ", "2", ".", "5", "M", "b", "p", "s", " ", " ", "8", "x", ":", " ", "F", "A", "I", "L", " ", "e", "r", "r", "\n"},
-    '{" ", " ", "2", ".", "5", "M", "b", "p", "s", " ", "1", "6", "x", ":", " ", "F", "A", "I", "L", " ", "e", "r", "r", "\n"},
-    '{"3", ".", "1", "2", "5", "M", "b", "p", "s", " ", " ", "8", "x", ":", " ", "F", "A", "I", "L", " ", "e", "r", "r", "\n"},
-    '{"3", ".", "1", "2", "5", "M", "b", "p", "s", " ", "1", "6", "x", ":", " ", "F", "A", "I", "L", " ", "e", "r", "r", "\n"},
-    '{" ", " ", "5", ".", "0", "M", "b", "p", "s", " ", " ", "8", "x", ":", " ", "F", "A", "I", "L", " ", "e", "r", "r", "\n"},
-    '{" ", "6", ".", "2", "5", "M", "b", "p", "s", " ", " ", "8", "x", ":", " ", "F", "A", "I", "L", " ", "e", "r", "r", "\n"},
-    '{" ", "6", ".", "2", "5", "M", "b", "p", "s", " ", "1", "6", "x", ":", " ", "F", "A", "I", "L", " ", "e", "r", "r", "\n"},
-    '{" ", "8", ".", "3", "3", "M", "b", "p", "s", " ", " ", "8", "x", ":", " ", "F", "A", "I", "L", " ", "e", "r", "r", "\n"},
-    '{" ", "1", "2", ".", "5", "M", "b", "p", "s", " ", " ", "8", "x", ":", " ", "F", "A", "I", "L", " ", "e", "r", "r", "\n"},
-    '{" ", "1", "2", ".", "5", "M", "b", "p", "s", " ", "1", "6", "x", ":", " ", "F", "A", "I", "L", " ", "e", "r", "r", "\n"},
-    '{" ", "2", "5", ".", "0", "M", "b", "p", "s", " ", " ", "8", "x", ":", " ", "F", "A", "I", "L", " ", "e", "r", "r", "\n"}
-  };
-
-  localparam logic [3:0] SWEEP_BAUD[0:15] = '{
-    4'd0, 4'd0, 4'd1, 4'd2, 4'd2, 4'd3, 4'd3, 4'd4, 4'd4, 4'd5, 4'd6, 4'd6, 4'd7, 4'd8, 4'd8, 4'd9
-  };
-  localparam logic [3:0] SWEEP_OS[0:15]   = '{
-    4'd0, 4'd1, 4'd0, 4'd0, 4'd1, 4'd0, 4'd1, 4'd0, 4'd1, 4'd0, 4'd0, 4'd1, 4'd0, 4'd0, 4'd1, 4'd0
-  };
-
-  typedef enum logic [4:0] {
-    SRC_NONE,
-    SRC_ECHO,
-    SRC_HELP,
-    SRC_BAUD_SET,
-    SRC_FAILOVER_ON,
-    SRC_FAILOVER_OFF,
-    SRC_FAILOVER_ALERT,
-    SRC_UNKNOWN,
-    SRC_ERR_DISCONN,
-    SRC_PING_START,
-    SRC_PING_MSG,
-    SRC_SWEEP_START,
-    SRC_SWEEP_PASS,
-    SRC_SWEEP_FAIL,
-    SRC_SWEEP_DONE,
-    SRC_PWR_ROLE_SET,
-    SRC_PWR_IN_SET,
-    SRC_PWR_OUT_SET,
-    SRC_PWR_CLEARED,
-    SRC_PWR_READY,
-    SRC_PWR_OFF,
-    SRC_PWR_STATUS
-  } msg_src_t;
-
-  typedef enum logic [3:0] {
-    E_IDLE,
-    E_PARSE_CMD,
-    E_STREAM_MSG,
-    E_PING_CONVERT,
-    E_PING_FMT_STEP,
-    E_SWEEP_STEP,
-    E_SWEEP_WAIT,
-    E_SWEEP_RESTORE,
-    E_BITMAP_SEND,
-    E_CLEAR_BITMAP,
-    E_TX_CHAT
-  } exec_state_t;
 
   exec_state_t state;
   msg_src_t    msg_src;
@@ -271,14 +116,17 @@ module eval_cmd_exec #(
   logic        tx_pixel_phase;
   logic [ 5:0] tx_gap_cnt;
   logic [13:0] clear_bmp_idx;
-  logic        prng_next_pixel;
   logic [11:0] prng_pixel_rgb;
   logic [ 7:0] prng_pixel_byte;
+  logic [11:0] latched_pixel_rgb;
+  logic [31:0] bmp_tx_timer;
+  logic        bmp_pending_rx;
+  logic [31:0] bmp_pending_rx_cycles;
 
   pixel_prng u_pixel_prng (
       .clk        (clk),
       .rst_n      (rst_n),
-      .next_pixel (prng_next_pixel),
+      .next_pixel (1'b1),
       .pixel_rgb  (prng_pixel_rgb),
       .pixel_byte (prng_pixel_byte)
   );
@@ -290,13 +138,18 @@ module eval_cmd_exec #(
   logic        ping_is_loopback;
   logic [ 7:0] ping_msg_buf [0:63];
 
-  // BCD conversion registers
+  // Bitmap report buffer
+  logic [ 7:0] bmp_msg_buf  [0:63];
+
+  // BCD conversion registers (Double-Dabble)
   logic [31:0] bcd_reg;
   logic [31:0] bin_reg;
   logic [ 5:0] bcd_cnt;
   logic [ 3:0] bcd_d [0:7];
+  logic        fmt_is_bitmap;
+  logic        fmt_report_is_rx;
 
-  // Sequential Ping formatter registers
+  // Sequential Formatter registers
   logic [ 5:0] fmt_ptr;
   logic [ 2:0] fmt_phase;
   logic [ 3:0] fmt_digit_idx;
@@ -311,106 +164,177 @@ module eval_cmd_exec #(
   logic [ 4:0] sweep_tx_count;
   logic [ 4:0] sweep_rx_count;
   logic        sweep_had_error;
-  logic [31:0] sweep_remote_watchdog;
 
-  // Power status message buffer
-  logic [ 7:0] pwr_msg_buf [0:127];
+  // Combinational Power Status Message Character Generator (Zero Register Overhead)
+  function automatic logic [7:0] get_pwr_char(
+      input logic [10:0] idx,
+      input logic [ 3:0] in_a[4],
+      input logic [ 3:0] out_a[4],
+      input logic        is_active,
+      input logic        is_src,
+      input logic [ 1:0] v_id,
+      input logic [ 3:0] a_val
+  );
+    if (idx < 11'd31) begin
+      // "In : 5V=XA 9V=XA 12V=XA 20V=XA\n"
+      case (idx)
+        11'd0: return "I"; 11'd1: return "n"; 11'd2: return " "; 11'd3: return ":"; 11'd4: return " ";
+        11'd5: return "5"; 11'd6: return "V"; 11'd7: return "="; 11'd8: return 8'h30 + {4'h0, in_a[0]}; 11'd9: return "A"; 11'd10: return " ";
+        11'd11: return "9"; 11'd12: return "V"; 11'd13: return "="; 11'd14: return 8'h30 + {4'h0, in_a[1]}; 11'd15: return "A"; 11'd16: return " ";
+        11'd17: return "1"; 11'd18: return "2"; 11'd19: return "V"; 11'd20: return "="; 11'd21: return 8'h30 + {4'h0, in_a[2]}; 11'd22: return "A"; 11'd23: return " ";
+        11'd24: return "2"; 11'd25: return "0"; 11'd26: return "V"; 11'd27: return "="; 11'd28: return 8'h30 + {4'h0, in_a[3]}; 11'd29: return "A";
+        default: return 8'h0A;
+      endcase
+    end else if (idx < 11'd62) begin
+      // "Out: 5V=XA 9V=XA 12V=XA 20V=XA\n"
+      case (idx - 11'd31)
+        11'd0: return "O"; 11'd1: return "u"; 11'd2: return "t"; 11'd3: return ":"; 11'd4: return " ";
+        11'd5: return "5"; 11'd6: return "V"; 11'd7: return "="; 11'd8: return 8'h30 + {4'h0, out_a[0]}; 11'd9: return "A"; 11'd10: return " ";
+        11'd11: return "9"; 11'd12: return "V"; 11'd13: return "="; 11'd14: return 8'h30 + {4'h0, out_a[1]}; 11'd15: return "A"; 11'd16: return " ";
+        11'd17: return "1"; 11'd18: return "2"; 11'd19: return "V"; 11'd20: return "="; 11'd21: return 8'h30 + {4'h0, out_a[2]}; 11'd22: return "A"; 11'd23: return " ";
+        11'd24: return "2"; 11'd25: return "0"; 11'd26: return "V"; 11'd27: return "="; 11'd28: return 8'h30 + {4'h0, out_a[3]}; 11'd29: return "A";
+        default: return 8'h0A;
+      endcase
+    end else begin
+      // Line 3: Active Contract
+      if (!is_active) begin
+        // "Active: NONE\n"
+        case (idx - 11'd62)
+          11'd0: return "A"; 11'd1: return "c"; 11'd2: return "t"; 11'd3: return "i"; 11'd4: return "v"; 11'd5: return "e"; 11'd6: return ":"; 11'd7: return " ";
+          11'd8: return "N"; 11'd9: return "O"; 11'd10: return "N"; 11'd11: return "E";
+          default: return 8'h0A;
+        endcase
+      end else if (is_src) begin
+        // "Active: SOURCE <V>V @ <A>A\n"
+        case (idx - 11'd62)
+          11'd0: return "A"; 11'd1: return "c"; 11'd2: return "t"; 11'd3: return "i"; 11'd4: return "v"; 11'd5: return "e"; 11'd6: return ":"; 11'd7: return " ";
+          11'd8: return "S"; 11'd9: return "O"; 11'd10: return "U"; 11'd11: return "R"; 11'd12: return "C"; 11'd13: return "E"; 11'd14: return " ";
+          11'd15: return (v_id == 2'd3) ? "2" : (v_id == 2'd2) ? "1" : " ";
+          11'd16: return (v_id == 2'd3) ? "0" : (v_id == 2'd2) ? "2" : (v_id == 2'd1) ? "9" : "5";
+          11'd17: return "V"; 11'd18: return " "; 11'd19: return "@"; 11'd20: return " ";
+          11'd21: return 8'h30 + {4'h0, a_val}; 11'd22: return "A";
+          default: return 8'h0A;
+        endcase
+      end else begin
+        // "Active: RECEIVER <V>V @ <A>A\n"
+        case (idx - 11'd62)
+          11'd0: return "A"; 11'd1: return "c"; 11'd2: return "t"; 11'd3: return "i"; 11'd4: return "v"; 11'd5: return "e"; 11'd6: return ":"; 11'd7: return " ";
+          11'd8: return "R"; 11'd9: return "E"; 11'd10: return "C"; 11'd11: return "E"; 11'd12: return "I"; 11'd13: return "V"; 11'd14: return "E"; 11'd15: return "R"; 11'd16: return " ";
+          11'd17: return (v_id == 2'd3) ? "2" : (v_id == 2'd2) ? "1" : " ";
+          11'd18: return (v_id == 2'd3) ? "0" : (v_id == 2'd2) ? "2" : (v_id == 2'd1) ? "9" : "5";
+          11'd19: return "V"; 11'd20: return " "; 11'd21: return "@"; 11'd22: return " ";
+          11'd23: return 8'h30 + {4'h0, a_val}; 11'd24: return "A";
+          default: return 8'h0A;
+        endcase
+      end
+    end
+  endfunction
 
   // Message multiplexer
   always_comb begin
     case (msg_src)
-      SRC_ECHO:           current_msg_char = (msg_idx == echo_len - 11'd1) ? 8'h0A : echo_buf[msg_idx];
-      SRC_HELP:           current_msg_char = HELP_BYTES[msg_idx];
-      SRC_BAUD_SET:       current_msg_char = BAUD_SET_BYTES[msg_idx];
-      SRC_FAILOVER_ON:    current_msg_char = FAILOVER_ON_BYTES[msg_idx];
-      SRC_FAILOVER_OFF:   current_msg_char = FAILOVER_OFF_BYTES[msg_idx];
-      SRC_FAILOVER_ALERT: current_msg_char = FAILOVER_ALERT_BYTES[msg_idx];
-      SRC_UNKNOWN:        current_msg_char = UNKNOWN_CMD_BYTES[msg_idx];
-      SRC_ERR_DISCONN:    current_msg_char = ERR_DISCONN_BYTES[msg_idx];
-      SRC_PING_START:     current_msg_char = PING_START_BYTES[msg_idx];
-      SRC_PING_MSG:       current_msg_char = ping_msg_buf[msg_idx];
-      SRC_SWEEP_START:    current_msg_char = SWEEP_START_BYTES[msg_idx];
-      SRC_SWEEP_PASS:     current_msg_char = SWEEP_PASS_STR[sweep_print_step][msg_idx];
-      SRC_SWEEP_FAIL:     current_msg_char = SWEEP_FAIL_STR[sweep_print_step][msg_idx];
-      SRC_SWEEP_DONE:     current_msg_char = SWEEP_DONE_BYTES[msg_idx];
-      SRC_PWR_ROLE_SET:   current_msg_char = PWR_ROLE_SET_BYTES[msg_idx];
-      SRC_PWR_IN_SET:     current_msg_char = PWR_IN_SET_BYTES[msg_idx];
-      SRC_PWR_OUT_SET:    current_msg_char = PWR_OUT_SET_BYTES[msg_idx];
-      SRC_PWR_CLEARED:    current_msg_char = PWR_CLEARED_BYTES[msg_idx];
-      SRC_PWR_READY:      current_msg_char = PWR_READY_BYTES[msg_idx];
-      SRC_PWR_OFF:        current_msg_char = PWR_OFF_BYTES[msg_idx];
-      SRC_PWR_STATUS:     current_msg_char = pwr_msg_buf[msg_idx];
-      default:            current_msg_char = 8'h00;
+      SRC_ECHO:               current_msg_char = (msg_idx == msg_len - 11'd1) ? 8'h0A : cmd_buf[msg_idx];
+      SRC_HELP:               current_msg_char = HELP_BYTES[msg_idx];
+      SRC_BAUD_SET:           current_msg_char = BAUD_SET_BYTES[msg_idx];
+      SRC_FAILOVER_ON:        current_msg_char = FAILOVER_ON_BYTES[msg_idx];
+      SRC_FAILOVER_OFF:       current_msg_char = FAILOVER_OFF_BYTES[msg_idx];
+      SRC_FAILOVER_ALERT:     current_msg_char = FAILOVER_ALERT_BYTES[msg_idx];
+      SRC_UNKNOWN:            current_msg_char = UNKNOWN_CMD_BYTES[msg_idx];
+      SRC_ERR_DISCONN:        current_msg_char = ERR_DISCONN_BYTES[msg_idx];
+      SRC_ERR_OS_UNSUPPORTED: current_msg_char = ERR_OS_UNSUPPORTED_BYTES[msg_idx];
+      SRC_PING_START:         current_msg_char = PING_START_BYTES[msg_idx];
+      SRC_PING_MSG:           current_msg_char = ping_msg_buf[msg_idx];
+      SRC_BMP_TX_MSG:         current_msg_char = bmp_msg_buf[msg_idx];
+      SRC_BMP_RX_MSG:         current_msg_char = bmp_msg_buf[msg_idx];
+      SRC_SWEEP_START:        current_msg_char = SWEEP_START_BYTES[msg_idx];
+      SRC_SWEEP_PASS:         current_msg_char = SWEEP_PASS_STR[sweep_print_step][msg_idx];
+      SRC_SWEEP_FAIL:         current_msg_char = SWEEP_FAIL_STR[sweep_print_step][msg_idx];
+      SRC_SWEEP_DONE:         current_msg_char = SWEEP_DONE_BYTES[msg_idx];
+      SRC_PWR_ROLE_SET:       current_msg_char = PWR_ROLE_SET_BYTES[msg_idx];
+      SRC_PWR_IN_SET:         current_msg_char = PWR_IN_SET_BYTES[msg_idx];
+      SRC_PWR_OUT_SET:        current_msg_char = PWR_OUT_SET_BYTES[msg_idx];
+      SRC_PWR_CLEARED:        current_msg_char = PWR_CLEARED_BYTES[msg_idx];
+      SRC_PWR_READY:          current_msg_char = PWR_READY_BYTES[msg_idx];
+      SRC_PWR_OFF:            current_msg_char = PWR_OFF_BYTES[msg_idx];
+      SRC_PWR_STATUS:         current_msg_char = get_pwr_char(msg_idx, cfg_in_amps, cfg_out_amps, contract_active, active_is_source, active_voltage_id, active_amps);
+      default:                current_msg_char = 8'h00;
     endcase
   end
 
   // Command Execution State Machine
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-      state             <= E_IDLE;
-      msg_src           <= SRC_NONE;
-      msg_idx           <= '0;
-      msg_len           <= '0;
-      pending_cmd       <= 1'b0;
-      print_valid       <= 1'b0;
-      print_char        <= 8'h00;
-      print_last        <= 1'b0;
-      echo_ack          <= 1'b0;
-      clear_console_req <= 1'b0;
-      show_popup        <= 1'b0;
-      show_progress     <= 1'b0;
-      progress_val      <= '0;
-      popup_mode        <= POPUP_NONE;
-      set_speed_req     <= 1'b0;
-      req_baud_rate     <= 4'd1;
-      req_oversampling  <= 4'd0;
-      failover_en       <= 1'b1; // Failover enabled by default
-      proto_tx_valid    <= 1'b0;
-      proto_tx_type     <= 3'b000;
-      proto_tx_data     <= 8'h00;
-      bmp_addr          <= '0;
-      bmp_we            <= 1'b0;
-      bmp_din           <= '0;
-      tx_pixel_cnt      <= '0;
-      tx_pixel_phase    <= 1'b0;
-      tx_gap_cnt        <= '0;
-      clear_bmp_idx     <= '0;
-      prng_next_pixel   <= 1'b0;
-      ping_active       <= 1'b0;
-      ping_timer        <= '0;
-      ping_rtt_cycles   <= '0;
-      ping_is_loopback  <= 1'b0;
-      bcd_reg           <= '0;
-      bin_reg           <= '0;
-      bcd_cnt           <= '0;
-      fmt_ptr           <= '0;
-      fmt_phase         <= '0;
-      fmt_digit_idx     <= '0;
-      fmt_text_idx      <= '0;
-      fmt_lead_zero     <= 1'b1;
-      sweep_step        <= '0;
-      sweep_print_step  <= '0;
-      sweep_timer       <= '0;
-      sweep_pkt_gap     <= '0;
-      sweep_active      <= 1'b0;
-      sweep_tx_count    <= '0;
-      sweep_rx_count    <= '0;
-      sweep_had_error   <= 1'b0;
-      cfg_role          <= 2'd0;
-      cfg_ready         <= 1'b0;
-      cfg_clear         <= 1'b0;
+      state                 <= E_IDLE;
+      msg_src               <= SRC_NONE;
+      msg_idx               <= '0;
+      msg_len               <= '0;
+      pending_cmd           <= 1'b0;
+      print_valid           <= 1'b0;
+      print_char            <= 8'h00;
+      print_last            <= 1'b0;
+      echo_ack              <= 1'b0;
+      clear_console_req     <= 1'b0;
+      show_popup            <= 1'b0;
+      show_progress         <= 1'b0;
+      progress_val          <= '0;
+      popup_mode            <= POPUP_NONE;
+      set_speed_req         <= 1'b0;
+      req_baud_rate         <= 4'd1;
+      req_oversampling      <= 4'd0;
+      failover_en           <= 1'b1; // Failover enabled by default
+      proto_tx_valid        <= 1'b0;
+      proto_tx_type         <= 3'b000;
+      proto_tx_data         <= 8'h00;
+      bmp_addr              <= '0;
+      bmp_we                <= 1'b0;
+      bmp_din               <= '0;
+      tx_pixel_cnt          <= '0;
+      tx_pixel_phase        <= 1'b0;
+      tx_gap_cnt            <= '0;
+      clear_bmp_idx         <= '0;
+      latched_pixel_rgb     <= '0;
+      bmp_tx_timer          <= '0;
+      bmp_pending_rx        <= 1'b0;
+      bmp_pending_rx_cycles <= '0;
+      ping_active           <= 1'b0;
+      ping_timer            <= '0;
+      ping_rtt_cycles       <= '0;
+      ping_is_loopback      <= 1'b0;
+      bcd_reg               <= '0;
+      bin_reg               <= '0;
+      bcd_cnt               <= '0;
+      fmt_is_bitmap         <= 1'b0;
+      fmt_report_is_rx      <= 1'b0;
+      fmt_ptr               <= '0;
+      fmt_phase             <= '0;
+      fmt_digit_idx         <= '0;
+      fmt_text_idx          <= '0;
+      fmt_lead_zero         <= 1'b1;
+      sweep_step            <= '0;
+      sweep_print_step      <= '0;
+      sweep_timer           <= '0;
+      sweep_pkt_gap         <= '0;
+      sweep_active          <= 1'b0;
+      sweep_tx_count        <= '0;
+      sweep_rx_count        <= '0;
+      sweep_had_error       <= 1'b0;
+      cfg_role              <= 2'd0;
+      cfg_ready             <= 1'b0;
+      cfg_clear             <= 1'b0;
       for (int i = 0; i < 4; i++) begin
         cfg_in_amps[i]  <= 4'd0;
         cfg_out_amps[i] <= 4'd0;
       end
       for (int i = 0; i < 8; i++) bcd_d[i] <= 4'd0;
-      for (int i = 0; i < 64; i++) ping_msg_buf[i] <= 8'h00;
+      for (int i = 0; i < 64; i++) begin
+        ping_msg_buf[i] <= 8'h00;
+        bmp_msg_buf[i]  <= 8'h00;
+      end
     end else begin
       set_speed_req     <= 1'b0;
       clear_console_req <= 1'b0;
       echo_ack          <= 1'b0;
       bmp_we            <= 1'b0;
-      prng_next_pixel   <= 1'b0;
       proto_tx_valid    <= 1'b0;
       cfg_clear         <= 1'b0;
 
@@ -429,10 +353,16 @@ module eval_cmd_exec #(
       end
 
       // Remote Sweep Test Packet Echo (dual-device mode):
-      if (link_status == 2'b01 && proto_rx_valid && proto_rx_type == MSG_TEST3 && state == E_IDLE) begin
+      if (link_status == 2'b01 && proto_rx_valid && proto_rx_type == MSG_SWEEP && state == E_IDLE) begin
         proto_tx_valid <= 1'b1;
-        proto_tx_type  <= MSG_TEST3;
+        proto_tx_type  <= MSG_SWEEP;
         proto_tx_data  <= proto_rx_data;
+      end
+
+      // Latch incoming bitmap reception completion pulse from evaluation_controller
+      if (bmp_rx_done_pulse) begin
+        bmp_pending_rx        <= 1'b1;
+        bmp_pending_rx_cycles <= bmp_rx_cycles;
       end
 
       // Ping timer & timeout monitor
@@ -445,7 +375,8 @@ module eval_cmd_exec #(
           bin_reg          <= ping_timer;
           bcd_reg          <= '0;
           bcd_cnt          <= 6'd32;
-          state            <= E_PING_CONVERT;
+          fmt_is_bitmap    <= 1'b0;
+          state            <= E_CONVERT_BCD;
         end else if (ping_timer >= 32'd10_000_000) begin // 100ms timeout
           ping_active      <= 1'b0;
           ping_rtt_cycles  <= 32'd0;
@@ -453,12 +384,13 @@ module eval_cmd_exec #(
           bin_reg          <= 32'd0;
           bcd_reg          <= '0;
           bcd_cnt          <= 6'd32;
-          state            <= E_PING_CONVERT;
+          fmt_is_bitmap    <= 1'b0;
+          state            <= E_CONVERT_BCD;
         end
       end
 
-      // Automatic failover alert notification
-      if (failover_triggered && state == E_IDLE && failover_en && !print_valid) begin
+      // Automatic failover alert notification (only when failover enabled and not during sweep)
+      if (failover_triggered && state == E_IDLE && failover_en && !sweep_active && !print_valid) begin
         msg_src <= SRC_FAILOVER_ALERT;
         msg_idx <= '0;
         msg_len <= 11'd47;
@@ -467,19 +399,27 @@ module eval_cmd_exec #(
 
       case (state)
         // -------------------------------------------------------------------
-        // Idle: check CLI echo requests and parsed commands
+        // Idle: check CLI echo requests, parsed commands, and telemetry pulses
         // -------------------------------------------------------------------
         E_IDLE: begin
           if (echo_req) begin
             msg_src     <= SRC_ECHO;
-            msg_idx     <= (echo_buf[2] == "/") ? 11'd2 : 11'd0;
-            msg_len     <= echo_len;
+            msg_idx     <= (cmd_buf[2] == "/") ? 11'd2 : 11'd0;
+            msg_len     <= cmd_len + 11'd1; // Include trailing '\n'
             echo_ack    <= 1'b1;
             pending_cmd <= cmd_valid;
             state       <= E_STREAM_MSG;
           end else if (cmd_valid || pending_cmd) begin
             pending_cmd <= 1'b0;
             state       <= E_PARSE_CMD;
+          end else if (bmp_pending_rx) begin
+            bmp_pending_rx   <= 1'b0;
+            bin_reg          <= bmp_pending_rx_cycles;
+            bcd_reg          <= '0;
+            bcd_cnt          <= 6'd32;
+            fmt_is_bitmap    <= 1'b1;
+            fmt_report_is_rx <= 1'b1;
+            state            <= E_CONVERT_BCD;
           end else if (btn_trigger) begin
             case (ui_selected_item)
               ITEM_HELP_BTN: begin
@@ -522,6 +462,7 @@ module eval_cmd_exec #(
                   progress_val   <= 8'd0;
                   tx_pixel_cnt   <= '0;
                   tx_pixel_phase <= 1'b0;
+                  bmp_tx_timer   <= '0;
                   state          <= E_BITMAP_SEND;
                 end
               end
@@ -550,7 +491,7 @@ module eval_cmd_exec #(
         // Parse and Execute Command
         // -------------------------------------------------------------------
         E_PARSE_CMD: begin
-          msg_idx <= '0; // CRITICAL: Always reset msg_idx to 0!
+          msg_idx <= '0; // Always reset msg_idx to 0!
 
           if (cmd_buf[2] != "/") begin
             // Normal chat message: stream payload over OptiBolt protocol as MSG_TEXT
@@ -563,9 +504,9 @@ module eval_cmd_exec #(
           end else begin
             // Local slash commands
             logic [3:0] target_rate, target_os;
-            logic valid_rate, valid_os;
+            logic valid_rate;
             target_rate = 4'd1; target_os = 4'd0;
-            valid_rate = 1'b0;  valid_os = 1'b0;
+            valid_rate = 1'b0;
 
             if (cmd_len >= 5 && cmd_buf[3]=="h" && cmd_buf[4]=="e") begin
               msg_src <= SRC_HELP; msg_len <= 11'(HELP_LEN); state <= E_STREAM_MSG;
@@ -596,7 +537,7 @@ module eval_cmd_exec #(
               else valid_rate = 1'b0;
 
               // Keep current oversampling if supported, otherwise force 8x
-              target_os = req_oversampling;
+              target_os = active_oversampling;
               if (target_os == 4'd1 && (target_rate == 4'd1 || target_rate == 4'd5 || target_rate == 4'd7 || target_rate == 4'd9)) begin
                 target_os = 4'd0;
               end
@@ -611,26 +552,27 @@ module eval_cmd_exec #(
               end
               state <= E_STREAM_MSG;
             end else if (cmd_len >= 5 && cmd_buf[3]=="o" && cmd_buf[4]=="s") begin
-              valid_os = 1'b0;
               if (cmd_len >= 7 && cmd_buf[5] == " ") begin
                 if (cmd_buf[6] == "8" && (cmd_len == 7 || cmd_buf[7] == "x" || cmd_buf[7] == "X")) begin
-                  valid_os  = 1'b1;
-                  target_os = 4'd0; // 8x
+                  req_baud_rate    <= active_baud_rate; // PRESERVE active baud rate!
+                  req_oversampling <= 4'd0;             // 8x
+                  set_speed_req    <= 1'b1;
+                  msg_src <= SRC_BAUD_SET; msg_len <= 11'd16;
                 end else if (cmd_buf[6] == "1" && cmd_buf[7] == "6" && (cmd_len == 8 || cmd_buf[8] == "x" || cmd_buf[8] == "X")) begin
                   // 16x is supported on 100k (0), 1.25m (2), 2.5m (3), 3.125m (4), 6.25m (6), 12.5m (8)
-                  if (req_baud_rate == 4'd0 || req_baud_rate == 4'd2 || req_baud_rate == 4'd3 ||
-                      req_baud_rate == 4'd4 || req_baud_rate == 4'd6 || req_baud_rate == 4'd8) begin
-                    valid_os  = 1'b1;
-                    target_os = 4'd1; // 16x
+                  if (active_baud_rate == 4'd0 || active_baud_rate == 4'd2 || active_baud_rate == 4'd3 ||
+                      active_baud_rate == 4'd4 || active_baud_rate == 4'd6 || active_baud_rate == 4'd8) begin
+                    req_baud_rate    <= active_baud_rate; // PRESERVE active baud rate!
+                    req_oversampling <= 4'd1;             // 16x
+                    set_speed_req    <= 1'b1;
+                    msg_src <= SRC_BAUD_SET; msg_len <= 11'd16;
+                  end else begin
+                    // Clear error message when active baud rate does not support 16x
+                    msg_src <= SRC_ERR_OS_UNSUPPORTED; msg_len <= 11'd45;
                   end
+                end else begin
+                  msg_src <= SRC_UNKNOWN; msg_len <= 11'd16;
                 end
-              end
-
-              if (valid_os) begin
-                req_baud_rate    <= req_baud_rate; // PRESERVE active baud rate!
-                req_oversampling <= target_os;
-                set_speed_req    <= 1'b1;
-                msg_src <= SRC_BAUD_SET; msg_len <= 11'd16;
               end else begin
                 msg_src <= SRC_UNKNOWN; msg_len <= 11'd16;
               end
@@ -655,6 +597,7 @@ module eval_cmd_exec #(
                 tx_pixel_cnt   <= '0;
                 tx_pixel_phase <= 1'b0;
                 tx_gap_cnt     <= '0;
+                bmp_tx_timer   <= '0;
                 state          <= E_BITMAP_SEND;
               end
             end else if (cmd_len >= 15 && cmd_buf[3]=="b" && cmd_buf[4]=="i" && cmd_buf[5]=="t" && cmd_buf[10]=="c" && cmd_buf[11]=="l") begin
@@ -763,50 +706,12 @@ module eval_cmd_exec #(
                 proto_tx_data  <= 8'hFE;
                 msg_src <= SRC_PWR_OFF; msg_len <= 11'd22; state <= E_STREAM_MSG;
               end else if (cmd_len >= 15 && cmd_buf[9]=="s" && cmd_buf[10]=="t" && cmd_buf[11]=="a") begin
-                // /power status : Show full power table (In, Out, Active status)
-                pwr_msg_buf[0]  <= "I"; pwr_msg_buf[1]  <= "n"; pwr_msg_buf[2]  <= " "; pwr_msg_buf[3]  <= ":"; pwr_msg_buf[4]  <= " ";
-                pwr_msg_buf[5]  <= "5"; pwr_msg_buf[6]  <= "V"; pwr_msg_buf[7]  <= "="; pwr_msg_buf[8]  <= {4'h3, cfg_in_amps[0]}; pwr_msg_buf[9]  <= "A"; pwr_msg_buf[10] <= " ";
-                pwr_msg_buf[11] <= "9"; pwr_msg_buf[12] <= "V"; pwr_msg_buf[13] <= "="; pwr_msg_buf[14] <= {4'h3, cfg_in_amps[1]}; pwr_msg_buf[15] <= "A"; pwr_msg_buf[16] <= " ";
-                pwr_msg_buf[17] <= "1"; pwr_msg_buf[18] <= "2"; pwr_msg_buf[19] <= "V"; pwr_msg_buf[20] <= "="; pwr_msg_buf[21] <= {4'h3, cfg_in_amps[2]}; pwr_msg_buf[22] <= "A"; pwr_msg_buf[23] <= " ";
-                pwr_msg_buf[24] <= "2"; pwr_msg_buf[25] <= "0"; pwr_msg_buf[26] <= "V"; pwr_msg_buf[27] <= "="; pwr_msg_buf[28] <= {4'h3, cfg_in_amps[3]}; pwr_msg_buf[29] <= "A";
-                pwr_msg_buf[30] <= "\n";
-
-                pwr_msg_buf[31] <= "O"; pwr_msg_buf[32] <= "u"; pwr_msg_buf[33] <= "t"; pwr_msg_buf[34] <= ":"; pwr_msg_buf[35] <= " ";
-                pwr_msg_buf[36] <= "5"; pwr_msg_buf[37] <= "V"; pwr_msg_buf[38] <= "="; pwr_msg_buf[39] <= {4'h3, cfg_out_amps[0]}; pwr_msg_buf[40] <= "A"; pwr_msg_buf[41] <= " ";
-                pwr_msg_buf[42] <= "9"; pwr_msg_buf[43] <= "V"; pwr_msg_buf[44] <= "="; pwr_msg_buf[45] <= {4'h3, cfg_out_amps[1]}; pwr_msg_buf[46] <= "A"; pwr_msg_buf[47] <= " ";
-                pwr_msg_buf[48] <= "1"; pwr_msg_buf[49] <= "2"; pwr_msg_buf[50] <= "V"; pwr_msg_buf[51] <= "="; pwr_msg_buf[52] <= {4'h3, cfg_out_amps[2]}; pwr_msg_buf[53] <= "A"; pwr_msg_buf[54] <= " ";
-                pwr_msg_buf[55] <= "2"; pwr_msg_buf[56] <= "0"; pwr_msg_buf[57] <= "V"; pwr_msg_buf[58] <= "="; pwr_msg_buf[59] <= {4'h3, cfg_out_amps[3]}; pwr_msg_buf[60] <= "A";
-                pwr_msg_buf[61] <= "\n";
-
-                if (contract_active) begin
-                  pwr_msg_buf[62] <= "A"; pwr_msg_buf[63] <= "c"; pwr_msg_buf[64] <= "t"; pwr_msg_buf[65] <= "i"; pwr_msg_buf[66] <= "v"; pwr_msg_buf[67] <= "e"; pwr_msg_buf[68] <= ":"; pwr_msg_buf[69] <= " ";
-                  if (active_is_source) begin
-                    pwr_msg_buf[70] <= "S"; pwr_msg_buf[71] <= "O"; pwr_msg_buf[72] <= "U"; pwr_msg_buf[73] <= "R"; pwr_msg_buf[74] <= "C"; pwr_msg_buf[75] <= "E"; pwr_msg_buf[76] <= " ";
-                    if (active_voltage_id == 2'd3) begin pwr_msg_buf[77] <= "2"; pwr_msg_buf[78] <= "0"; end
-                    else if (active_voltage_id == 2'd2) begin pwr_msg_buf[77] <= "1"; pwr_msg_buf[78] <= "2"; end
-                    else if (active_voltage_id == 2'd1) begin pwr_msg_buf[77] <= " "; pwr_msg_buf[78] <= "9"; end
-                    else begin pwr_msg_buf[77] <= " "; pwr_msg_buf[78] <= "5"; end
-                    pwr_msg_buf[79] <= "V"; pwr_msg_buf[80] <= " "; pwr_msg_buf[81] <= "@"; pwr_msg_buf[82] <= " ";
-                    pwr_msg_buf[83] <= {4'h3, active_amps}; pwr_msg_buf[84] <= "A"; pwr_msg_buf[85] <= "\n";
-                    msg_len <= 11'd86;
-                  end else begin
-                    pwr_msg_buf[70] <= "R"; pwr_msg_buf[71] <= "E"; pwr_msg_buf[72] <= "C"; pwr_msg_buf[73] <= "E";
-                    pwr_msg_buf[74] <= "I"; pwr_msg_buf[75] <= "V"; pwr_msg_buf[76] <= "E"; pwr_msg_buf[77] <= "R";
-                    pwr_msg_buf[78] <= " ";
-                    if (active_voltage_id == 2'd3) begin pwr_msg_buf[79] <= "2"; pwr_msg_buf[80] <= "0"; end
-                    else if (active_voltage_id == 2'd2) begin pwr_msg_buf[79] <= "1"; pwr_msg_buf[80] <= "2"; end
-                    else if (active_voltage_id == 2'd1) begin pwr_msg_buf[79] <= " "; pwr_msg_buf[80] <= "9"; end
-                    else begin pwr_msg_buf[79] <= " "; pwr_msg_buf[80] <= "5"; end
-                    pwr_msg_buf[81] <= "V"; pwr_msg_buf[82] <= " "; pwr_msg_buf[83] <= "@"; pwr_msg_buf[84] <= " ";
-                    pwr_msg_buf[85] <= {4'h3, active_amps}; pwr_msg_buf[86] <= "A"; pwr_msg_buf[87] <= "\n";
-                    msg_len <= 11'd88;
-                  end
-                end else begin
-                  pwr_msg_buf[62] <= "A"; pwr_msg_buf[63] <= "c"; pwr_msg_buf[64] <= "t"; pwr_msg_buf[65] <= "i"; pwr_msg_buf[66] <= "v"; pwr_msg_buf[67] <= "e"; pwr_msg_buf[68] <= ":"; pwr_msg_buf[69] <= " ";
-                  pwr_msg_buf[70] <= "N"; pwr_msg_buf[71] <= "O"; pwr_msg_buf[72] <= "N"; pwr_msg_buf[73] <= "E"; pwr_msg_buf[74] <= "\n";
-                  msg_len <= 11'd75;
-                end
-                msg_src <= SRC_PWR_STATUS; state <= E_STREAM_MSG;
+                // /power status : Show full power table
+                if (!contract_active) msg_len <= 11'd75;
+                else if (active_is_source) msg_len <= 11'd86;
+                else msg_len <= 11'd88;
+                msg_src <= SRC_PWR_STATUS;
+                state   <= E_STREAM_MSG;
               end else begin
                 msg_src <= SRC_UNKNOWN; msg_len <= 11'd16; state <= E_STREAM_MSG;
               end
@@ -841,9 +746,9 @@ module eval_cmd_exec #(
         end
 
         // -------------------------------------------------------------------
-        // Sequential Double-Dabble BCD Formatter for Ping
+        // Sequential Double-Dabble BCD Converter (32-bit Binary -> 8 BCD Digits)
         // -------------------------------------------------------------------
-        E_PING_CONVERT: begin
+        E_CONVERT_BCD: begin
           if (bcd_cnt > 0) begin
             logic [31:0] bcd_next;
             bcd_next = bcd_reg;
@@ -860,10 +765,14 @@ module eval_cmd_exec #(
             fmt_digit_idx <= 4'd7;
             fmt_text_idx  <= 5'd0;
             fmt_lead_zero <= 1'b1;
-            state         <= E_PING_FMT_STEP;
+            if (fmt_is_bitmap) state <= E_BMP_FMT_STEP;
+            else state <= E_PING_FMT_STEP;
           end
         end
 
+        // -------------------------------------------------------------------
+        // Sequential Ping Result Formatter: "Ping: X cycles (Y.YY us)\n"
+        // -------------------------------------------------------------------
         E_PING_FMT_STEP: begin
           case (fmt_phase)
             3'd0: begin // "Ping: "
@@ -991,6 +900,124 @@ module eval_cmd_exec #(
           endcase
         end
 
+        // -------------------------------------------------------------------
+        // Sequential Bitmap Timing Formatter: "Bitmap TX/RX: X cycles (Y.YY ms)\n"
+        // -------------------------------------------------------------------
+        E_BMP_FMT_STEP: begin
+          case (fmt_phase)
+            3'd0: begin // "Bitmap TX: " or "Bitmap RX: " (11 chars)
+              case (fmt_text_idx)
+                5'd0:  bmp_msg_buf[fmt_ptr] <= "B";
+                5'd1:  bmp_msg_buf[fmt_ptr] <= "i";
+                5'd2:  bmp_msg_buf[fmt_ptr] <= "t";
+                5'd3:  bmp_msg_buf[fmt_ptr] <= "m";
+                5'd4:  bmp_msg_buf[fmt_ptr] <= "a";
+                5'd5:  bmp_msg_buf[fmt_ptr] <= "p";
+                5'd6:  bmp_msg_buf[fmt_ptr] <= " ";
+                5'd7:  bmp_msg_buf[fmt_ptr] <= fmt_report_is_rx ? "R" : "T";
+                5'd8:  bmp_msg_buf[fmt_ptr] <= "X";
+                5'd9:  bmp_msg_buf[fmt_ptr] <= ":";
+                5'd10: bmp_msg_buf[fmt_ptr] <= " ";
+              endcase
+              fmt_ptr <= fmt_ptr + 6'd1;
+              if (fmt_text_idx == 5'd10) begin
+                fmt_phase     <= 3'd1; // Cycle digits
+                fmt_digit_idx <= 4'd7;
+                fmt_lead_zero <= 1'b1;
+                fmt_text_idx  <= 5'd0;
+              end else fmt_text_idx <= fmt_text_idx + 5'd1;
+            end
+
+            3'd1: begin // Decimal digits for clock cycles (bcd_d[7:0])
+              if (bcd_d[fmt_digit_idx] != 4'd0 || !fmt_lead_zero || fmt_digit_idx == 4'd0) begin
+                bmp_msg_buf[fmt_ptr] <= 8'h30 + {4'd0, bcd_d[fmt_digit_idx]};
+                fmt_ptr <= fmt_ptr + 6'd1;
+                fmt_lead_zero <= 1'b0;
+              end
+              if (fmt_digit_idx == 4'd0) begin
+                fmt_phase    <= 3'd2; // " cycles ("
+                fmt_text_idx <= 5'd0;
+              end else fmt_digit_idx <= fmt_digit_idx - 4'd1;
+            end
+
+            3'd2: begin // " cycles (" (9 chars)
+              case (fmt_text_idx)
+                5'd0: bmp_msg_buf[fmt_ptr] <= " ";
+                5'd1: bmp_msg_buf[fmt_ptr] <= "c";
+                5'd2: bmp_msg_buf[fmt_ptr] <= "y";
+                5'd3: bmp_msg_buf[fmt_ptr] <= "c";
+                5'd4: bmp_msg_buf[fmt_ptr] <= "l";
+                5'd5: bmp_msg_buf[fmt_ptr] <= "e";
+                5'd6: bmp_msg_buf[fmt_ptr] <= "s";
+                5'd7: bmp_msg_buf[fmt_ptr] <= " ";
+                5'd8: bmp_msg_buf[fmt_ptr] <= "(";
+              endcase
+              fmt_ptr <= fmt_ptr + 6'd1;
+              if (fmt_text_idx == 5'd8) begin
+                fmt_phase     <= 3'd3; // Milliseconds integer digits (bcd_d[7:5])
+                fmt_digit_idx <= 4'd7;
+                fmt_lead_zero <= 1'b1;
+                fmt_text_idx  <= 5'd0;
+              end else fmt_text_idx <= fmt_text_idx + 5'd1;
+            end
+
+            3'd3: begin // Milliseconds integer digits (10^5 cycles = 1 ms -> bcd_d[7:5])
+              if (bcd_d[7] == 4'd0 && bcd_d[6] == 4'd0 && bcd_d[5] == 4'd0) begin
+                bmp_msg_buf[fmt_ptr] <= "0";
+                fmt_ptr      <= fmt_ptr + 6'd1;
+                fmt_phase    <= 3'd4; // Fraction
+                fmt_text_idx <= 5'd0;
+              end else begin
+                if (bcd_d[fmt_digit_idx] != 4'd0 || !fmt_lead_zero || fmt_digit_idx == 4'd5) begin
+                  bmp_msg_buf[fmt_ptr] <= 8'h30 + {4'd0, bcd_d[fmt_digit_idx]};
+                  fmt_ptr <= fmt_ptr + 6'd1;
+                  fmt_lead_zero <= 1'b0;
+                end
+                if (fmt_digit_idx == 4'd5) begin
+                  fmt_phase    <= 3'd4; // Fraction
+                  fmt_text_idx <= 5'd0;
+                end else fmt_digit_idx <= fmt_digit_idx - 4'd1;
+              end
+            end
+
+            3'd4: begin // "." then bcd_d[4], bcd_d[3] (0.01 ms resolution)
+              case (fmt_text_idx)
+                5'd0: bmp_msg_buf[fmt_ptr] <= ".";
+                5'd1: bmp_msg_buf[fmt_ptr] <= 8'h30 + {4'd0, bcd_d[4]};
+                5'd2: bmp_msg_buf[fmt_ptr] <= 8'h30 + {4'd0, bcd_d[3]};
+              endcase
+              fmt_ptr <= fmt_ptr + 6'd1;
+              if (fmt_text_idx == 5'd2) begin
+                fmt_phase    <= 3'd5; // " ms)\n"
+                fmt_text_idx <= 5'd0;
+              end else fmt_text_idx <= fmt_text_idx + 5'd1;
+            end
+
+            3'd5: begin // " ms)\n" (5 chars)
+              case (fmt_text_idx)
+                5'd0: bmp_msg_buf[fmt_ptr] <= " ";
+                5'd1: bmp_msg_buf[fmt_ptr] <= "m";
+                5'd2: bmp_msg_buf[fmt_ptr] <= "s";
+                5'd3: bmp_msg_buf[fmt_ptr] <= ")";
+                5'd4: bmp_msg_buf[fmt_ptr] <= "\n";
+              endcase
+              if (fmt_text_idx == 5'd4) begin
+                msg_src <= fmt_report_is_rx ? SRC_BMP_RX_MSG : SRC_BMP_TX_MSG;
+                msg_idx <= '0;
+                msg_len <= 11'(fmt_ptr + 1);
+                state   <= E_STREAM_MSG;
+              end else begin
+                fmt_ptr      <= fmt_ptr + 6'd1;
+                fmt_text_idx <= fmt_text_idx + 5'd1;
+              end
+            end
+            default: state <= E_IDLE;
+          endcase
+        end
+
+        // -------------------------------------------------------------------
+        // Baudrate Sweep Step Sequence
+        // -------------------------------------------------------------------
         E_SWEEP_STEP: begin
           if (sweep_step < 5'd16) begin
             req_baud_rate    <= SWEEP_BAUD[sweep_step];
@@ -1004,7 +1031,7 @@ module eval_cmd_exec #(
             progress_val     <= 8'((255 * (sweep_step + 1)) / 16);
             state            <= E_SWEEP_WAIT;
           end else begin
-            // Sweep complete: notify remote peer, restore default 1.0 Mbps 8x
+            // Sweep complete: notify remote peer at default speed 1.0 Mbps 8x
             if (link_status == 2'b01) begin
               proto_tx_valid <= 1'b1;
               proto_tx_type  <= MSG_REQUEST;
@@ -1042,7 +1069,7 @@ module eval_cmd_exec #(
             if (sweep_pkt_gap >= (SWEEP_STEP_TICKS >> 5) && sweep_tx_count < 5'd16) begin
               if (!proto_tx_full) begin
                 proto_tx_valid <= 1'b1;
-                proto_tx_type  <= MSG_TEST3;
+                proto_tx_type  <= MSG_SWEEP;
                 proto_tx_data  <= {sweep_step[3:0], sweep_tx_count[3:0]};
                 sweep_tx_count <= sweep_tx_count + 5'd1;
                 sweep_pkt_gap  <= '0;
@@ -1053,7 +1080,7 @@ module eval_cmd_exec #(
           end
 
           /* Count received test packets tagged specifically for this sweep step */
-          if (proto_rx_valid && proto_rx_type == MSG_TEST3 && proto_rx_data[7:4] == sweep_step[3:0]) begin
+          if (proto_rx_valid && proto_rx_type == MSG_SWEEP && proto_rx_data[7:4] == sweep_step[3:0]) begin
             sweep_rx_count <= sweep_rx_count + 5'd1;
           end
 
@@ -1069,7 +1096,7 @@ module eval_cmd_exec #(
               msg_src <= SRC_SWEEP_FAIL;
               msg_len <= 11'd24;
             end
-            // Always return to default speed (1.0 Mbps) so next step can negotiate cleanly
+            // Always return to default speed (1.0 Mbps 8x) locally so next step can negotiate cleanly
             req_baud_rate    <= 4'd1;
             req_oversampling <= 4'd0;
             set_speed_req    <= 1'b1;
@@ -1087,9 +1114,11 @@ module eval_cmd_exec #(
         end
 
         // -------------------------------------------------------------------
-        // Dynamic Bitmap Streaming (2 bytes per pixel for 4096 colors)
+        // Dynamic Bitmap Streaming (2 bytes per pixel with continuous PRNG)
         // -------------------------------------------------------------------
         E_BITMAP_SEND: begin
+          bmp_tx_timer <= bmp_tx_timer + 32'd1;
+
           if (proto_tx_valid && proto_tx_full) begin
             // Hold current byte valid until FIFO accepts it
             proto_tx_valid <= 1'b1;
@@ -1106,23 +1135,31 @@ module eval_cmd_exec #(
               proto_tx_valid <= 1'b1;
               proto_tx_type  <= MSG_BITMAP;
               if (!tx_pixel_phase) begin
+                // Latch RGB sample from free-running PRNG for Byte 0
+                latched_pixel_rgb <= prng_pixel_rgb;
                 // Byte 0: {1'b0, R[3:0], G[3:1]}
-                proto_tx_data  <= {1'b0, prng_pixel_rgb[11:8], prng_pixel_rgb[7:5]};
-                tx_pixel_phase <= 1'b1;
+                proto_tx_data     <= {1'b0, prng_pixel_rgb[11:8], prng_pixel_rgb[7:5]};
+                tx_pixel_phase    <= 1'b1;
               end else begin
+                // Byte 1 uses matching lower bits of latched pixel RGB
                 // Byte 1: {1'b1, G[0], B[3:0], 2'b00}
-                proto_tx_data   <= {1'b1, prng_pixel_rgb[4], prng_pixel_rgb[3:0], 2'b00};
-                prng_next_pixel <= 1'b1;
+                proto_tx_data   <= {1'b1, latched_pixel_rgb[4], latched_pixel_rgb[3:0], 2'b00};
                 tx_pixel_cnt    <= tx_pixel_cnt + 15'd1;
                 tx_pixel_phase  <= 1'b0;
                 progress_val    <= 8'(tx_pixel_cnt[13:6]);
               end
             end else begin
-              proto_tx_valid <= 1'b0;
-              show_popup     <= 1'b0;
-              show_progress  <= 1'b0;
-              popup_mode     <= POPUP_NONE;
-              state          <= E_IDLE;
+              // Transmission complete: hide progress popup and format console timer report
+              proto_tx_valid   <= 1'b0;
+              show_popup       <= 1'b0;
+              show_progress    <= 1'b0;
+              popup_mode       <= POPUP_NONE;
+              bin_reg          <= bmp_tx_timer;
+              bcd_reg          <= '0;
+              bcd_cnt          <= 6'd32;
+              fmt_is_bitmap    <= 1'b1;
+              fmt_report_is_rx <= 1'b0;
+              state            <= E_CONVERT_BCD;
             end
           end
         end

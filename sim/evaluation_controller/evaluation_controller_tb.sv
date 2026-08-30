@@ -3,6 +3,7 @@
 import string_pkg::*;
 import ui_pkg::*;
 import protocol_pkg::*;
+import eval_cmd_pkg::*;
 
 module evaluation_controller_tb;
 
@@ -175,7 +176,7 @@ module evaluation_controller_tb;
     begin
       submit_cmd();
       wait (u_eval.u_eval_cli_input.state == u_eval.u_eval_cli_input.INP_IDLE);
-      wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_IDLE);
+      wait (u_eval.u_eval_cmd_exec.state == E_IDLE);
       repeat(10) @(posedge clk);
     end
   endtask
@@ -193,7 +194,7 @@ module evaluation_controller_tb;
     proto_eval_link_status = 1; proto_eval_rx_carrier = 1; proto_eval_ber_count = 0; proto_eval_err_count = 0;
 
     #20 rst_n = 1;
-    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_IDLE);
+    wait (u_eval.u_eval_cmd_exec.state == E_IDLE);
     @(posedge clk);
 
     // 1. Select input box & enter text mode
@@ -249,14 +250,14 @@ module evaluation_controller_tb;
     proto_eval_rx_data  <= 8'hA5; // PING_TOKEN
     @(posedge clk);
     proto_eval_rx_valid <= 1'b0;
-    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_IDLE);
+    wait (u_eval.u_eval_cmd_exec.state == E_IDLE);
     repeat(10) @(posedge clk);
     $display("[PASS] Test 6: '/ping' in loopback verified.");
 
     // 8. Test '/bitmap send' command & Progress Popup
     type_string("/bitmap send");
     submit_cmd();
-    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_BITMAP_SEND);
+    wait (u_eval.u_eval_cmd_exec.state == E_BITMAP_SEND);
     @(posedge clk);
     assert (show_popup && show_progress) else $error("Progress popup failed to activate");
     $display("[PASS] Test 7: Progress popup active during bitmap streaming.");
@@ -264,7 +265,7 @@ module evaluation_controller_tb;
     proto_eval_tx_full = 1'b1;
     #200;
     proto_eval_tx_full = 1'b0;
-    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_IDLE);
+    wait (u_eval.u_eval_cmd_exec.state == E_IDLE);
     assert (!show_popup && !show_progress) else $error("Progress popup failed to close after streaming");
     $display("[PASS] Test 8: 128x128 Bitmap streaming complete and popup closed.");
 
@@ -283,19 +284,19 @@ module evaluation_controller_tb;
     @(posedge clk);
     type_string("/bitmap clear");
     submit_cmd();
-    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_CLEAR_BITMAP);
+    wait (u_eval.u_eval_cmd_exec.state == E_CLEAR_BITMAP);
     @(posedge clk);
     #1;
     assert (bmp_we && bmp_din == 12'h000) else $error("Bitmap clear failed (bmp_we=%b, bmp_din=%h)", bmp_we, bmp_din);
     $display("[PASS] Test 10: '/bitmap clear' command clearing 128x128 BRAM verified.");
-    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_IDLE);
+    wait (u_eval.u_eval_cmd_exec.state == E_IDLE);
     @(posedge clk);
 
     // 11. Test non-command text transmission
     type_string("hello");
     submit_cmd();
-    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_TX_CHAT);
-    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_IDLE);
+    wait (u_eval.u_eval_cmd_exec.state == E_TX_CHAT);
+    wait (u_eval.u_eval_cmd_exec.state == E_IDLE);
     $display("[PASS] Test 11: Non-command text transmission verified.");
 
     // 12. Test disconnected block on /bitmap send
@@ -304,12 +305,12 @@ module evaluation_controller_tb;
     execute_cmd();
     $display("[PASS] Test 12: Disconnected command blocked verified.");
 
-    // 13. Test 128-byte long CLI buffer support
+    // 13. Test 64-byte CLI buffer support with length bounding
     link_status = 2'b10; // LOOPBACK
-    type_string("this is a very long string exceeding the previous 32 byte limit to verify 128 bytes");
-    assert (u_eval.u_eval_cli_input.input_len_reg == 11'(2 + 83)) else $error("Long buffer input failed (expected 85, got %0d)", u_eval.u_eval_cli_input.input_len_reg);
+    type_string("this is a very long string exceeding the previous 32 byte limit to verify buffer");
+    assert (u_eval.u_eval_cli_input.input_len_reg == 11'd63) else $error("Long buffer input failed (expected 63, got %0d)", u_eval.u_eval_cli_input.input_len_reg);
     execute_cmd();
-    $display("[PASS] Test 13: 128-byte long CLI buffer verified (len=%0d).", 85);
+    $display("[PASS] Test 13: 64-byte bounded CLI buffer verified (len=%0d).", 63);
 
     // 14. Test 4-entry history deduplication
     // Recalling the previous command and executing should not add duplicate to history
@@ -318,7 +319,7 @@ module evaluation_controller_tb;
     @(posedge clk);
     repeat(5) @(posedge clk);
     wait (u_eval.u_eval_cli_input.state == u_eval.u_eval_cli_input.INP_IDLE);
-    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_IDLE);
+    wait (u_eval.u_eval_cmd_exec.state == E_IDLE);
     repeat(2) @(posedge clk);
     @(posedge clk);
     execute_cmd();
@@ -344,7 +345,7 @@ module evaluation_controller_tb;
     repeat(10) @(posedge clk);
     $display("[PASS] Test 16: Back-to-back MSG_TEXT burst processed with zero character drops.");
 
-    wait (u_eval.u_eval_cmd_exec.state == u_eval.u_eval_cmd_exec.E_IDLE);
+    wait (u_eval.u_eval_cmd_exec.state == E_IDLE);
     @(posedge clk);
     $display("All evaluation_controller testbench tests completed successfully!");
     $finish;

@@ -102,24 +102,44 @@ module link_handshake_tb;
 
     // Test 3: Simulate CONNECTED to Remote Board (remote board sends different token)
     #50;
+    // Reset from loopback first so test can verify duplex transition
+    @(posedge clk);
+    proto_eval_rx_carrier = 1'b0;
+    #10;
+    proto_eval_rx_carrier = 1'b1;
+    wait (hs_tx_req == 1'b1);
+    captured_challenge = hs_tx_data;
+    @(posedge clk);
+    hs_tx_ack = 1'b1;
+    @(posedge clk);
+    hs_tx_ack = 1'b0;
+
     @(posedge clk);
     proto_eval_rx_valid = 1'b1;
     proto_eval_rx_type  = MSG_CAPABILITIES;
     proto_eval_rx_data  = 8'h77; // Different token from another board
     @(posedge clk);
     proto_eval_rx_valid = 1'b0;
-    #10;
-    assert (link_status == 2'b01) else $error("Test 3 Failed: Expected CONNECTED (2'b01)");
-    $display("[PASS] Test 3: Remote token received -> CONNECTED detected (link_status=%b)", link_status);
 
     // Verify module requested ACK transmission
     wait (hs_tx_req == 1'b1);
-    assert (hs_tx_type == MSG_ACCEPT) else $error("Test 3 Failed: Expected MSG_ACCEPT request");
-    $display("[PASS] Test 3b: Response MSG_ACCEPT requested with payload 0x%02X", hs_tx_data);
+    assert (hs_tx_type == MSG_ACCEPT && hs_tx_data == 8'h77) else $error("Test 3 Failed: Expected MSG_ACCEPT request");
+    $display("[PASS] Test 3a: Response MSG_ACCEPT requested with payload 0x%02X", hs_tx_data);
     @(posedge clk);
     hs_tx_ack = 1'b1;
     @(posedge clk);
     hs_tx_ack = 1'b0;
+
+    // Remote board also ACKs our token to establish 2-way duplex link
+    @(posedge clk);
+    proto_eval_rx_valid = 1'b1;
+    proto_eval_rx_type  = MSG_ACCEPT;
+    proto_eval_rx_data  = captured_challenge;
+    @(posedge clk);
+    proto_eval_rx_valid = 1'b0;
+    #10;
+    assert (link_status == 2'b01) else $error("Test 3 Failed: Expected CONNECTED (2'b01)");
+    $display("[PASS] Test 3b: Remote ACK received -> CONNECTED detected (link_status=%b)", link_status);
 
     // Test 4: Simulate DISCONNECT (Unplug optical cable -> carrier drops)
     $display("Unplugging optical cable (carrier drops to 0)...");

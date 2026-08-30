@@ -10,6 +10,7 @@
 import string_pkg::*;
 import ui_pkg::*;
 import protocol_pkg::*;
+import eval_cmd_pkg::*;
 
 module evaluation_controller #(
     parameter int SWEEP_STEP_TICKS = 5_000_000,
@@ -108,8 +109,7 @@ module evaluation_controller #(
     output logic       active_is_source
 );
 
-  localparam int CLI_BUF_LEN = 128;
-  localparam logic [2:0] MSG_BITMAP = 3'b101;
+  localparam int CLI_BUF_LEN = 64;
 
   // Inter-module signals
   logic        cli_cmd_valid;
@@ -118,8 +118,6 @@ module evaluation_controller #(
   logic        btn_trigger;
 
   logic        echo_req;
-  logic [ 7:0] echo_buf             [0:CLI_BUF_LEN-1];
-  logic [10:0] echo_len;
   logic        echo_ack;
 
   logic        print_valid;
@@ -170,6 +168,12 @@ module evaluation_controller #(
   logic [ 7:0] rx_pixel_rg;
   logic [27:0] rx_bmp_idle_cnt;
 
+  // Bitmap RX Timing Counter
+  logic [31:0] bmp_rx_timer;
+  logic [31:0] bmp_rx_cycles;
+  logic        bmp_rx_active;
+  logic        bmp_rx_done_pulse;
+
   always_comb begin
     if (proto_eval_rx_valid && proto_eval_rx_type == MSG_BITMAP &&
         proto_eval_rx_data[7] == 1'b1 && rx_bmp_has_b0) begin
@@ -190,22 +194,42 @@ module evaluation_controller #(
 
   always_ff @(posedge clk or negedge rst_n) begin
     if (!rst_n) begin
-      rx_pixel_ptr    <= 14'd0;
-      rx_bmp_has_b0   <= 1'b0;
-      rx_pixel_rg     <= 8'h00;
-      rx_bmp_idle_cnt <= '0;
+      rx_pixel_ptr      <= 14'd0;
+      rx_bmp_has_b0     <= 1'b0;
+      rx_pixel_rg       <= 8'h00;
+      rx_bmp_idle_cnt   <= '0;
+      bmp_rx_timer      <= '0;
+      bmp_rx_cycles     <= '0;
+      bmp_rx_active     <= 1'b0;
+      bmp_rx_done_pulse <= 1'b0;
     end else begin
+      bmp_rx_done_pulse <= 1'b0;
+
+      if (bmp_rx_active) begin
+        bmp_rx_timer <= bmp_rx_timer + 32'd1;
+      end
+
       if (proto_eval_rx_valid && proto_eval_rx_type == MSG_BITMAP) begin
         rx_bmp_idle_cnt <= '0;
         if (proto_eval_rx_data[7] == 1'b0) begin
           // Guaranteed Byte 0
           rx_pixel_rg   <= proto_eval_rx_data;
           rx_bmp_has_b0 <= 1'b1;
+          if (!bmp_rx_active) begin
+            bmp_rx_active <= 1'b1;
+            bmp_rx_timer  <= '0;
+          end
         end else if (proto_eval_rx_data[7] == 1'b1 && rx_bmp_has_b0) begin
           // Guaranteed Byte 1 matching Byte 0
           rx_bmp_has_b0 <= 1'b0;
-          if (rx_pixel_ptr == 14'd16383) rx_pixel_ptr <= 14'd0;
-          else rx_pixel_ptr <= rx_pixel_ptr + 14'd1;
+          if (rx_pixel_ptr == 14'd16383) begin
+            rx_pixel_ptr      <= 14'd0;
+            bmp_rx_active     <= 1'b0;
+            bmp_rx_cycles     <= bmp_rx_timer + 32'd1;
+            bmp_rx_done_pulse <= 1'b1;
+          end else begin
+            rx_pixel_ptr <= rx_pixel_ptr + 14'd1;
+          end
         end
       end else begin
         // Reset pixel pointer if link idle for > 2.0s (200,000,000 cycles at 100MHz)
@@ -214,6 +238,7 @@ module evaluation_controller #(
         end else begin
           rx_pixel_ptr  <= 14'd0;
           rx_bmp_has_b0 <= 1'b0;
+          bmp_rx_active <= 1'b0;
         end
       end
     end
@@ -269,8 +294,6 @@ module evaluation_controller #(
       .cmd_buf         (cli_cmd_buf),
       .cmd_len         (cli_cmd_len),
       .echo_req        (echo_req),
-      .echo_buf        (echo_buf),
-      .echo_len        (echo_len),
       .echo_ack        (echo_ack)
   );
 
@@ -417,8 +440,9 @@ module evaluation_controller #(
   assign eval_failover_en = failover_en;
 
   optibolt_link_manager #(
-      .DEFAULT_BAUD_RATE   (4'd1),  // 1.0 Mbps
-      .DEFAULT_OVERSAMPLING(4'd0)   // 16x OS
+      .DEFAULT_BAUD_RATE   (4'd1),            // 1.0 Mbps
+      .DEFAULT_OVERSAMPLING(4'd0),            // 8x OS
+      .SWEEP_STEP_TICKS    (SWEEP_STEP_TICKS) // Per-step dwell ticks
   ) u_optibolt_link_manager (
       .clk                             (clk),
       .rst_n                           (rst_n),
@@ -468,8 +492,6 @@ module evaluation_controller #(
       .btn_trigger                     (btn_trigger),
       .ui_selected_item                (ui_selected_item),
       .echo_req                        (echo_req),
-      .echo_buf                        (echo_buf),
-      .echo_len                        (echo_len),
       .echo_ack                        (echo_ack),
       .print_valid                     (print_valid),
       .print_char                      (print_char),
@@ -487,6 +509,8 @@ module evaluation_controller #(
       .set_speed_req                   (set_speed_req),
       .req_baud_rate                   (req_baud_rate),
       .req_oversampling                (req_oversampling),
+      .active_baud_rate                (eval_proto_baud_rate),
+      .active_oversampling             (eval_proto_oversampling),
       .failover_en                     (failover_en),
       .sweep_active                    (sweep_active),
       .failover_triggered              (failover_triggered),
@@ -496,12 +520,15 @@ module evaluation_controller #(
       .proto_tx_type                   (cmd_tx_type),
       .proto_tx_data                   (cmd_tx_data),
       .proto_tx_full                   (cmd_tx_full),
+      .proto_tx_empty                  (proto_eval_tx_empty),
       .proto_rx_valid                  (proto_eval_rx_valid),
       .proto_rx_type                   (proto_eval_rx_type),
       .proto_rx_data                   (proto_eval_rx_data),
       .proto_eval_parity_error         (proto_eval_parity_error),
       .proto_eval_manchester_code_error(proto_eval_manchester_code_error),
       .proto_eval_preamble_error       (proto_eval_preamble_error),
+      .bmp_rx_done_pulse               (bmp_rx_done_pulse),
+      .bmp_rx_cycles                   (bmp_rx_cycles),
       .cfg_role                        (cfg_role),
       .cfg_in_amps                     (cfg_in_amps),
       .cfg_out_amps                    (cfg_out_amps),

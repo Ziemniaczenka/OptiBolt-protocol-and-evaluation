@@ -48,8 +48,6 @@ module eval_cli_input_tb;
   logic [10:0] cmd_len;
 
   logic echo_req;
-  logic [7:0] echo_buf [0:CLI_BUF_LEN-1];
-  logic [10:0] echo_len;
   logic echo_ack;
 
   eval_cli_input #(
@@ -68,6 +66,7 @@ module eval_cli_input_tb;
       .cmd_backspace(cmd_backspace),
       .ui_selected_item(ui_selected_item),
       .mode_text(mode_text),
+      .btn_trigger(),
       .input_addr(input_addr),
       .input_we(input_we),
       .input_din(input_din),
@@ -75,8 +74,6 @@ module eval_cli_input_tb;
       .cmd_buf(cmd_buf),
       .cmd_len(cmd_len),
       .echo_req(echo_req),
-      .echo_buf(echo_buf),
-      .echo_len(echo_len),
       .echo_ack(echo_ack)
   );
 
