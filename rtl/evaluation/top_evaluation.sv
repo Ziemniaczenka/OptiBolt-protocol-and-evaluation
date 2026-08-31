@@ -44,11 +44,6 @@ module top_evaluation #(
     input logic       proto_eval_preamble_error,
     input logic       proto_eval_rx_carrier,
 
-    // Telemetry / Status
-    input logic        proto_eval_link_status,
-    input logic [31:0] proto_eval_ber_count,
-    input logic [15:0] proto_eval_err_count,
-
     // VGA Output
     output logic       vs,
     output logic       hs,
@@ -397,10 +392,7 @@ module top_evaluation #(
       .proto_eval_parity_error(proto_eval_parity_error),
       .proto_eval_manchester_code_error(proto_eval_manchester_code_error),
       .proto_eval_preamble_error(proto_eval_preamble_error),
-      .proto_eval_rx_carrier(proto_eval_rx_carrier),
-      .proto_eval_link_status(proto_eval_link_status),
-      .proto_eval_ber_count(proto_eval_ber_count),
-      .proto_eval_err_count(proto_eval_err_count)
+      .proto_eval_rx_carrier(proto_eval_rx_carrier)
   );
 
   top_display u_top_display (

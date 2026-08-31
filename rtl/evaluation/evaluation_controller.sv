@@ -96,11 +96,6 @@ module evaluation_controller #(
     input logic       proto_eval_preamble_error,
     input logic       proto_eval_rx_carrier,
 
-    // Telemetry / Status
-    input logic        proto_eval_link_status,
-    input logic [31:0] proto_eval_ber_count,
-    input logic [15:0] proto_eval_err_count,
-
     // Power Negotiation Outputs to UI
     output logic [2:0] pwr_status_code,
     output logic [1:0] active_voltage_id,

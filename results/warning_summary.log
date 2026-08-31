@@ -1,6 +1,6 @@
 Warnings, critical warnings and errors from synthesis and implementation
 
-Created: 2026-08-30 22:04:31
+Created: 2026-08-31 19:32:34
 
 ----SYNTHESIS----
 WARNING: [Synth 8-6014] Unused sequential element history_buf_reg[0][0] was removed.  [rtl/evaluation/controller/eval_cli_input.sv:108]

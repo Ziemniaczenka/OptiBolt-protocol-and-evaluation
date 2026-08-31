@@ -41,7 +41,6 @@ module top #(
   // evaluation to CDC bridge
   logic [3:0] eval_proto_baud_rate;
   logic [3:0] eval_proto_oversampling;
-  logic       eval_proto_loopback_en;
   logic       eval_proto_tx_valid;
   logic [2:0] eval_proto_tx_type;
   logic [7:0] eval_proto_tx_data;
@@ -68,14 +67,11 @@ module top #(
   logic [2:0] tx_type_200;
   logic [7:0] tx_data_200;
 
-
-
   // protocol to CDC bridge
   logic       tx_empty_200;
   logic       tx_full_200;
   logic       tx_idle_200;
   logic       rx_empty_200;
-  logic       rx_full_200;
   logic [2:0] rx_type_200;
   logic [7:0] rx_data_200;
   logic       parity_error_200;
@@ -146,7 +142,7 @@ module top #(
       .dp                              (dp),
       .eval_proto_baud_rate            (eval_proto_baud_rate),
       .eval_proto_oversampling         (eval_proto_oversampling),
-      .eval_proto_loopback_en          (eval_proto_loopback_en),
+      .eval_proto_loopback_en          (),
       .eval_proto_tx_valid             (eval_proto_tx_valid),
       .eval_proto_tx_type              (eval_proto_tx_type),
       .eval_proto_tx_data              (eval_proto_tx_data),
@@ -158,10 +154,7 @@ module top #(
       .proto_eval_parity_error         (proto_eval_parity_error),
       .proto_eval_manchester_code_error(proto_eval_manchester_code_error),
       .proto_eval_preamble_error       (proto_eval_preamble_error),
-      .proto_eval_rx_carrier           (proto_eval_rx_carrier),
-      .proto_eval_link_status          (),
-      .proto_eval_ber_count            (),
-      .proto_eval_err_count            ()
+      .proto_eval_rx_carrier           (proto_eval_rx_carrier)
   );
 
   /* 4. OptiBolt Protocol Controller */
@@ -180,7 +173,7 @@ module top #(
       .tx_full              (tx_full_200),
       .tx_idle              (tx_idle_200),
       .rx_empty             (rx_empty_200),
-      .rx_full              (rx_full_200),
+      .rx_full              (),
       .msg_type_out         (rx_type_200),
       .data_out             (rx_data_200),
       .parity_error         (parity_error_200),
