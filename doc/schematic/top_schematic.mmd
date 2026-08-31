@@ -1,50 +1,41 @@
 ---
-title: Architektura Modułu Głównego top
+title: "Schemat blokowy architektury"
 ---
-flowchart TD
-  classDef ext_port fill:#e8f5e9,stroke:#43a047,stroke-width:2px,stroke-dasharray: 4 4,color:#1b5e20;
-  classDef inst fill:#e3f2fd,stroke:#1e88e5,stroke-width:2px,color:#0d47a1;
+%%{init: {'flowchart': {'curve': 'linear', 'nodeSpacing': 40, 'rankSpacing': 40}}}%%
+flowchart LR
+    subgraph EXT_IN ["Porty Wejściowe"]
+        direction LR
+        p_opt_rx(["OptiBolt_rx"]):::port
+        p_ps2_in(["PS/2:<br>ps2_clk, ps2_data"]):::port
+    end
 
-  style top fill:transparent,stroke:#9e9e9e,stroke-width:2px,color:#000000
-  style Grp_In fill:transparent,stroke:#43a047,stroke-width:1px,stroke-dasharray: 2 2,color:#1b5e20
-  style Grp_Out fill:transparent,stroke:#43a047,stroke-width:1px,stroke-dasharray: 2 2,color:#1b5e20
-  style Grp_InOut fill:transparent,stroke:#43a047,stroke-width:1px,stroke-dasharray: 2 2,color:#1b5e20
+    subgraph top ["Moduł Główny: top"]
+        direction TB
+        OCD["optical_carrier_detector<br><i>Detektor Nośnej</i>"]:::inst
+        EVAL["top_evaluation<br><i>Blok Ewaluacji</i>"]:::inst
+        CDC["optibolt_cdc_bridge<br><i>Mostek CDC</i>"]:::inst
+        PROTO["optibolt_controller<br><i>Kontroler Protokołu OptiBolt</i>"]:::inst
 
-  subgraph Grp_In ["Interfejsy Wejściowe (INPUT)"]
-    direction TB
-    Opt_RX(["Kabel optyczny RX"]):::ext_port
-    Clocks(["Zegary: 100MHz, 200MHz, 74.25MHz"]):::ext_port
-  end
+        OCD -->|proto_eval_carrier| EVAL
+        EVAL -->|eval_proto| CDC
+        CDC -->|proto_eval| EVAL
+        CDC -->|bridge_proto| PROTO
+        PROTO -->|proto_bridge| CDC
+    end
 
-  subgraph Grp_InOut ["Interfejsy Dwukierunkowe (INOUT)"]
-    direction TB
-    PS2(["Interfejs Klawiatury PS/2"]):::ext_port
-  end
+    subgraph EXT_OUT ["Porty Wyjściowe"]
+        direction LR
+        p_vga(["VGA port:<br>vs, hs, r[3:0], g[3:0], b[3:0]"]):::port
+        p_seg7(["7segment display:<br>an[3:0], seg[6:0], dp"]):::port
+        p_opt_tx(["OptiBolt_tx"]):::port
+    end
 
-  subgraph Grp_Out ["Interfejsy Wyjściowe (OUTPUT)"]
-    direction TB
-    UI_Video(["Wyjście wideo VGA 720p"]):::ext_port
-    UI_Seg(["Wyświetlacz 7-segmentowy"]):::ext_port
-    Opt_TX(["Kabel optyczny TX"]):::ext_port
-  end
+    %% Połączenia zewnętrzne (z/do modułu top)
+    p_opt_rx -->|OptiBolt_rx| top
+    p_ps2_in -->|ui_ps2_in| top
+    top -->|ui_vga| p_vga
+    top -->|ui_seg7| p_seg7
+    top -->|OptiBolt_tx| p_opt_tx
 
-  subgraph top ["Moduł top"]
-    direction TB
-    Eval["u_top_evaluation"]:::inst
-    Detector["u_optical_carrier_detector"]:::inst
-    Bridge["u_optibolt_cdc_bridge"]:::inst
-    Ctrl["u_optibolt_controller"]:::inst
-  end
-
-  Opt_RX ==>|RX| Detector
-  Opt_RX ==>|RX| Ctrl
-  Clocks -.-> top
-
-  Eval <==>|Magistrala PS/2| PS2
-  Eval ===|Magistrala VGA| UI_Video
-  Eval ===|Magistrala 7-seg| UI_Seg
-  Ctrl ===|TX| Opt_TX
-
-  Detector -->|Sygnał detekcji nośnej| Eval
-  Eval <==>|Sygnały w domenie 100MHz| Bridge
-  Bridge <==>|Sygnały w domenie 200MHz| Ctrl
+    classDef port fill:#e8f5e9,stroke:#2e7d32,stroke-width:1.5px;
+    classDef inst fill:#e3f2fd,stroke:#1565c0,stroke-width:2px;

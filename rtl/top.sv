@@ -14,10 +14,10 @@ module top #(
     parameter int CARRIER_HOLD_CYCLES = 1_000_000
 ) (
     /* Clocks and Reset */
-    input  logic       clk74p25,
-    input  logic       clk100,
-    input  logic       clk200,
-    input  logic       rst_n,
+    input logic clk74p25,
+    input logic clk100,
+    input logic clk200,
+    input logic rst_n,
 
     /* Evaluation UI Ports */
     output logic       vs,
@@ -32,17 +32,20 @@ module top #(
     output logic       dp,
 
     /* Optical Channel Interface */
-    input  logic       OptiBolt_rx,
-    output logic       OptiBolt_tx
+    input  logic OptiBolt_rx,
+    output logic OptiBolt_tx
 );
 
   /* Evaluation domain signals (100 MHz) */
+
+  // evaluation to CDC bridge
   logic [3:0] eval_proto_baud_rate;
   logic [3:0] eval_proto_oversampling;
   logic       eval_proto_loopback_en;
   logic       eval_proto_tx_valid;
   logic [2:0] eval_proto_tx_type;
   logic [7:0] eval_proto_tx_data;
+  // CDC bridge to evaluation
   logic       proto_eval_tx_full;
   logic       proto_eval_rx_valid;
   logic [2:0] proto_eval_rx_type;
@@ -50,25 +53,27 @@ module top #(
   logic       proto_eval_parity_error;
   logic       proto_eval_manchester_code_error;
   logic       proto_eval_preamble_error;
-  logic       proto_eval_rx_carrier;
   logic       proto_eval_tx_empty;
-  logic       tx_idle_200;
-  logic [1:0] link_status;
-  logic       contract_active;
-  logic [1:0] active_voltage_id;
-  logic [3:0] active_amps;
-  logic       active_is_source;
-  logic [2:0] pwr_status_code;
+
+  // carrier detector to evaluation
+  logic       proto_eval_rx_carrier;
 
   /* OptiBolt domain signals (200 MHz) */
+
+  // CDC bridge to protocol
   logic [3:0] baud_rate_200;
   logic [3:0] oversampling_200;
+  logic       rx_enable_200;
   logic       tx_enable_200;
-  logic       tx_full_200;
-  logic       tx_empty_200;
   logic [2:0] tx_type_200;
   logic [7:0] tx_data_200;
-  logic       rx_enable_200;
+
+
+
+  // protocol to CDC bridge
+  logic       tx_empty_200;
+  logic       tx_full_200;
+  logic       tx_idle_200;
   logic       rx_empty_200;
   logic       rx_full_200;
   logic [2:0] rx_type_200;
@@ -107,21 +112,21 @@ module top #(
       .proto_eval_preamble_error       (proto_eval_preamble_error),
 
       /* OptiBolt domain */
-      .clk200                          (clk200),
-      .baud_rate_200                   (baud_rate_200),
-      .oversampling_200                (oversampling_200),
-      .tx_full_200                     (tx_full_200),
-      .tx_idle_200                     (tx_idle_200),
-      .tx_enable_200                   (tx_enable_200),
-      .tx_type_200                     (tx_type_200),
-      .tx_data_200                     (tx_data_200),
-      .rx_empty_200                    (rx_empty_200),
-      .rx_enable_200                   (rx_enable_200),
-      .rx_type_200                     (rx_type_200),
-      .rx_data_200                     (rx_data_200),
-      .parity_error_200                (parity_error_200),
-      .manchester_error_200            (manchester_error_200),
-      .preamble_error_200              (preamble_error_200)
+      .clk200              (clk200),
+      .baud_rate_200       (baud_rate_200),
+      .oversampling_200    (oversampling_200),
+      .tx_full_200         (tx_full_200),
+      .tx_idle_200         (tx_idle_200),
+      .tx_enable_200       (tx_enable_200),
+      .tx_type_200         (tx_type_200),
+      .tx_data_200         (tx_data_200),
+      .rx_empty_200        (rx_empty_200),
+      .rx_enable_200       (rx_enable_200),
+      .rx_type_200         (rx_type_200),
+      .rx_data_200         (rx_data_200),
+      .parity_error_200    (parity_error_200),
+      .manchester_error_200(manchester_error_200),
+      .preamble_error_200  (preamble_error_200)
   );
 
   /* 3. Evaluation Subsystem */

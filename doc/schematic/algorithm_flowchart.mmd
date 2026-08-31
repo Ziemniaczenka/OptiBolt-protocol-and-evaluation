@@ -1,0 +1,38 @@
+---
+title: "Schemat blokowy działania algorytmu systemu OptiBolt"
+---
+%%{init: {'flowchart': {'curve': 'linear', 'nodeSpacing': 40, 'rankSpacing': 40}}}%%
+flowchart TD
+    START(["Start / Reset"]) --> INIT["Inicjalizacja Zegarów"]
+    INIT --> OPT_DET{"Detekcja nośnej optycznej (optical_carrier_detector)"}
+    
+    OPT_DET -- "Brak światła" --> WAIT_LIGHT["Stan DISCONNECTED"]
+    WAIT_LIGHT --> OPT_DET
+    
+    OPT_DET -- "Wykryto światło" --> HS_START["Rozpoczęcie procedury Handshake"]
+    HS_START --> HS_TOKEN["Wysłanie pakietu MSG_CAPABILITIES z losowym tokenem PRNG"]
+    
+    HS_TOKEN --> HS_CHECK{"Analiza odebranego tokenu"}
+    HS_CHECK -- "Odebrano własny token" --> LOOP_MODE["Tryb LOOPBACK (Pętla zwrotna)"]
+    HS_CHECK -- "Odebrano token zdalny" --> SEND_ACCEPT["Wysłanie MSG_ACCEPT (Potwierdzenie połączenia)"]
+    SEND_ACCEPT --> DUPLEX_MODE["Tryb CONNECTED (Duplex)"]
+    
+    LOOP_MODE --> READY["Stan IDLE (Gotowość do obsługi CLI i zdarzeń)"]
+    DUPLEX_MODE --> READY
+    
+    READY --> USER_ACTION{"Zdarzenie użytkownika / Odbiór ramki"}
+    
+    USER_ACTION -- "Wpisanie tekstu w CLI" --> TX_TEXT["Transmisja ramki MSG_TEXT (ASCII)"]
+    USER_ACTION -- "Komenda /ping lub przycisk" --> TX_PING["Wysłanie MSG_REQUEST (Ping) + Pomiar RTT"]
+    USER_ACTION -- "Komenda /sweep lub przycisk" --> TX_SWEEP["Sekwencyjny test prędkości MSG_SWEEP (BER)"]
+    USER_ACTION -- "Komenda /bitmap send lub przycisk" --> TX_BMP["Strumieniowanie dynamicznych pikseli MSG_BITMAP"]
+    USER_ACTION -- "Komenda /baud" --> TX_BAUD["Negocjacja prędkości MSG_REQUEST (Speed Set)"]
+    USER_ACTION -- "Komenda /pwr ready" --> TX_PWR["Wymiana ról i negocjacja MSG_POWER"]
+    USER_ACTION -- "Utrata sygnału światła" --> WAIT_LIGHT
+    
+    TX_TEXT --> READY
+    TX_PING --> READY
+    TX_SWEEP --> READY
+    TX_BMP --> READY
+    TX_BAUD --> READY
+    TX_PWR --> READY

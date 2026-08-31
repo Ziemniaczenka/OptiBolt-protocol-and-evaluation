@@ -1,51 +1,54 @@
 ---
-title: Schemat Blokowy Połączeń Sprzętowych
+title: Schemat Blokowy Połączeń
 ---
+%%{init: {'flowchart': {'curve': 'linear', 'nodeSpacing': 40, 'rankSpacing': 40}}}%%
 flowchart LR
+  
   %% --- Left Board ---
+
   Disp1[Display] --> |VGA| Basys1 
-  Kb1[Keyboard] <--> |USB/PS2| Basys1
+  Kb1[Keyboard] <--> |USB| Basys1
 
   subgraph Basys1[Basys 3]
     direction TB
     CPU1[Artix 7]
-    CPU1 --> D1[Diodes]
     CPU1 --> 7seg1[7seg]
     CPU1 --> B1[Buttons]
-    CPU1 --> Sw1[Switches]
+
   end
 
   %% --- Left OptiBolt ---
-  subgraph OB1[OptiBolt PMOD]
+  subgraph OB1[OptiBolt module]
     direction LR
-    Tx1[Tx LED]
-    Rx1[Rx Photo]
+    Tx1[Tx]
+    Rx1[Rx]
   end
 
-  Basys1 <--> |PMOD JB/JC| OB1
-
-  %% --- Central Optical Link ---
-  Tx1 ==> |TOSLINK Światłowód 1| Rx2 
-  Tx2 ==> |TOSLINK Światłowód 2| Rx1 
+  Basys1 <--> |PMOD JB| OB1
 
   %% --- Right OptiBolt ---
-  subgraph OB2[OptiBolt PMOD]
+  subgraph OB2[OptiBolt module]
     direction LR
-    Rx2[Rx Photo]
-    Tx2[Tx LED]
+    Rx2[Rx]
+    Tx2[Tx]
   end
 
-  OB2 <--> |PMOD JB/JC| Basys2
+  %% --- Central Optical Link ---
+  Tx1 ==> |TOSLINK| Rx2 
+  Rx1 ~~~  Tx2 ==> |TOSLINK| Rx1 
+  Tx2 ~~~ Rx1
+
+  OB2 <--> |PMOD JB| Basys2
 
   %% --- Right Board ---
+
   subgraph Basys2[Basys 3]
     direction TB
     CPU2[Artix 7]
-    CPU2 --> D2[Diodes]
+
     CPU2 --> 7seg2[7seg]
     CPU2 --> B2[Buttons]
-    CPU2 --> Sw2[Switches]
   end
   
   Basys2 --> |VGA| Disp2[Display]
-  Basys2 <--> |USB/PS2| Kb2[Keyboard]
+  Basys2 <--> |USB| Kb2[Keyboard]

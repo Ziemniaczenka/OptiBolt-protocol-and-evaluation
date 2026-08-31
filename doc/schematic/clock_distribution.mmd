@@ -1,0 +1,18 @@
+---
+title: "Rozprowadzenie sygnałów zegarowych i resetu w projekcie"
+---
+%%{init: {'flowchart': {'curve': 'linear', 'nodeSpacing': 40, 'rankSpacing': 40}}}%%
+flowchart TD
+    PIN_CLK["Pin Wejściowy FPGA: clk (100 MHz)"] --> IBUF_INST["Bufor Wejściowy IBUF (u_ibuf_clk)"]
+    
+    IBUF_INST -->|clk_ibuf| WIZ0["clk_wiz_0 (MMCM)"]
+    IBUF_INST -->|clk_ibuf| WIZ1["clk_wiz_1 (MMCM)"]
+    
+    WIZ0 -->|clk_200MHz| DOM_200["Domena 200 MHz:<br>• optibolt_controller<br>• sampling_tick_generator<br>• manchester_codec"]
+    WIZ0 -->|clk_100MHz| DOM_100["Domena 100 MHz:<br>• top_evaluation<br>• keyboard_decoder<br>• optical_carrier_detector<br>• Port A BRAM"]
+    WIZ1 -->|clk_74p25MHz| DOM_74["Domena 74.25 MHz:<br>• vga_timing<br>• top_draw<br>• Port B BRAM"]
+
+    WIZ0 -.->|locked_0| RST_LOGIC{"Bramka Resetu"}
+    WIZ1 -.->|locked_1| RST_LOGIC
+    PIN_BTNC["Przycisk Reset btnC"] -.-> RST_LOGIC
+    RST_LOGIC -->|rst_n| GLOBAL_RST["Globalny Asynchroniczny Reset: rst_n"]
