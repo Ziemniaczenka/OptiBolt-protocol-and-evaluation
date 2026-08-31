@@ -32,9 +32,9 @@ flowchart LR
 
     %% Połączenia zewnętrzne (z/do modułu top)
     p_opt_rx -->|OptiBolt_rx| top
-    p_ps2_in -->|ui_ps2_in| top
-    top -->|ui_vga| p_vga
-    top -->|ui_seg7| p_seg7
+    p_ps2_in -->|PS/2| top
+    top -->|VGA| p_vga
+    top -->|7seg| p_seg7
     top -->|OptiBolt_tx| p_opt_tx
 
     classDef port fill:#e8f5e9,stroke:#2e7d32,stroke-width:1.5px;

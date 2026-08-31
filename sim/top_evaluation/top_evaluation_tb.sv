@@ -88,10 +88,7 @@ module top_evaluation_tb;
       .proto_eval_parity_error(1'b0),
       .proto_eval_manchester_code_error(1'b0),
       .proto_eval_preamble_error(1'b0),
-      .proto_eval_rx_carrier(1'b1),
-      .proto_eval_link_status(1'b1),
-      .proto_eval_ber_count(32'd0),
-      .proto_eval_err_count(16'd0)
+      .proto_eval_rx_carrier(1'b1)
   );
 
   tiff_writer #(
