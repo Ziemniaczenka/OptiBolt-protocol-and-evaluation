@@ -42,17 +42,12 @@ if ($SYNTH_LOG) {
 $IMPL_LOG = Get-ChildItem -Path $PROJECT_PATH -Filter "runme.log" -Recurse | Where-Object { $_.DirectoryName -match "impl_1" } | Select-Object -First 1
 
 if ($IMPL_LOG) {
-    $warnings = Get-Content $IMPL_LOG.FullName | Where-Object { $_ -notmatch $IMPL_IGNORE -and $_ -match 'CRITICAL|WARNING|ERROR' }
-    if ($warnings) {
-        $warnings | Out-File $LOG_FILE -Append -Encoding UTF8
-    } else {
-        "CLEAR :)`n" | Out-File $LOG_FILE -Append -Encoding UTF8
-    }
-} else {
-    "No implementation log file found!`n" | Out-File $LOG_FILE -Append -Encoding UTF8
+    $log_warns = Get-Content $IMPL_LOG.FullName | Where-Object { $_ -notmatch $IMPL_IGNORE -and $_ -match 'CRITICAL|WARNING|ERROR' }
+    if ($log_warns) { $impl_warnings += $log_warns }
 }
 
-$project_name = [System.IO.Path]::GetFileName((Get-Location).Path)
+# If runme.log did not list individual DRC warnings, extract them from drc_routed.rpt
+} elseif ($IMPL_LOG) {
 $escaped_project_name = [regex]::Escape($project_name)
 $content = Get-Content $LOG_FILE
 $pattern = "(?<=\[)(?:[A-Za-z]:)?[\\/][^\]]*?[\\/]$escaped_project_name[\\/]"

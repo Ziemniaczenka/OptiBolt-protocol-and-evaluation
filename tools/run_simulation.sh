@@ -62,8 +62,7 @@ function execute_test {
         xelab ${XELAB_OPTS} -debug typical
         xsim ${test_name}_tb -gui -t ${ROOT_DIR}/tools/sim_cmd.tcl
     else
-        xelab ${XELAB_OPTS} -standalone -runall \
-        | grep -ie '^\|fatal:\|error:\|critical\|warning:' --color=always
+        xelab ${XELAB_OPTS} -standalone -runall
     fi
 
     cd ..
@@ -73,8 +72,9 @@ function run_all {
     for test in $(find . -type f -name "*.prj" | sed 's|^\./||' | sed 's|/[^/]*$||'); do
         err_ctr=0
         echo -en "${test}:\t"
-        err_ctr=$(execute_test ${test} | grep -oic 'error')
-        if [ $err_ctr == 0 ]; then
+        output=$(execute_test ${test} 2>&1)
+        err_ctr=$(echo "$output" | grep -E -ic '^\s*(Error|ERROR|FATAL|Fatal):|\b(ERROR|FATAL):\s*\[|\[VRFC [0-9-]+\]\s*ERROR|\[XSIM [0-9-]+\]\s*ERROR|\bAssertion failed\b|\[FAIL\]')
+        if [ "$err_ctr" -eq 0 ]; then
             echo -e "\033[1;32m PASSED\033[0;39m"
         else
             echo -e "\033[1;31m FAILED\033[0;39m"
@@ -101,5 +101,5 @@ while getopts aglrs:t: option; do
 done
 
 if [[ ${test_name} ]]; then
-    execute_test ${test_name}
+    execute_test ${test_name} | grep -ie '^\|fatal:\|error:\|critical\|warning:' --color=always
 fi
