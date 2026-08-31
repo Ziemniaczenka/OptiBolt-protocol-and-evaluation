@@ -1,578 +1,266 @@
-# OptiBolt - Protocol and Evaluation
+# ⚡ OptiBolt - Protocol and Evaluation Platform
 
-**Autorzy:** *Tomasz Więcławski (@TomaszWieclawski), Sebastian Zoń (@Ziemniaczenka)*
+<div align="center">
 
-## Opis projektu
+![OptiBolt Logo](doc/image_sources/OptiBolt_logo_light.png#gh-light-mode-only)
+![OptiBolt Logo](doc/image_sources/OptiBolt_logo_dark.png#gh-dark-mode-only)
 
-  Prototyp hybrydowgo protokołu komunikacji OptiBolt i platforma ewaluacyjna.
+<br/>
 
-  Protokół fizycznie składa się z części elektrycznej (emulowanej) oraz światłowodowej (zrealizowanej na transcieverach TOSLINK).
+[![FPGA](https://img.shields.io/badge/FPGA-Xilinx_Artix--7_(Basys_3)-0055FF?logo=xilinx)](https://www.xilinx.com/)
+[![Language](https://img.shields.io/badge/Language-SystemVerilog-185699?logo=ieee)](https://standards.ieee.org/)
+[![Vivado](https://img.shields.io/badge/Vivado-2025.1_%2F_2021.2-purple)](https://www.xilinx.com/products/design-tools/vivado.html)
+[![Verification](https://img.shields.io/badge/Tests-_PASSED-success)](#8-weryfikacja-i-testy-symulacja-batch)
+[![Timing](https://img.shields.io/badge/Timing-WNS_+0.143ns-brightgreen)](#9-zasoby-i-marginesy-czasowe)
 
-  Platforma ewaluacyjna obsługuje podłącznie klawiatury i interfejsu VGA, służy do przeprowadzania testów interfejsu i wyświetlania rezultatów.
+</div>
 
+> **Projekt zrealizowany w ramach przedmiotu Układy Elektroniki Cyfrowej 2 (MTM UEC2) na Wydziale EAIiIB AGH.**  
+> **Autorzy:** Sebastian Zoń ([@Ziemniaczenka](https://github.com/Ziemniaczenka)), Tomasz Więcławski ([@TomaszWieclawski](https://github.com/TomaszWieclawski))  
+> **Repozytorium:** [OptiBolt-protocol-and-evaluation](https://github.com/Ziemniaczenka/OptiBolt-protocol-and-evaluation)
 
-## TODO
-
-<details open>
-<summary><b><big> Lista Zadań </big></b></summary>
-
-*   <details open>
-    <summary><b>Harmonogram </b></summary>
-
-    | Date | Week | Task | Who | Status |
-    |:---:  | :---: | :---                                                | :---:             | :---:   |
-    | 13.04 | 1 | Inicjalizacja projektu, dobór elementów                 | Wszyscy           | 🟢 Done |
-    | 20.04 | 2 | Funkcja drawstring                                      | @Ziemniaczenka    | 🟢 Done |
-    | 27.04 | 3 | Schematy w readme                                       | @Ziemniaczenka    | 🟢 Done |
-    | 27.04 | 3 | Zarys protokołu                                         | @TomaszWieclawski | 🟢 Done |
-    | 4.05  | 4 | PRZERWA (Egzamin 0 UEA2)                                | @Ziemniaczenka    | 🟢 Done |
-    | 11.05 | 5 | Pozostałe funkcje draw, top_draw                        | @Ziemniaczenka    | 🟡 WiP  |
-    | 11.05 | 5 | Ustalenie parametrów i sygnałów sterujących protokołu   | @TomaszWieclawski | 🟡 WiP  |
-    | 18.05 | 6 | Klawiatura, wiersz poleceń                              | @Ziemniaczenka    | 🟡 WiP  |
-    | 18.05 | 6 | Przerobienie modułu UART na OptiBolt                    | @TomaszWieclawski | 🟡 WiP  |
-    | 25.05 | 7 | Złożenie hardware, generacja bitstreamu, pierwsze testy | Wszyscy           | 🟡 WiP  |
-    | 01.06 | 8 | Integracja protokołu z ewaluacją                        | Wszyscy           | 🔴 TODO |
-    | 08.06 | 9 | Testy końcowe i finalizacja dokumentacji                | Wszyscy           | 🔴 TODO |
-    | 15.06 | 10| 16.06 PIERWSZY TERMIN ODDANIA PROJEKTU                  | Wszyscy           | 🔴 TODO |
-    </details>
-
-    <details open>
-    <summary><b>Lista pytań </b></summary>
-
-    - Czy możemy korzystać z innych modułów?
-      - VHDL od myszki np.
-      - Verilog od UART
-      - SystemVerilog z internetu
-      - TAK
-    - Jaki reset ma być?
-      - Asynchroniczny zanegowany (rst_n)
-    - Czy wyjścia z modułów mają być rejestrowalne?
-      - Powinny być chyba że jest konkretny powód by nie były
-    - Czy vivado sprawdza timing violation by default 
-      - Tak
-    - Czy dokumentacja końcowa może być w Markdown zamiast DOCX?
-      - może być ale wyeksportowany do PDFa
-
-    </details>
-
-*   <details open>
-    <summary><b>Dokumentacja i konfiguracja </b></summary>
-
-    - [x] Ustalić nazwę projektu
-    - [x] Krótki opis
-    - [x] Git
-      - [x] Stworzyć Repo
-      - [x] Dowiedzieć się jak działają pull request i review
-    - [x] Napisać README
-    - [x] Dodać referencyjne dokumenty (np. zielony pdf z konwencjami)
-    - [ ] VSCode settings + formatter config
-    - [ ] Nauczyć się Markdown i Mermaid
-    - [ ] Przygotować raport
-      - [ ] Struktura plików
-      - [ ] Schematy
-    - [ ] Wyeksportować raport do PDF
-
-    </details>
-
-*   <details open>
-    <summary><b>Hardware</b></summary>
-
-    - [x] Znaleźć złącze
-    - [x] Narysować schemat
-    - [x] Zamówić brakujące części
-    - [x] Zlutować
-    </details>
-
-*   <details open>
-    <summary><b>SystemVerilog </b></summary>
-
-    - [ ] Podział na moduły, diagram
-    - [ ] Testbenche do grup modułów
-    - [x] Sprawdzić czy Vivado robi timing analisys by default
-    - [x] Ustalenie Clock domains
-      - [ ] CDC pomiędzy sekcjami
-    </details>
-
-*   <details open>
-    <summary><b>Protokół</b></summary>
-
-    - [x] Założenia, teoria
-    - [x] Manchester encoder/decoder
-    - [x] Ustalić zakres BAUDRATE i Oversampling, min and max speed
-      - [x] tabela dopuszczalnych (lookup table)
-      - [x] enumy do maszyn stanów (IDLE, PREAMBLE, ERROR itp.)
-    - [ ] Warstwy modelu
-    - [ ] Rejestry konfiguracyjne do protokołu
-      - [ ] np. Baudrate
-      - [ ] sygnały sterujące (np. zmień baudrate)?
-        - [ ] odpowiedź zwrotna (wait, success, error)?
-        - [ ] Sterowanie przełącznikami / komendami
-    - [ ] Tryb testowy loopback
-    - [ ] Flowchart, Sequence diagrams
-    - [ ] Typy danych do przesyłania
-      - [ ] Dane konfiguracyjne
-      - [ ] Tekst
-      - [ ] Obraz/bitmapa
-        - [ ] Ramka początku bitmapy
-        - [ ] 
-        - [ ] Ramki bitmapy
-        - [ ] Ramka końca bitmapy
-        - [ ] Odpowiedź wystąpienia błędu gdyby się nie zgadzało
-      - [ ] 
-    </details>
-
-*   <details open>
-    <summary><b>Program testowy</b></summary>
-
-    - [ ] Wyświetlanie VGA
-      - [x] VGA Parameters include 
-      - [x] Ustalenie layoutu ekranu
-      - [x] DrawBitmap
-      - [x] DrawRect
-      - [x] DrawString
-        - [ ] Improve code
-        - [ ] Make output registerable (add one cycle delay)
-        - [ ] Add more fonts
-      - [ ] DrawChart
-    - [ ] Obsługa klawiatury
-      - [x] Interfejs PS/2
-      - [x] Dekodowanie znaków
-      - [ ] Wpisywanie tekstu na ekran
-      - [ ] Detekcja komend
-      - [ ] Poruszanie się po interfejsie strzałkami
-    - [ ] Główny moduł sterujący
-      - [ ] Licznik błędów, wyliczenie BER
-    - [ ] Różne testy (max baudrate, BER, latency, wysyłanie wiadomości, itd.)
-      - [ ] Ping (Latency test)
-      - [ ] Baudrate sweep
-      - [ ] Generate bitmap
-        - [ ] Losowe kolory dane
-        - [ ] Przesył do drugiego basysa
-      - [ ] ???
-    </details>
-
-</details>
-
-## Narzędzia i materiały dodatkowe
-
-<details open>
-<summary><b><big> Lista Narzędzi </big></b></summary>
-
-*   <details open>
-    <summary><big>VSCode </big></summary>
-    
-    * **Rozszerzenia**
-      * SystemVerilog
-        * Verilog-HDL/SystemVerilog/Bluespec SystemVerilog by Masahiro Hiramori
-          * Verible
-        * DVT IDE for Verilog/SystemVerilog/VHDL/e Language by AMIQ EDA s.r.l.
-          * Dostępne tylko w pracowni!
-      * Dokumentacja
-        * Markdown
-          * Markdown All in One
-          * Markdown Preview Mermaid Support
-        * vscode-pdf
-        * TIFF Preview
-        * Docx/ODT Viewer
-        
-      * Git
-        * GitHub Pull Requests
-
-    </details>
-
-*   <details open>
-    <summary><big>Materiały dodatkowe </big></summary>
-    
-    * **Zasady kodowania**
-      * [wikiMTM](https://wiki.mtm.agh.edu.pl/pl/students/courses/uec/sv-rtl-coding-rules)
-      * [PDF](doc/mtm-digital-guidelines.pdf)
-  
-    * **SystemVerilog**
-      * [ChipVerify Tutorial](https://www.chipverify.com/systemverilog/systemverilog-tutorial)
-      * CDC (Clock Domain Crossing)
-        * [CV CDC](https://www.chipverify.com/rtl-synthesis/clock-domain-crossing)
-        * [MTM wiki](https://wiki.mtm.agh.edu.pl/pl/students/courses/uec/cdc)
-      * OOP (not relevant)
-        * [CV Classes](https://www.chipverify.com/systemverilog/systemverilog-class)
-      * UVM (not relevant)
-        * <details>
-          <summary><a href="https://www.chipverify.com/uvm/uvm-tutorial">CV OVM Tutorial</a></summary>
-
-          * >**Common Beginner Mistakes:**\
-            Mistake #1: Trying to Learn UVM Without SystemVerilog OOP\
-            Mistake #2: Reading the UVM Reference Manual First\
-            Mistake #3: Trying to Understand All of UVM at Once\
-            Mistake #4: Not Running Code While Learning
-          * > **UVM Learning Curve in Industry**\
-            Professional verification teams typically train new engineers with this timeline:<br> 
-            **Week 1-2:** SystemVerilog OOP refresher and basic UVM concepts.<br> 
-            **Week 3-4:** Build a simple UVM testbench from scratch (UART, I2C, SPI).<br> 
-            **Week 5-8:** Work on a real project under mentorship, extending existing environments.<br> 
-            **Month 3-6:** Independent contribution to verification IP development. Most engineers become proficient within 6 months of hands-on practice, even without prior UVM experience—if they have strong SystemVerilog foundations.
-          </details>         
-  
-        * [Vivado docs](https://docs.amd.com/r/en-US/ug900-vivado-logic-simulation/Vivado-Simulator-Compilation-Options)  
-    * **Basys 3**
-      * [Reference manual](https://digilent.com/reference/programmable-logic/basys-3/reference-manual)
-    * **Informacje na temat protokołu**
-      * [Hardware 1](https://vksdr.com/pmod/)   
-      * [Hardware 2](https://tomverbeure.github.io/2021/01/18/SPDIF-Output-PMOD.html)   
-      * [Toslink info](https://w2.electrodragon.com/Network-dat/fiber-optic-dat/TOSLINK-dat/TOSLINK-dat.md)
-    * **Git**
-      * [Poradnik gita](https://git-scm.com/book/pl/v2)
-    * **Markdown**
-      * GitHub Flavored Markdown
-        * [Tutorial](https://docs.github.com/en/get-started/writing-on-github)
-      * Mermaid
-        * [Online editor](https://mermaid.ai/live/)
-        * [Docs](https://mermaid.js.org/intro/)
-    * **Grafiki**
-      * [Lopaka - pixelart](https://lopaka.app/)
-
-    </details>
-
-</details>
-
-## Architektura Sprzętowa
-
-<details open>
-<summary><b><big>Schemat Blokowy Połączeń </big></b></summary>
-
-```mermaid
 ---
-title: Schemat Blokowy Połączeń
+
+## Spis Treści
+- [⚡ OptiBolt - Protocol and Evaluation Platform](#-optibolt---protocol-and-evaluation-platform)
+  - [Spis Treści](#spis-treści)
+  - [1. Opis Projektu](#1-opis-projektu)
+  - [2. Główne Funkcjonalności](#2-główne-funkcjonalności)
+  - [3. Architektura Sprzętowa (Hardware Setup)](#3-architektura-sprzętowa-hardware-setup)
+    - [Schemat Modułu OptiBolt PMOD (TOSLINK Transceiver):](#schemat-modułu-optibolt-pmod-toslink-transceiver)
+  - [4. Architektura Systemu (Top-Level)](#4-architektura-systemu-top-level)
+    - [Zestawienie Interfejsów Wewnętrznych:](#zestawienie-interfejsów-wewnętrznych)
+  - [5. Dystrybucja Zegarów i Reset](#5-dystrybucja-zegarów-i-reset)
+  - [6. Specyfikacja Protokołu OptiBolt](#6-specyfikacja-protokołu-optibolt)
+    - [Struktura Ramki Danych:](#struktura-ramki-danych)
+    - [Kody Nagłówków (Headers):](#kody-nagłówków-headers)
+    - [Diagram Działania Algorytmu:](#diagram-działania-algorytmu)
+  - [7. Platforma Ewaluacyjna (Interfejs VGA \& CLI)](#7-platforma-ewaluacyjna-interfejs-vga--cli)
+    - [Lista Komend CLI:](#lista-komend-cli)
+  - [8. Weryfikacja i Testy (Symulacja Batch)](#8-weryfikacja-i-testy-symulacja-batch)
+    - [Uruchomienie Wszystkich Testów (Batch Simulation):](#uruchomienie-wszystkich-testów-batch-simulation)
+    - [Podsumowanie Testów:](#podsumowanie-testów)
+  - [9. Zasoby i Marginesy Czasowe](#9-zasoby-i-marginesy-czasowe)
+    - [Wykorzystanie Zasobów Układu (Post-Implementation Utilization):](#wykorzystanie-zasobów-układu-post-implementation-utilization)
+    - [Marginesy Czasowe (Timing Summary):](#marginesy-czasowe-timing-summary)
+  - [10. Struktura Katalogów](#10-struktura-katalogów)
+  - [11. Autorzy](#11-autorzy)
+
 ---
-flowchart LR
-  %%{init: {'flowchart': {'curve': 'linear'}}}%%
 
-  %% --- Left Board ---
+## 1. Opis Projektu
 
-  Disp1[Display] --> |VGA| Basys1 
-  Kb1[Keyboard] <--> |USB| Basys1
-
-  subgraph Basys1[Basys 3]
-    direction TB
-    CPU1[Artix 7]
-    CPU1 --> D1[Diodes]
-    CPU1 --> 7seg1[7seg]
-    CPU1 --> B1[Buttons]
-    CPU1 --> Sw1[Switches]
-  end
-
-  %% --- Left OptiBolt ---
-  subgraph OB1[OptiBolt]
-    direction LR
-    Tx1[Tx]
-    Rx1[Rx]
-  end
-
-  Basys1 <--> |PMOD| OB1
-
-  %% --- Right OptiBolt ---
-  subgraph OB2[OptiBolt]
-    direction LR
-    Rx2[Rx]
-    Tx2[Tx]
-  end
-
-  %% --- Central Optical Link ---
-  Tx1 ==> |TOSLINK| Rx2 
-  Rx1 ~~~  Tx2 ==> |TOSLINK| Rx1 
-  Tx2 ~~~ Rx1
-
-  OB2 <--> |PMOD| Basys2
-
-  %% --- Right Board ---
-
-  subgraph Basys2[Basys 3]
-    direction TB
-    CPU2[Artix 7]
-    CPU2 --> D2[Diodes]
-    CPU2 --> 7seg2[7seg]
-    CPU2 --> B2[Buttons]
-    CPU2 --> Sw2[Switches]
-  end
-  
-  Basys2 --> |VGA| Disp2[Display]
-  Basys2 <--> |USB| Kb2[Keyboard]
-```
-
-</details>
-
-<details open>
-<summary><b><big>Schemat Modułu OptiBolt PMOD </big></b></summary>
-
-<!-- Dwa pliki z odwróconym kolorem dla jasnego i ciemnego motywu -->
-
-![OptiBolt transceiver schematic](/doc/schematic/OptiBolt_transceiver_light.svg#gh-light-mode-only)
-![OptiBolt transceiver schematic](/doc/schematic/OptiBolt_transceiver_dark.svg#gh-dark-mode-only)
-
-</details>
-
-## Architektura Ogólna
-<details open>
-<summary><b><big>Schemat Połączeń Między Sekcjami (WiP) </big></b></summary>
-
-``` mermaid
-  flowchart LR
-    %%{init: {'flowchart': {'curve': 'linear'}}}%%
-
-    %% Modules
-
-    VGA[VGA]
-    
-    Eval[Evaluation 
-    Platform]
-    Eval@{shape: hex}
-    style Eval font-size:24px
-
-    OptiBolt[OptiBolt 
-    Protocol]
-    OptiBolt@{shape: hex}
-    style OptiBolt font-size:24px
-
-    Tx["OptiBolt Tx
-        JB1:A14"]
-    Rx["OptiBolt Rx
-        B3:B15"]
-    PlugDetect["PlugDetect
-        (Switch 1)"]
-    
-
-    %% Connections TODO: zgodne nazwy portów i połączeń, pozostałe moduły
-
-    VGA ~~~ Eval
-    Eval ===>|VGA_if| VGA
+**OptiBolt** to prototyp **hybrydowego protokołu komunikacji optyczno-elektrycznej** wraz z **platformą ewaluacyjną** na układy FPGA Xilinx Artix-7 (Digilent Basys 3).
 
 
-    %% Tu opisać wszystkie połączenia między Eval a OptiBolt
-    Eval --> |"Sygnał [3:0] "| OptiBolt
-    OptiBolt ==>|magistrala| Eval
-
-    OptiBolt ~~~ Rx 
-    OptiBolt -->|Tx| Tx
-    OptiBolt ~~~ Rx 
-    Rx--> |Rx| OptiBolt
-    %%Rx ~~~ OptiBolt
-    OptiBolt ~~~ PlugDetect 
-    
-    PlugDetect -->|PlugDetect| OptiBolt
-    PlugDetect ~~~ OptiBolt
-
-```
-</details>
-
-``` mermaid
-  flowchart TD
-    %% Definicje stylów
-    classDef ext_port fill:#e8f5e9,stroke:#43a047,stroke-width:2px,stroke-dasharray: 4 4,color:#1b5e20;
-    classDef inst fill:#e3f2fd,stroke:#1e88e5,stroke-width:2px,color:#0d47a1;
-
-    %% Style zgrupowań 
-    style top fill:transparent,stroke:#9e9e9e,stroke-width:2px,color:#000000
-    style Grp_In fill:transparent,stroke:#43a047,stroke-width:1px,stroke-dasharray: 2 2,color:#1b5e20
-    style Grp_Out fill:transparent,stroke:#43a047,stroke-width:1px,stroke-dasharray: 2 2,color:#1b5e20
-    style Grp_InOut fill:transparent,stroke:#43a047,stroke-width:1px,stroke-dasharray: 2 2,color:#1b5e20
-
-    %% ================= INTERFEJSY ZEWNĘTRZNE =================
-
-    subgraph Grp_In ["Interfejsy Wejściowe (INPUT)"]
-        direction TB
-        Opt_RX(["Kabel optyczny RX"]):::ext_port
-        Clocks(["Zegary"]):::ext_port
-    end
-
-    subgraph Grp_InOut ["Interfejsy Dwukierunkowe (INOUT)"]
-        direction TB
-        PS2(["Interfejs Klawiatury PS/2"]):::ext_port
-    end
-
-    subgraph Grp_Out ["Interfejsy Wyjściowe (OUTPUT)"]
-        direction TB
-        UI_Video(["VGA display"]):::ext_port
-        UI_Seg(["Wyświetlacz 7 segmentowy"]):::ext_port
-        Opt_TX(["Kabel optyczny TX"]):::ext_port
-    end
-
-    %% ================= WNĘTRZE MODUŁU TOP =================
-
-    subgraph top ["Moduł top"]
-        direction TB
-        Eval["u_top_evaluation"]:::inst
-        Detector["u_optical_carrier_detector"]:::inst
-        Bridge["u_optibolt_cdc_bridge"]:::inst
-        Ctrl["u_optibolt_controller"]:::inst
-    end
-
-    %% ================= POŁĄCZENIA INTERFEJSÓW =================
-
-    %% Wejścia -> Moduły
-    Opt_RX ==>|RX| Detector
-    Opt_RX ==>|RX| Ctrl
-    Clocks -.-> top
-
-    %% Dwukierunkowe
-    Eval <==>|Magistrala PS/2| PS2
-
-    %% Moduły -> Wyjścia
-    Eval ===|Magistrala VGA| UI_Video
-    Eval ===|Magistrala 7-seg| UI_Seg
-    Ctrl ===|TX| Opt_TX
-
-    %% Między modułami wewnątrz top
-    Detector -->|Sygnał detekcji| Eval
-    Eval <==>|Sygnały w domenie 100MHz| Bridge
-    Bridge <==>|Sygnały w domenie 200MHz| Ctrl
-```
-</details>
-
-
-## Architektura Protokołu OptiBolt
-
-``` mermaid
-  flowchart TD
-    %% Definicje stylów
-    classDef ext_port fill:#e8f5e9,stroke:#43a047,stroke-width:2px,stroke-dasharray: 4 4,color:#1b5e20;
-    classDef inst fill:#e3f2fd,stroke:#1e88e5,stroke-width:2px,color:#0d47a1;
-
-    %% Style zgrupowań 
-    style top fill:transparent,stroke:#9e9e9e,stroke-width:2px,color:#000000
-    style Grp_In fill:transparent,stroke:#43a047,stroke-width:1px,stroke-dasharray: 2 2,color:#1b5e20
-    style Grp_Out fill:transparent,stroke:#43a047,stroke-width:1px,stroke-dasharray: 2 2,color:#1b5e20
-
-    %% ================= INTERFEJSY ZEWNĘTRZNE =================
-
-    subgraph Grp_In ["Interfejsy Wejściowe (INPUT)"]
-        direction TB
-        Clocks(["Zegary i Reset"]):::ext_port
-        Config(["Konfiguracja protokołu"]):::ext_port
-        Opt_RX(["Kabel optyczny RX"]):::ext_port
-        TX_Data_In(["Magistrala wejściowa TX"]):::ext_port
-        RX_Ctrl_In(["Sterowanie odczytem RX"]):::ext_port
-    end
-
-    subgraph Grp_Out ["Interfejsy Wyjściowe (OUTPUT)"]
-        direction TB
-        Opt_TX(["Kabel optyczny TX"]):::ext_port
-        TX_Status(["Flagi statusu TX"]):::ext_port
-        RX_Data_Out(["Magistrala wyjściowa RX"]):::ext_port
-        RX_Errors(["Flagi błędów RX"]):::ext_port
-    end
-
-    %% ================= WNĘTRZE MODUŁU =================
-
-    subgraph top ["Moduł optibolt_controller"]
-        direction TB
-        TickGen["u_sampling_tick_generator"]:::inst
-        Dec["u_manchester_decoder"]:::inst
-        RxLogic["u_optibolt_receiver"]:::inst
-        RxFifo["u_rx_fifo"]:::inst
-        
-        TxFifo["u_tx_fifo"]:::inst
-        TxLogic["u_optibolt_transmitter"]:::inst
-        Cod["u_manchester_coder"]:::inst
-    end
-
-    %% ================= POŁĄCZENIA INTERFEJSÓW =================
-
-    %% Wejścia -> Moduły
-    Clocks -.-> top
-    Config ==>|Parametry konfiguracyjne| TickGen
-    Config ==>|Parametry konfiguracyjne| Dec
-    Config ==>|Parametry konfiguracyjne| Cod
-    
-    Opt_RX ==>|Strumień RX| Dec
-    
-    TX_Data_In ==>|Zapis danych| TxFifo
-    RX_Ctrl_In -->|Zezwolenie odczytu| RxFifo
-
-    %% Ścieżka odbiorcza (RX PATH) wewnątrz modułu
-    TickGen -->|Zegar próbkujący| Dec
-    Dec ==>|Odkodowany strumień bitów| RxLogic
-    RxLogic ==>|Odebrana ramka danych| RxFifo
-
-    %% Ścieżka nadawcza (TX PATH) wewnątrz modułu
-    TickGen -->|Zegar próbkujący| Cod
-    TxFifo ==>|Odczyt ramki danych| TxLogic
-    TxLogic <==>|Synchronizacja i bity TX| Cod
-    
-    %% Moduły -> Wyjścia
-    Cod ===>|Strumień TX| Opt_TX
-    
-    TxFifo ==>|Zapełnienie bufora| TX_Status
-    TxLogic -.->|Flaga zajętości nadajnika| TX_Status
-    
-    RxFifo ==>|Dane i status bufora| RX_Data_Out
-    RxLogic ==>|Diagnostyka| RX_Errors
-
-```
-</details>
-
-## Architektura Platformy Ewaluacji
-<details open>
-<summary><b><big>Schemat Platformy Ewaluacji (WiP) </big></b></summary>
-
-```mermaid
 ---
-title: Architektura Platformy Ewaluacji
+
+## 2. Główne Funkcjonalności
+
+- 💡 **Transceiver optyczny TOSLINK z kodowaniem Manchester (200 MHz)**:
+  - Prędkości transmisji: **100 kbps do 25 Mbps** z dynamicznym przełączaniem w locie.
+  - Programowalne nadpróbkowanie: **8x oraz 16x** z filtracją szumów *majority voting*.
+  - Ciągła zmiana stanów logicznych (DC-balance) niezbędna dla odbiorników światłowodowych ze sprzężeniem AC.
+  - Automatyczna synchronizacja fazowa z 6-bitową preambułą i 2 bitami startu (`01010100`).
+- 🔄 **Mostek CDC (Clock Domain Crossing)**:
+  - Bezpieczne przekazywanie danych pomiędzy domenami 100 MHz i 200 MHz za pomocą asynchronicznych kolejek FIFO.
+  - Rozciągacze impulsów błędów (*Pulse Stretchers*) gwarantujące 100% rejestracji zdarzeń 200 MHz w domenie 100 MHz.
+- 🖥️ **Zaawansowana Platforma Ewaluacyjna (100 MHz & 74.25 MHz)**:
+  - Dedykowana „karta graficzna” generująca sygnał **VGA 720p (1280x720@60Hz)** z dwuportową pamięcią BRAM.
+  - Obsługa klawiatury USB przez PS/2 (dekoder scancode, wprowadzanie tekstu, obsługa strzałek i bufor historii 4 komend).
+  - Wbudowany wiersz poleceń **CLI** z komendami diagnostycznymi i interaktywnym menu popup.
+- ⚡ **Emulacja Kontraktów Zasilania (Power Delivery)**:
+  - Negocjacja ról: **Wall (Source)**, **Battery (Dual-Role)**, **Sink (Device)**.
+  - Wspierane profile napięciowe: **5V, 9V, 12V, 20V** oraz prądy od **0 do 9A** z detekcją konfliktów.
+- 📊 **Diagnostyka i Telemetria na Żywo**:
+  - Pomiary opóźnienia w obie strony **RTT (Ping)** z rozdzielczością pojedynczych cykli zegara.
+  - Automatyczny test przemiatania prędkości (**Baudrate Sweep**) od 100 kbps do 25 Mbps.
+  - Paski postępu ze wskaźnikiem zdrowia łącza (**Link Health %**) i licznikami błędów parzystości, preambuły i kodu Manchester.
+  - Strumieniowanie dynamicznej grafiki i bitmap 128x128 generowanych przez generator PRNG.
+
 ---
-flowchart LR
-  %%{init: {'flowchart': {'curve': 'linear'}}}%%
 
-  subgraph top_display
-    %% --- VGA ---
-    vga_pkg.sv
+## 3. Architektura Sprzętowa (Hardware Setup)
 
-    subgraph top_VGA.sv
-      vga_timing.sv
-      vga_draw.sv
-    end
+Dwa zestawy Basys 3 połączone są parą światłowodów TOSLINK (skrzyżowane połączenie TX $\leftrightarrow$ RX) wpiętych w moduły transreceiverów podłączone do złącza **PMOD JB**.
 
-    subgraph top_interface.sv
-      interface_fsm.sv
-    end
-      
+![Hardware Schematic](doc/schematic/hardware_schematic.png)
 
-  
-    display_buffer.sv
-    draw_graph.sv
-    draw_rect.sv
-    draw_line.sv
+### Schemat Modułu OptiBolt PMOD (TOSLINK Transceiver):
 
-    subgraph write_string.sv
-      write_char.sv
-      font.sv
-    end
+![OptiBolt transceiver schematic](doc/schematic/OptiBolt_transceiver_light.svg#gh-light-mode-only) 
+![OptiBolt transceiver schematic](doc/schematic/OptiBolt_transceiver_dark.svg#gh-dark-mode-only)
 
-  end
-  subgraph top_keyboard.sv
-    read_command.sv
+---
 
-  end
-  subgraph top_test.sv
-    test_fsm.sv
-    BER_test.sv
-    bandwidth_test.sv
-  end
+## 4. Architektura Systemu (Top-Level)
 
+Główny moduł strukturalny [`rtl/top.sv`](rtl/top.sv) łączy ewaluację z protokołem:
 
+![Top Level Schematic](doc/schematic/top_schematic.png)
+
+### Zestawienie Interfejsów Wewnętrznych:
+1. **`eval_proto` (100 MHz)**: Żądana prędkość, nadpróbkowanie oraz strob zapisu `{tx_type, tx_data}` do kolejki nadawczej FIFO.
+2. **`proto_eval` (100 MHz)**: Odebrane zdekodowane bajty `{rx_type, rx_data}`, flagi zapełnienia buforów oraz impulsy błędów telemetrii.
+3. **`bridge_proto` (200 MHz)**: Zsynchronizowana konfiguracja prędkości, zezwolenie na odczyt z bufora FIFO i start transmisji.
+4. **`proto_bridge` (200 MHz)**: Zdekodowane ramki z odbiornika, status nadajnika oraz surowe impulsy błędów kodowania.
+5. **`proto_eval_carrier`**: Sygnał z detektora obecności nośnej optycznej [`optical_carrier_detector.sv`](rtl/helpers/optical_carrier_detector.sv).
+
+---
+
+## 5. Dystrybucja Zegarów i Reset
+
+Układ wykorzystuje 3 niezależne domeny zegarowe generowane przez dwa sprzętowe bloki MMCM (`clk_wiz_0` i `clk_wiz_1`):
+
+![Clock Distribution](doc/schematic/clock_distribution.png)
+
+- **74.25 MHz (`clk74p25`)**: Taktowanie układu wyświetlania VGA w standardzie 1280x720p@60Hz.
+- **100.00 MHz (`clk100`)**: Główny zegar platformy ewaluacji, kontrolera klawiatury PS/2 i konsoli CLI.
+- **200.00 MHz (`clk200`)**: Zegar rdzenia protokołu OptiBolt, zapewniający wysokie nadpróbkowanie przy prędkościach do 25 Mbps.
+- **Reset globalny (`rst_n`)**: Asynchroniczny reset aktywny stanem niskim, wyzwalany z przycisku `btnC` oraz bramkowany sygnałami `LOCKED` z obu generatorów MMCM.
+
+---
+
+## 6. Specyfikacja Protokołu OptiBolt
+
+### Struktura Ramki Danych:
+Każda ramka składa się z 15 bitów logicznych (kodowanych manchesterem jako 30 stanów fizycznych):
+
+| Preambuła | Bity Startu | Header (Typ) | Dane Użyteczne | Bit Parzystości | Bit Stopu |
+|:---:|:---:|:---:|:---:|:---:|:---:|
+| `010101` (6 bitów) | `00` (2 bity) | `[2:0]` (3 bity) | `[7:0]` (8 bitów) | Even Parity (1 bit) | `1` (1 bit) |
+
+### Kody Nagłówków (Headers):
+| Kod | Nazwa | Przeznaczenie |
+|:---:|---|---|
+| `000` | **`MSG_CAPABILITIES`** | Nawiązywanie połączenia (Handshake), autoryzacja 8-bitowym tokenem PRNG i detekcja Loopback |
+| `001` | **`MSG_REQUEST`** | Komendy sterujące: żądanie pomiaru Ping (`0xA5`), start/stop Sweep (`0xE0`/`0xE1`), zmiana prędkości |
+| `010` | **`MSG_ACCEPT`** | Potwierdzenie nawiązania połączenia / ACK |
+| `011` | **`MSG_DENIED`** | Kod zarezerwowany w specyfikacji protokołu (odpowiednik NACK) |
+| `100` | **`MSG_TEXT`** | Transmisja znaków tekstu w standardzie ASCII z bufora konsoli |
+| `101` | **`MSG_BITMAP`** | Strumieniowanie dynamicznej grafiki 128x128 pikseli w formacie RGB444 (2 bajty / piksel) |
+| `110` | **`MSG_POWER`** | Negocjacja parametrów zasilania: role `{role[1:0], volt_id[1:0], amps[3:0]}` |
+| `111` | **`MSG_SWEEP`** | Pakiety testowe automatycznego pomiaru przepustowości |
+
+### Diagram Działania Algorytmu:
+![Algorithm Flowchart](doc/schematic/algorithm_flowchart.png)
+
+---
+
+## 7. Platforma Ewaluacyjna (Interfejs VGA & CLI)
+
+Interfejs graficzny VGA 720p podzielony jest na ergonomiczne panele:
+1. **Panel Statusu**: Wyświetla stan połączenia (*DISCONNECTED*, *LOOPBACK*, *CONNECTED*), aktywną prędkość, oversampling oraz informacje o kontrakcie zasilania.
+2. **Konsola Tekstowa CLI**: Okno logów i czatu z buforem w pamięci Dual-Port BRAM.
+3. **Wskaźniki Telemetrii**: Logarytmiczne paski błędów Parity, Preamble, Manchester oraz dynamiczny pasek zdrowia łącza.
+4. **Okno Grafiki (128x128)**: Podgląd strumieniowanych dynamicznie bitmap.
+
+### Lista Komend CLI:
+- `/help` — Wyświetlenie listy dostępnych poleceń.
+- `/ping` — Pomiar czasu opóźnienia RTT w obie strony.
+- `/baud <100k|500k|1.0m|2.5m|5.0m|10.0m|20.0m|25.0m>` — Dynamiczna rekonfiguracja prędkości.
+- `/os <8x|16x>` — Przełączenie trybu nadpróbkowania.
+- `/sweep` — Uruchomienie automatycznego testu przemiatania pasma.
+- `/bitmap send` / `/bitmap clear` — Generowanie i transmisja losowej grafiki PRNG lub czyszczenie bufora.
+- `/power role <wall|battery|sink>` — Ustawienie roli zasilania.
+- `/power in <5|9|12|20> <1-9>` / `/power out <5|9|12|20> <1-9>` — Konfiguracja tablicy zasilania.
+- `/power ready` / `/power off` — Rozpoczęcie negocjacji kontraktu lub jego zerwanie.
+
+---
+
+## 8. Weryfikacja i Testy (Symulacja Batch)
+
+Projekt posiada zestaw **26 dedykowanych środowisk testowych (Testbenches)** weryfikujących wszystkie warstwy logiczne.
+
+### Uruchomienie Wszystkich Testów (Batch Simulation):
+- **Na systemie Linux**:
+  ```bash
+  ./tools/run_simulation.sh -a
+  ```
+- **Na systemie Windows (PowerShell)**:
+  ```powershell
+  .\tools\run_simulation.ps1 -a
+  ```
+
+### Podsumowanie Testów:
+| Kategoria | Moduły Testowane | Rezultat |
+|---|---|:---:|
+| **Transceiver & Codec** | `optibolt_controller`, `fwft_fifo` | 🟢 **PASSED** |
+| **Kontrola Łącza & Handshake** | `link_handshake`, `optibolt_link_manager`, `power_negotiator` | 🟢 **PASSED** |
+| **Konsola i Parser CLI** | `eval_cli_input`, `eval_cmd_exec`, `eval_console_buffer`, `keyboard_decoder`, `top_keyboard` | 🟢 **PASSED** |
+| **Układ Graficzny VGA** | `vga_timing`, `top_display`, `draw_bg`, `draw_rect`, `draw_string`, `draw_bitmap`, `draw_button`, `draw_progress_bar`, `draw_popup`, `draw_dyn_bitmap` | 🟢 **PASSED** |
+| **Integracja Systemowa** | `dual_device`, `evaluation_controller`, `evaluation_system`, `top_evaluation`, `top_rtl` | 🟢 **PASSED** |
+
+---
+
+## 9. Zasoby i Marginesy Czasowe
+
+Projekt został zaimplementowany na układzie **Xilinx Artix-7**:
+
+### Wykorzystanie Zasobów Układu (Post-Implementation Utilization):
+| Zasób FPGA | Wykorzystanie | Dostępne w xc7a35t | % Wykorzystania |
+|---|:---:|:---:|:---:|
+| **Slice LUTs** | **19 754** | 20 800 | **94.97%** |
+| ↳ *LUT as Logic* | 19 014 | 20 800 | 91.41% |
+| ↳ *LUT as Memory (LUTRAM)* | 740 | 9 600 | 7.71% |
+| **Slice Registers** | **9 218** | 41 600 | **22.16%** |
+| **Slices** | **5 769** | 8 150 | **70.79%** |
+| **F7 Muxes** | **889** | 16 300 | 5.45% |
+| **F8 Muxes** | **170** | 8 150 | 2.09% |
+| **Block RAM Tile (RAMB36/18)** | **30** | 50 (100x18k) | **60.00%** |
+| **DSP48E1 Blocks** | **6** | 90 | **6.67%** |
+| **Bonded IOB (User I/O)** | **33** | 106 | **31.13%** |
+| **MMCME2_ADV (Zegary)** | **2** | 5 | **40.00%** |
+| **BUFGCTRL (Bufory zegarowe)** | **5** | 32 | **15.63%** |
+| **BUFHCE** | **3** | 72 | **4.17%** |
+
+### Marginesy Czasowe (Timing Summary):
+| Typ analizy | Worst Slack | Total Negative Slack | Failing Endpoints | Total Endpoints | Status |
+|---|:---:|:---:|:---:|:---:|:---:|
+| **Setup (WNS)** | **`+0.143 ns`** | `0.000 ns` | 0 | 23 443 | 🟢 **Met** |
+| **Hold (WHS)** | **`+0.037 ns`** | `0.000 ns` | 0 | 23 443 | 🟢 **Met** |
+| **Pulse Width (WPWS)** | **`+1.250 ns`** | `0.000 ns` | 0 | 10 480 | 🟢 **Met** |
+
+> **Wszystkie wymagania czasowe zostały spełnione (*All user specified timing constraints are met*).**
+
+---
+
+## 10. Struktura Katalogów
+
+```text
+OptiBolt-protocol-and-evaluation/
+├── doc/                        # Dokumentacja, schematy, raport PDF
+│   ├── schematic/              # Schematy blokowe i ideowe
+│   ├── checklist.pdf           # Checklista wymagań
+│   └── report.pdf              # Raport końcowy projektu
+├── fpga/                       # Pliki projektu Vivado, pliki ograniczeń XDC i skrypty MMCM
+│   ├── constraints/            # Pliki ograniczeń czasowych i pinoutu (.xdc)
+│   ├── rtl/                    # Moduły specyficzne dla płytki (top_basys3)
+│   └── scripts/                # Skrypty Tcl do budowania projektu
+├── results/                    # Plik wynikowy bitstreamu (.bit) oraz logi ostrzeżeń
+│   └── top_basys3.bit          # Wygenerowany bitstream dla Basys 3
+├── rtl/                        # Źródła SystemVerilog (kod logiki protokołu i ewaluacji)
+│   ├── helpers/                # Mostek CDC, kolejki FIFO, pamięci BRAM, detektor nośnej
+│   ├── protocol/               # Transceiver OptiBolt, koder/dekoder Manchester
+│   ├── evaluation/             # Platforma ewaluacji, konsola CLI, grafika VGA 720p, PS/2
+│   └── top.sv                  # Główny moduł strukturalny projektu
+├── sim/                        # Środowiska testowe (testbenche)
+│   ├── common/                 # Wspólne pakiety symulacyjne i biblioteki pomocnicze
+│   ├── dual_device/            # Testbench komunikacji dwóch urządzeń OptiBolt
+│   └── ...                     # Testbenche jednostkowe poszczególnych modułów
+├── tools/                      # Skrypty automatyzacji symulacji i analizy warningów
+│   ├── run_simulation.sh       # Automatyczna symulacja batch (Linux)
+│   ├── run_simulation.ps1      # Automatyczna symulacja batch (Windows)
+│   ├── warning_summary.sh      # Ekstraktor ostrzeżeń Vivado (Linux)
+│   └── warning_summary.ps1     # Ekstraktor ostrzeżeń Vivado (Windows)
+├── README.md                   # Dokumentacja projektu
+└── .gitignore                  # Reguły ignorowania plików tymczasowych gita
 ```
-</details>
 
-<details open>
-<summary><b><big>Opis Funkcjonalności Głównych bloków (WiP) </big></b></summary>
+---
 
-  * Tests:
-    * `top_test.sv`
-      * description
-    * `test_fsm.sv`
-      * managing running multiple tests, solving conflicts
-  * Keyboard:
-    * `read_command.sv`
-      * read arrow key inputs in interface
-      * read input letters from keyboard to either run tests or send message to second board
-  * Display:
-    * `top_draw.sv`
-      * Main VGA module with interface displayed 
+## 11. Autorzy
+- **Sebastian Zoń** ([@Ziemniaczenka](https://github.com/Ziemniaczenka))
+- **Tomasz Więcławski** ([@TomaszWieclawski](https://github.com/TomaszWieclawski))
 
-</details>
+*Projekt zrealizowany w Katedrze Metrologii i Elektroniki (AGH MTM UEC2 2026).*
