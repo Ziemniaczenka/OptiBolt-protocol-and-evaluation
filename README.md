@@ -37,14 +37,18 @@
     - [Diagram Działania Algorytmu:](#diagram-działania-algorytmu)
   - [7. Platforma Ewaluacyjna (Interfejs VGA \& CLI)](#7-platforma-ewaluacyjna-interfejs-vga--cli)
     - [Lista Komend CLI:](#lista-komend-cli)
-  - [8. Weryfikacja i Testy (Symulacja Batch)](#8-weryfikacja-i-testy-symulacja-batch)
+  - [8. Wyniki Pomiarów i Analiza Wydajności](#8-wyniki-pomiarów-i-analiza-wydajności)
+    - [8.1. Zestawienie Prędkości: Mbps, MBaud i Przepustowość Danych](#81-zestawienie-prędkości-mbps-mbaud-i-przepustowość-danych)
+    - [8.2. Pomiar Czasu Opóźnienia RTT (Ping)](#82-pomiar-czasu-opóźnienia-rtt-ping)
+    - [8.3. Pomiar Czasu Transmisji Bitmapy 128x128](#83-pomiar-czasu-transmisji-bitmapy-128x128)
+  - [9. Weryfikacja i Testy (Symulacja Batch)](#9-weryfikacja-i-testy-symulacja-batch)
     - [Uruchomienie Wszystkich Testów (Batch Simulation):](#uruchomienie-wszystkich-testów-batch-simulation)
     - [Podsumowanie Testów:](#podsumowanie-testów)
-  - [9. Zasoby i Marginesy Czasowe](#9-zasoby-i-marginesy-czasowe)
+  - [10. Zasoby i Marginesy Czasowe](#10-zasoby-i-marginesy-czasowe)
     - [Wykorzystanie Zasobów Układu (Post-Implementation Utilization):](#wykorzystanie-zasobów-układu-post-implementation-utilization)
     - [Marginesy Czasowe (Timing Summary):](#marginesy-czasowe-timing-summary)
-  - [10. Struktura Katalogów](#10-struktura-katalogów)
-  - [11. Autorzy](#11-autorzy)
+  - [11. Struktura Katalogów](#11-struktura-katalogów)
+  - [12. Autorzy](#12-autorzy)
 
 ---
 
@@ -140,7 +144,7 @@ Każda ramka składa się z 15 bitów logicznych (kodowanych manchesterem jako 3
 | `100` | **`MSG_TEXT`** | Transmisja znaków tekstu w standardzie ASCII z bufora konsoli |
 | `101` | **`MSG_BITMAP`** | Strumieniowanie dynamicznej grafiki 128x128 pikseli w formacie RGB444 (2 bajty / piksel) |
 | `110` | **`MSG_POWER`** | Negocjacja parametrów zasilania: role `{role[1:0], volt_id[1:0], amps[3:0]}` |
-| `111` | **`MSG_SWEEP`** | Pakiety testowe automatycznego pomiaru przepustowości |
+| `111` | **`MSG_SWEEP`** | Pakiety testowe automatycznego sprawdzenia częstotliwości |
 
 ### Diagram Działania Algorytmu:
 ![Algorithm Flowchart](doc/schematic/algorithm_flowchart.png)
@@ -166,9 +170,67 @@ Interfejs graficzny VGA 720p podzielony jest na ergonomiczne panele:
 - `/power in <5|9|12|20> <1-9>` / `/power out <5|9|12|20> <1-9>` — Konfiguracja tablicy zasilania.
 - `/power ready` / `/power off` — Rozpoczęcie negocjacji kontraktu lub jego zerwanie.
 
+## 8. Wyniki Pomiarów i Analiza Wydajności
+
+Pomiary przeprowadzono na rzeczywistym stanowisku laboratoryjnym złożonym z dwóch płytek Digilent Basys 3 połączonych parą światłowodów TOSLINK (tryb **Duplex**) oraz w pętli zwrotnej na pojedynczej płytce (tryb **Loopback**).
+
+### 8.1. Zestawienie Prędkości: Mbps, MBaud i Przepustowość Danych
+- **Kodowanie Manchester**: Każdy bit logiczny składa się z dwóch zboczy/stanów fizycznych (2 symbole/bit), co oznacza, że **prędkość symbolowa na światłowodzie (Baud Rate) jest dwukrotnie wyższa niż prędkość logiczna**: $\text{Baud Rate [MBaud]} = 2 \times \text{Bitrate Logiczny [Mbps]}$.
+- **Struktura Ramki i Narzut (Overhead)**: Każda 21-bitowa ramka logiczna zawiera 8 bitów danych użytecznych (payload), co daje sprawność transmisji $\eta = \frac{8}{21} \approx 38.1\%$.
+- **Maksymalna granica toru TOSLINK**: Transceiver optyczny posiada ograniczenie pasma do 16Mbps przy NRZ encoding.
+
+| Prędkość Logiczna | Prędkość Fizyczna (Baud) | Efektywny Bitrate Danych | Przepustowość Payloadu |
+|:---:|:---:|:---:|:---:|
+| **100 kbps** | 0.20 MBaud  | 38.1 kbps | 4.76 kB/s |
+| **1.00 Mbps** | 2.00 MBaud | 381.0 kbps | 47.62 kB/s |
+| **1.25 Mbps** | 2.50 MBaud | 476.2 kbps | 59.52 kB/s |
+| **2.50 Mbps** | 5.00 MBaud | 952.4 kbps | 119.05 kB/s |
+| **3.125 Mbps** | 6.25 MBaud | 1.19 Mbps | 148.81 kB/s |
+| **5.00 Mbps** | 10.00 MBaud | 1.90 Mbps | 238.10 kB/s |
+| **6.25 Mbps** | 12.50 MBaud | 2.38 Mbps | 297.62 kB/s |
+| **8.33 Mbps** | 16.67 MBaud | 3.17 Mbps | 396.83 kB/s |
+| **12.50 Mbps** | **25.00 MBaud** | **4.76 Mbps** | **595.24 kB/s** |
+| **25.00 Mbps** | 50.00 MBaud *(Poza pasmem optyki)* | — | — |
+
 ---
 
-## 8. Weryfikacja i Testy (Symulacja Batch)
+### 8.2. Pomiar Czasu Opóźnienia RTT (Ping)
+Pomiary opóźnienia w obie strony (Round-Trip Time) wykonano za pomocą sprzętowego timera wbudowanego w platformę ewaluacyjną (komenda `/ping`):
+
+| Prędkość | Tryb Duplex [$\mu$s] | Tryb Loopback [$\mu$s] |
+|:---:|:---:|:---:|
+| **100k** | 410 | 430 |
+| **1m** | 42 | 43 |
+| **1.25m** | 33 | 34 |
+| **2.5m** | 17 | 17 |
+| **3.125m** | 14 | 14 |
+| **5m** | 9 | 9 |
+| **6.25m** | 7 | 7 |
+| **8.33m** | 5 | 5 |
+| **12.5m** | **4** | **4** |
+| **25m** | — | — |
+
+---
+
+### 8.3. Pomiar Czasu Transmisji Bitmapy 128x128
+Test polegał na wygenerowaniu losowej grafiki RGB444 (16 384 pikseli = 32 768 bajtów / ramek) i przesłaniu jej przez łącze światłowodowe:
+
+| Prędkość | Duplex TX [ms] | Duplex RX [ms] | Loopback TX [ms] | Loopback RX [ms] |
+|:---:|:---:|:---:|:---:|:---:|
+| **100k** | 7 204 | 7 215 | 7 201 | 7 212 |
+| **1m** | 720 | 720 | 720 | 721 |
+| **1.25m** | 576 | 576 | 576 | 577 |
+| **2.5m** | 288 | 288 | 288 | 288 |
+| **3.125m** | 230 | 230 | 230 | 231 |
+| **5m** | 144 | 144 | 144 | 144 |
+| **6.25m** | 115 | 115 | 115 | 115 |
+| **8.33m** | **86** | **86** | 86 | 86 |
+| **12.5m   | 58 | — | **58** | **58** |
+| **25m** | — | — | — | — |
+
+---
+
+## 9. Weryfikacja i Testy (Symulacja Batch)
 
 Projekt posiada zestaw **26 dedykowanych środowisk testowych (Testbenches)** weryfikujących wszystkie warstwy logiczne.
 
@@ -193,7 +255,7 @@ Projekt posiada zestaw **26 dedykowanych środowisk testowych (Testbenches)** we
 
 ---
 
-## 9. Zasoby i Marginesy Czasowe
+## 10. Zasoby i Marginesy Czasowe
 
 Projekt został zaimplementowany na układzie **Xilinx Artix-7**:
 
@@ -225,7 +287,7 @@ Projekt został zaimplementowany na układzie **Xilinx Artix-7**:
 
 ---
 
-## 10. Struktura Katalogów
+## 11. Struktura Katalogów
 
 ```text
 OptiBolt-protocol-and-evaluation/
@@ -259,7 +321,7 @@ OptiBolt-protocol-and-evaluation/
 
 ---
 
-## 11. Autorzy
+## 12. Autorzy
 - **Sebastian Zoń** ([@Ziemniaczenka](https://github.com/Ziemniaczenka))
 - **Tomasz Więcławski** ([@TomaszWieclawski](https://github.com/TomaszWieclawski))
 
