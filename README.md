@@ -262,16 +262,17 @@ Projekt został zaimplementowany na układzie **Xilinx Artix-7**:
 ### Wykorzystanie Zasobów Układu (Post-Implementation Utilization):
 | Zasób FPGA | Wykorzystanie | Dostępne w xc7a35t | % Wykorzystania |
 |---|:---:|:---:|:---:|
-| **Slice LUTs** | **19 754** | 20 800 | **94.97%** |
-| ↳ *LUT as Logic* | 19 014 | 20 800 | 91.41% |
+| **Slice LUTs** | **19 747** | 20 800 | **94.94%** |
+| ↳ *LUT as Logic* | 19 007 | 20 800 | 91.38% |
 | ↳ *LUT as Memory (LUTRAM)* | 740 | 9 600 | 7.71% |
-| **Slice Registers** | **9 218** | 41 600 | **22.16%** |
-| **Slices** | **5 769** | 8 150 | **70.79%** |
+| **Slice Registers** | **9 200** | 41 600 | **22.12%** |
+| **Slices** | **5 723** | 8 150 | **70.22%** |
 | **F7 Muxes** | **889** | 16 300 | 5.45% |
 | **F8 Muxes** | **170** | 8 150 | 2.09% |
 | **Block RAM Tile (RAMB36/18)** | **30** | 50 (100x18k) | **60.00%** |
 | **DSP48E1 Blocks** | **6** | 90 | **6.67%** |
 | **Bonded IOB (User I/O)** | **33** | 106 | **31.13%** |
+| **OLOGIC** | **1** | 106 | **0.94%** |
 | **MMCME2_ADV (Zegary)** | **2** | 5 | **40.00%** |
 | **BUFGCTRL (Bufory zegarowe)** | **5** | 32 | **15.63%** |
 | **BUFHCE** | **3** | 72 | **4.17%** |
@@ -279,9 +280,9 @@ Projekt został zaimplementowany na układzie **Xilinx Artix-7**:
 ### Marginesy Czasowe (Timing Summary):
 | Typ analizy | Worst Slack | Total Negative Slack | Failing Endpoints | Total Endpoints | Status |
 |---|:---:|:---:|:---:|:---:|:---:|
-| **Setup (WNS)** | **`+0.143 ns`** | `0.000 ns` | 0 | 23 443 | 🟢 **Met** |
-| **Hold (WHS)** | **`+0.037 ns`** | `0.000 ns` | 0 | 23 443 | 🟢 **Met** |
-| **Pulse Width (WPWS)** | **`+1.250 ns`** | `0.000 ns` | 0 | 10 480 | 🟢 **Met** |
+| **Setup (WNS)** | **`+0.156 ns`** | `0.000 ns` | 0 | 23 461 | 🟢 **Met** |
+| **Hold (WHS)** | **`+0.037 ns`** | `0.000 ns` | 0 | 23 461 | 🟢 **Met** |
+| **Pulse Width (WPWS)** | **`+1.250 ns`** | `0.000 ns` | 0 | 10 462 | 🟢 **Met** |
 
 > **Wszystkie wymagania czasowe zostały spełnione (*All user specified timing constraints are met*).**
 
