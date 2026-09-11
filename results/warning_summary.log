@@ -1,6 +1,6 @@
 Warnings, critical warnings and errors from synthesis and implementation
 
-Created: 2026-08-31 21:22:52
+Created: 2026-09-11 20:27:38
 
 ----SYNTHESIS----
 WARNING: [Synth 8-6014] Unused sequential element history_buf_reg[0][0] was removed.  [rtl/evaluation/controller/eval_cli_input.sv:108]
@@ -150,14 +150,14 @@ INFO: [Project 1-461] DRC finished with 0 Errors
 38 Infos, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.
 INFO: [Vivado_Tcl 4-198] DRC finished with 0 Errors
 INFO: [Vivado_Tcl 4-198] DRC finished with 0 Errors, 21 Warnings
-INFO: [Physopt 32-1044] Break lutnm for timing: one critical 10, two critical 4, total 14, new lutff created 0
-83 Infos, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.
-94 Infos, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.
-107 Infos, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.
+INFO: [Physopt 32-1044] Break lutnm for timing: one critical 17, two critical 2, total 19, new lutff created 0
+84 Infos, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.
+95 Infos, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.
+108 Infos, 0 Warnings, 0 Critical Warnings and 0 Errors encountered.
 WARNING: [Power 33-332] Found switching activity that implies high-fanout reset nets being asserted for excessive periods of time which may result in inaccurate power analysis.
-124 Infos, 1 Warnings, 0 Critical Warnings and 0 Errors encountered.
+125 Infos, 1 Warnings, 0 Critical Warnings and 0 Errors encountered.
 INFO: [Vivado 12-3199] DRC finished with 0 Errors
-139 Infos, 1 Warnings, 0 Critical Warnings and 0 Errors encountered.
+140 Infos, 1 Warnings, 0 Critical Warnings and 0 Errors encountered.
 WARNING: [DRC CHECK-3] Report rule limit reached: REQP-1839 rule limit reached: 20 violations have been found.
 WARNING: [DRC DPIP-1] Input pipelining: DSP u_top/u_top_evaluation/u_top_display/u_top_draw/u_draw_logo/addr0 input u_top/u_top_evaluation/u_top_display/u_top_draw/u_draw_logo/addr0/A[29:0] is not pipelined. Pipelining DSP48 input will improve performance.
 WARNING: [DRC DPIP-1] Input pipelining: DSP u_top/u_top_evaluation/u_top_display/u_top_draw/u_draw_logo/addr0 input u_top/u_top_evaluation/u_top_display/u_top_draw/u_draw_logo/addr0/C[47:0] is not pipelined. Pipelining DSP48 input will improve performance.

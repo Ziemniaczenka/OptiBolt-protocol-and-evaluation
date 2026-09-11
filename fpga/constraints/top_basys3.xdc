@@ -298,13 +298,9 @@ set_property PACKAGE_PIN B17 [get_ports PS2Data]
 set_property CONFIG_VOLTAGE 3.3 [current_design]
 set_property CFGBVS VCCO [current_design]
 
-## Ignore timing violations on CDC synchronizers
-set_false_path -to [get_cells -hierarchical -filter {NAME =~ *sync_0_reg* || NAME =~ *sync_0_reg[*] || NAME =~ *tx_toggle_sync_0_reg* || NAME =~ *rx_toggle_sync_0_reg*}]
-
 ## Asynchronous Clock Groups
 set_clock_groups -asynchronous \
-    -group [get_clocks -include_generated_clocks clk_200MHz_clk_wiz_0] \
-    -group [get_clocks -include_generated_clocks clk_100MHz_clk_wiz_0] \
+    -group [get_clocks -include_generated_clocks {clk_100MHz_clk_wiz_0 clk_200MHz_clk_wiz_0}] \
     -group [get_clocks -include_generated_clocks clk_74p25MHz_clk_wiz_1]
 
 

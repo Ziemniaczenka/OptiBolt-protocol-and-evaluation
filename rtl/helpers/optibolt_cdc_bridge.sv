@@ -45,15 +45,15 @@ module optibolt_cdc_bridge (
     input  logic       preamble_error_200
 );
 
-  /* 1. Baudrate and Oversampling Settings Synchronizer (clk100 -> clk200) */
-  cdc_sync #(
-      .WIDTH(8)
-  ) u_cdc_settings (
-      .clk_dst(clk200),
-      .rst_n  (rst_n),
-      .d_in   ({eval_proto_baud_rate, eval_proto_oversampling}),
-      .d_out  ({baud_rate_200, oversampling_200})
-  );
+  always_ff @(posedge clk200 or negedge rst_n) begin
+    if (!rst_n) begin
+      baud_rate_200    <= 4'd1;
+      oversampling_200 <= 4'd0;
+    end else begin
+      baud_rate_200    <= eval_proto_baud_rate;
+      oversampling_200 <= eval_proto_oversampling;
+    end
+  end
 
   /* 2. Transmit Asynchronous FIFO (clk100 -> clk200, depth 32) */
   logic [10:0] tx_async_dout_200;
@@ -65,14 +65,11 @@ module optibolt_cdc_bridge (
   assign tx_type_200   = tx_async_dout_200[10:8];
   assign tx_data_200   = tx_async_dout_200[7:0];
 
-  cdc_sync #(
-      .WIDTH(1)
-  ) u_cdc_tx_idle (
-      .clk_dst(clk100),
-      .rst_n  (rst_n),
-      .d_in   (tx_idle_200),
-      .d_out  (tx_idle_100)
-  );
+
+  always_ff @(posedge clk100 or negedge rst_n) begin
+    if (!rst_n) tx_idle_100 <= 1'b1;
+    else tx_idle_100 <= tx_idle_200;
+  end
 
   assign proto_eval_tx_empty = tx_async_empty_100 && tx_idle_100;
 
@@ -135,59 +132,37 @@ module optibolt_cdc_bridge (
     end
   end
 
-  /* 4. Error Status Pulse Stretchers (3 cycles of clk200 = 15 ns > 10 ns of clk100) */
-  logic manchester_error_stretched, preamble_error_stretched, parity_error_stretched;
-  logic [1:0] man_stretch_cnt, pre_stretch_cnt, par_stretch_cnt;
+  // 4. Error synchronization (pulse stretching)
+
+  logic man_err_d1;  // delayed by 1 cycle
+  logic par_err_d1;
+  logic pre_err_d1;
 
   always_ff @(posedge clk200 or negedge rst_n) begin
     if (!rst_n) begin
-      man_stretch_cnt            <= 2'd0;
-      pre_stretch_cnt            <= 2'd0;
-      par_stretch_cnt            <= 2'd0;
-      manchester_error_stretched <= 1'b0;
-      preamble_error_stretched   <= 1'b0;
-      parity_error_stretched     <= 1'b0;
+      man_err_d1 <= 1'b0;
+      par_err_d1 <= 1'b0;
+      pre_err_d1 <= 1'b0;
     end else begin
-      if (manchester_error_200) begin
-        man_stretch_cnt            <= 2'd3;
-        manchester_error_stretched <= 1'b1;
-      end else if (man_stretch_cnt > 2'd0) begin
-        man_stretch_cnt            <= man_stretch_cnt - 2'd1;
-        manchester_error_stretched <= 1'b1;
-      end else begin
-        manchester_error_stretched <= 1'b0;
-      end
-
-      if (preamble_error_200) begin
-        pre_stretch_cnt          <= 2'd3;
-        preamble_error_stretched <= 1'b1;
-      end else if (pre_stretch_cnt > 2'd0) begin
-        pre_stretch_cnt          <= pre_stretch_cnt - 2'd1;
-        preamble_error_stretched <= 1'b1;
-      end else begin
-        preamble_error_stretched <= 1'b0;
-      end
-
-      if (parity_error_200) begin
-        par_stretch_cnt        <= 2'd3;
-        parity_error_stretched <= 1'b1;
-      end else if (par_stretch_cnt > 2'd0) begin
-        par_stretch_cnt        <= par_stretch_cnt - 2'd1;
-        parity_error_stretched <= 1'b1;
-      end else begin
-        parity_error_stretched <= 1'b0;
-      end
+      man_err_d1 <= manchester_error_200;
+      par_err_d1 <= parity_error_200;
+      pre_err_d1 <= preamble_error_200;
     end
   end
+  wire man_err_wide = manchester_error_200 || man_err_d1;
+  wire par_err_wide = parity_error_200 || par_err_d1;
+  wire pre_err_wide = preamble_error_200 || pre_err_d1;
 
-  /* 5. Error Status Synchronizer (clk200 -> clk100) */
-  cdc_sync #(
-      .WIDTH(3)
-  ) u_cdc_rx_err (
-      .clk_dst(clk100),
-      .rst_n(rst_n),
-      .d_in({preamble_error_stretched, parity_error_stretched, manchester_error_stretched}),
-      .d_out({proto_eval_preamble_error, proto_eval_parity_error, proto_eval_manchester_code_error})
-  );
+  always_ff @(posedge clk100 or negedge rst_n) begin
+    if (!rst_n) begin
+      proto_eval_manchester_code_error <= 1'b0;
+      proto_eval_parity_error <= 1'b0;
+      proto_eval_preamble_error <= 1'b0;
+    end else begin
+      proto_eval_manchester_code_error <= man_err_wide;
+      proto_eval_parity_error <= par_err_wide;
+      proto_eval_preamble_error <= pre_err_wide;
+    end
+  end
 
 endmodule
