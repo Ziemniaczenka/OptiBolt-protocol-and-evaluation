@@ -40,11 +40,30 @@ if ($SYNTH_LOG) {
 
 "`n----IMPLEMENTATION----" | Out-File $LOG_FILE -Append -Encoding UTF8
 $IMPL_LOG = Get-ChildItem -Path $PROJECT_PATH -Filter "runme.log" -Recurse | Where-Object { $_.DirectoryName -match "impl_1" } | Select-Object -First 1
+$DRC_RPT  = Get-ChildItem -Path $PROJECT_PATH -Filter "*drc_routed.rpt" -Recurse | Where-Object { $_.DirectoryName -match "impl_1" } | Select-Object -First 1
 
 if ($IMPL_LOG) {
+    $impl_warnings = @()
     $warnings = Get-Content $IMPL_LOG.FullName | Where-Object { $_ -notmatch $IMPL_IGNORE -and $_ -match 'CRITICAL|WARNING|ERROR' }
-    if ($warnings) {
-        $warnings | Out-File $LOG_FILE -Append -Encoding UTF8
+    if ($warnings) { $impl_warnings += $warnings }
+
+    # Extract individual DRC warnings from drc_routed.rpt
+    if ($DRC_RPT) {
+        $drc_content = Get-Content $DRC_RPT.FullName -Raw
+        $drc_matches = [regex]::Matches($drc_content, '([A-Z0-9_-]+)#\d+\s+Warning\s*\r?\n([^\r\n]+)\s*\r?\n([^\r\n]+)')
+        foreach ($m in $drc_matches) {
+            $rule   = $m.Groups[1].Value
+            $desc   = $m.Groups[2].Value.Trim()
+            $detail = $m.Groups[3].Value.Trim()
+            $drc_line = "WARNING: [DRC $rule] $desc`: $detail"
+            if ($drc_line -notmatch $IMPL_IGNORE) {
+                $impl_warnings += $drc_line
+            }
+        }
+    }
+
+    if ($impl_warnings.Count -gt 0) {
+        $impl_warnings | Out-File $LOG_FILE -Append -Encoding UTF8
     } else {
         "CLEAR :)`n" | Out-File $LOG_FILE -Append -Encoding UTF8
     }
